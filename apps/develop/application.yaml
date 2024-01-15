@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: drn-project-develop
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    path: apps/develop/services
+    targetRevision: 'v0.1.0'
+    directory: recurse
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: drn-project
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sample
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Additional annotations for SSL, CORS, etc., can be added here.
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: sample
+                port:
+                  number: 80
+  # TLS configuration (uncomment and use if SSL is configured)
+  # tls:
+  # - hosts:
+  #   - public-api.yourdomain.com
+  #   secretName: public-api-tls
