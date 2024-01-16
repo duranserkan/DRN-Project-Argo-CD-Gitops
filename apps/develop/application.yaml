@@ -9,7 +9,6 @@ spec:
     repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
     path: apps/develop/services
     targetRevision: 'v0.1.0'
-    directory: recurse
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: drn-project
