@@ -5,10 +5,10 @@ resources:
   - namespace.yaml
 namespace: drn-project-develop
 namePrefix: develop-
-nameSuffix: -0.2.2-preview001
+nameSuffix: -0.2.2-preview002
 images:
   - name: duranserkan/drn-project-sample
-    newTag: 0.2.2-preview001
+    newTag: 0.2.2-preview002
 replicas:
   - name: sample
     count: 1

@@ -19,16 +19,19 @@ spec:
       restartPolicy: Always
       containers:
         - name: sample
-          image: duranserkan/drn-project-sample:0.0.0
+          image: duranserkan/drn-project-sample:0.2.2-preview001
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - mountPath: /config
               name: config
           ports:
-          - containerPort: 8080
+          - containerPort: 5998
             name: http
             protocol: TCP
+          env:
+            - name: ASPNETCORE_HTTP_PORTS
+              value: "5998"
       volumes:
         - name: config
           configMap:
-            name: sample-configmap
+            name: config
