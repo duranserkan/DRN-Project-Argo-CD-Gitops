@@ -30,7 +30,7 @@ spec:
             protocol: TCP
           env:
             - name: ASPNETCORE_HTTP_PORTS
-              value: "5998"
+              value: "5998;"
       volumes:
         - name: config
           configMap:
