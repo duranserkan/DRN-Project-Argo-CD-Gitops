@@ -9,7 +9,7 @@ spec:
   selector:
     app: nexus
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: 80
       targetPort: http
-  type: NodePort

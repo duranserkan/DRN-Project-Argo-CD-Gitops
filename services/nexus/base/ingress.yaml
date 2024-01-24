@@ -16,7 +16,7 @@ spec:
               service:
                 name: nexus
                 port:
-                  number: 80
+                  name: http
   # TLS configuration (uncomment and use if SSL is configured)
   # tls:
   # - hosts:
