@@ -1,36 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sample
+  name: nexus
   namespace: drn-project
   labels:
-    app: sample
+    app: nexus
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: sample
+      app: nexus
   template:
     metadata:
-      name: sample
+      name: nexus
       labels:
-        app: sample
+        app: nexus
     spec:
       restartPolicy: Always
       containers:
-        - name: sample
-          image: duranserkan/drn-project-sample:0.2.2-preview001
+        - name: nexus
+          image: duranserkan/drn-project-nexus:0.2.2-preview001
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - mountPath: /config
               name: config
           ports:
-          - containerPort: 5998
+          - containerPort: 5988
             name: http
             protocol: TCP
-          env:
-            - name: ASPNETCORE_HTTP_PORTS
-              value: "ASPNETCORE_HTTP_PORTS=5998;"
       volumes:
         - name: config
           configMap:

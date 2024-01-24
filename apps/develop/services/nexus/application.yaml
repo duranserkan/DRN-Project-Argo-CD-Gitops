@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: sample
+  name: nexus
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
     path: services/nexus/develop
-    targetRevision: 'v0.1.0'
+    targetRevision: 'preview'
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: drn-project
@@ -16,3 +16,6 @@ spec:
     automated:
       selfHeal: true
       prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - SyncWave=-1

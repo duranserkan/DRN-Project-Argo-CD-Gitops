@@ -7,10 +7,10 @@ namespace: drn-project-develop
 #namePrefix: develop-
 #nameSuffix: -0.2.2-preview002
 images:
-  - name: duranserkan/drn-project-sample
-    newTag: 0.2.2-preview002
+  - name: duranserkan/drn-project-nexus
+    newTag: 0.2.2-preview003
 replicas:
-  - name: sample
+  - name: nexus
     count: 1
 configMapGenerator:
   - name: config

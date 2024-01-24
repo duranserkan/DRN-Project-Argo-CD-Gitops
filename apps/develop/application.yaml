@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
     path: apps/develop/services
-    targetRevision: 'v0.1.0'
+    targetRevision: 'preview'
     directory:
       recurse: true
   destination:
