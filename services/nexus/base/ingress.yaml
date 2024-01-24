@@ -2,8 +2,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: nexus
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+  #annotations:
+    # nginx.ingress.kubernetes.io/rewrite-target: /
     # Additional annotations for SSL, CORS, etc., can be added here.
 spec:
   ingressClassName: nginx
