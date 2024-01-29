@@ -4,7 +4,7 @@ metadata:
   name: drn-project-develop
   namespace: argocd
 spec:
-  project: default
+  project: drn-project-develop
   source:
     repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
     path: apps/develop/services
@@ -13,7 +13,7 @@ spec:
       recurse: true
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: drn-project
+    namespace: drn-project-develop
   syncPolicy:
     automated:
       selfHeal: true

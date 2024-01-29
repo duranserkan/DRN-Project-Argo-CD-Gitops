@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: drn-project-develop
+  namespace: argocd
+spec:
+  # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
+  sourceRepos:
+    - https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops
+  destinations:
+    - namespace: drn-project-develop
+      server: https://kubernetes.default.svc
+  # Deny all cluster-scoped resources from being created, except for Namespace
+  clusterResourceWhitelist:
+  - group: ""
+    kind: Namespace

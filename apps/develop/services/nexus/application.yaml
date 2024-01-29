@@ -4,14 +4,14 @@ metadata:
   name: nexus
   namespace: argocd
 spec:
-  project: default
+  project: drn-project-develop
   source:
     repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
     path: services/nexus/develop
     targetRevision: 'preview'
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: drn-project
+    namespace: drn-project-develop
   syncPolicy:
     automated:
       selfHeal: true
