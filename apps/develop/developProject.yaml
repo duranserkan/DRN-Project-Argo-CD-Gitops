@@ -8,6 +8,8 @@ spec:
   sourceRepos:
     - https://github.com/duranserkan/DRN-Project-Deployment.git
   destinations:
+    - namespace: argocd
+      server: https://kubernetes.default.svc
     - namespace: drn-project-develop
       server: https://kubernetes.default.svc
   # Deny all cluster-scoped resources from being created, except for Namespace
