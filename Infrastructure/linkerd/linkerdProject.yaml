@@ -7,6 +7,7 @@ spec:
   # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
   sourceRepos:
     - https://helm.linkerd.io/stable
+    - https://charts.jetstack.io
     - https://bitnami-labs.github.io/sealed-secrets
     - https://github.com/duranserkan/DRN-Project-Deployment.git
   destinations:

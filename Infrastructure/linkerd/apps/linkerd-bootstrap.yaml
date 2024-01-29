@@ -4,10 +4,11 @@ metadata:
   name: linkerd-bootstrap
   namespace: argocd
 spec:
+  project: linkerd
+  source:
+    path: infrastructure/linkerd/resources
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    targetRevision: 'preview'
   destination:
     namespace: linkerd
     server: https://kubernetes.default.svc
-  project: demo
-  source:
-    path: gitops/resources/linkerd
-    repoURL: git://git-server.scm:9418/linkerd-examples.git
