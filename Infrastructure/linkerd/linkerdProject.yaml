@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
-  name: drn-project-linkerd
+  name: linkerd
   namespace: argocd
 spec:
   # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
