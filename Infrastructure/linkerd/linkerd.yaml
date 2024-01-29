@@ -11,5 +11,4 @@ spec:
     targetRevision: 'preview'
   destination:
     namespace: linkerd
-    server: https://kubernetes.defaul
-    t.svc
+    server: https://kubernetes.default.svc
