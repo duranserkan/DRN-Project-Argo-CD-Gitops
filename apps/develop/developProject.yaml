@@ -6,7 +6,7 @@ metadata:
 spec:
   # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
   sourceRepos:
-    - https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops
+    - https://github.com/duranserkan/DRN-Project-Deployment.git
   destinations:
     - namespace: drn-project-develop
       server: https://kubernetes.default.svc
