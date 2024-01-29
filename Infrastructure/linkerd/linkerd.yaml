@@ -6,7 +6,7 @@ metadata:
 spec:
   project: linkerd
   source:
-    path: infrastructure/linkerd
+    path: infrastructure/linkerd/apps
     repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
     targetRevision: 'preview'
   destination:
