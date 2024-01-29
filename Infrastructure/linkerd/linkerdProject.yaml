@@ -8,6 +8,7 @@ spec:
   sourceRepos:
     - https://helm.linkerd.io/stable
     - https://bitnami-labs.github.io/sealed-secrets
+    - https://github.com/duranserkan/DRN-Project-Deployment.git
   destinations:
   - namespace: argocd
     server: https://kubernetes.default.svc
