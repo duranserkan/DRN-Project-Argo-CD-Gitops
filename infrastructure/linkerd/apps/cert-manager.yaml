@@ -20,7 +20,6 @@ spec:
     selfHeal: true
     prune: true
     syncOptions:
-    - CreateNamespace=true
     - Validate=false
     - SyncWave=0
   ignoreDifferences:
@@ -28,3 +27,8 @@ spec:
     kind: CustomResourceDefinition
     jsonPointers:
     - /status
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
