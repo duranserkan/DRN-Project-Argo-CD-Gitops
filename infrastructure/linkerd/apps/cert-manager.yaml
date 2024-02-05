@@ -17,11 +17,13 @@ spec:
     namespace: cert-manager
     server: https://kubernetes.default.svc
   syncPolicy:
-    selfHeal: true
-    prune: true
+    automated:
+      selfHeal: true
+      prune: true
     syncOptions:
-    - Validate=false
-    - SyncWave=0
+      - ApplyOutOfSyncOnly=true
+      - Validate=false
+      - SyncWave=0
   ignoreDifferences:
   - group: apiextensions.k8s.io
     kind: CustomResourceDefinition

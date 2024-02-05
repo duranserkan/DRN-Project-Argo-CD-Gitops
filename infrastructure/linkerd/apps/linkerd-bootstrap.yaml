@@ -17,4 +17,5 @@ spec:
       selfHeal: true
       prune: true
     syncOptions:
+      - ApplyOutOfSyncOnly=true
       - SyncWave=1
