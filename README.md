@@ -125,9 +125,30 @@ kubectl -n linkerd create secret tls linkerd-trust-anchor \
   --dry-run=client -oyaml | \
 kubeseal --controller-name=sealed-secrets -oyaml - | \
 kubectl patch -f - \
-  -p '{"spec": {"template": {"type":"kubernetes.io/tls", "metadata": {"labels": {"linkerd.io/control-plane-component":"identity", "linkerd.io/control-plane-ns":"linkerd"}, "annotations": {"linkerd.io/created-by":"linkerd/cli stable-2.12.0"}}}}}' \
+  -p '{"spec": {"template": {"type":"kubernetes.io/tls", "metadata": {"labels": {"linkerd.io/control-plane-component":"identity", "linkerd.io/control-plane-ns":"linkerd"}, "annotations": {"linkerd.io/created-by":"linkerd/cli stable-2.14.9"}}}}}' \
   --dry-run=client \
   --type=merge \
   --local -oyaml > infrastructure/linkerd/resources/trust-anchor.yaml
 ```
 This will overwrite the existing SealedSecret resource in your local ***infrastructure/linkerd/resources/trust-anchor.yaml*** file. Confirm that only the spec.encryptedData is changed. ***Commit and push the new trust anchor secret***
+
+**Sync linkerd-bootstrap**
+```
+argocd app sync linkerd-bootstrap
+```
+
+>SealedSecrets should have created a secret containing the decrypted trust anchor. Retrieve the decrypted trust anchor from the secret:
+```
+trust_anchor=`kubectl -n linkerd get secret linkerd-trust-anchor -ojsonpath="{.data['tls\.crt']}" | base64 --decode`
+```
+
+> Locate the identityTrustAnchorsPEM variable in your local gitops/argo-apps/linkerd-control-plane.yaml file, and set its value to that of ${trust_anchor}.
+> Ensure that the multi-line string is indented correctly.  ***Commit and push the changes***
+
+**Sync linkerd**
+```
+argocd app sync linkerd
+argocd app sync linkerd-crds
+argocd app sync linkerd-control-plane
+linkerd check
+```
