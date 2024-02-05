@@ -54,7 +54,7 @@ This project recommends following tools for anyone who doesn't have strong Kuber
 ## About Deployment
 Following deployment instructions gathered together from official documentations and refactored for DRN Project ArgoCD GitOps.
 
-### Install [Ingress NGINX Controller](https://argo-cd.readthedocs.io/en/stable/getting_started/) for Docker Desktop
+### Install [Ingress NGINX Controller](https://github.com/kubernetes/ingress-nginx) for Docker Desktop
 ```
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml
 ```
