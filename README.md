@@ -47,12 +47,17 @@ This project recommends following tools for anyone who doesn't have strong Kuber
 
 ## About Deployment Roadmap
 - [X] Minimal working pipeline
-- [ ] Linkerd support
+- [X] Linkerd support
 - [ ] Postgres and Rabbit Operators for development environment
 - [ ] Kubernetes hardening practices
 
 ## About Deployment
 Following deployment instructions gathered together from official documentations and refactored for DRN Project ArgoCD GitOps.
+
+### Install [Ingress NGINX Controller](https://argo-cd.readthedocs.io/en/stable/getting_started/) for Docker Desktop
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml
+```
 ### Deploy [Argo CD](https://argo-cd.readthedocs.io/en/stable/getting_started/)
 ```
 kubectl create namespace argocd
@@ -151,4 +156,11 @@ argocd app sync linkerd
 argocd app sync linkerd-crds
 argocd app sync linkerd-control-plane
 linkerd check
+```
+
+### Deploy Sample and Nexus Apps
+```
+kubectl apply -f apps/develop/developProject.yaml
+kubectl apply -f apps/develop/develop.yaml
+argocd app sync drn-project-develop
 ```
