@@ -14,6 +14,15 @@ spec:
       - name: identityTrustAnchorsPEM
         value: |
           -----BEGIN CERTIFICATE-----
+          MIIBjjCCATSgAwIBAgIRAPic/Y4QTstDYUM2cPvmAnMwCgYIKoZIzj0EAwIwJTEj
+          MCEGA1UEAxMacm9vdC5saW5rZXJkLmNsdXN0ZXIubG9jYWwwHhcNMjQwMjA1MTU1
+          NDU5WhcNMjkwMjAzMTU1NDU5WjAlMSMwIQYDVQQDExpyb290LmxpbmtlcmQuY2x1
+          c3Rlci5sb2NhbDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABEXcYz7X5RHwPMRg
+          37BGC15qqIY7zY24xHb7nDp9+k1LwuPI45+3/2mgYtWnatk2QByF/8In062N+A3M
+          Ss9ECWijRTBDMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEBMB0G
+          A1UdDgQWBBQm5OwZO5qTP1V3i5fTSAqOtniLjzAKBggqhkjOPQQDAgNIADBFAiBB
+          ntwFa6ZxX2j9oOK+JA5DP8rnddC6JiTqrfZoWfrKLgIhAJMnpOWeskC3ihp23GJL
+          ++fwzmT6NyD68lUJ2dscoUG/
           -----END CERTIFICATE-----
       - name: identity.issuer.scheme
         value: kubernetes.io/tls

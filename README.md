@@ -60,7 +60,11 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 kubectl port-forward svc/argocd-server -n argocd 8080:443
 //change after first login
 initialPassword=`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
-userName="Admin"
+
+argocd login 127.0.0.1:8080 \
+  --username=admin \
+  --password="${password}" \
+  --insecure
 ```
 
 ### Deploy [Linkerd](https://linkerd.io/2.14/tasks/gitops/)
@@ -70,10 +74,11 @@ userName="Admin"
 
 > This guide uses the [step cli](https://smallstep.com/docs/step-cli/installation/) to create certificates used by the Linkerd clusters to enforce mTLS, so make sure you have installed step for your environment.
 
-**Install step and kubeseal CLIs**
+**Install step, kubeseal and jq CLIs**
 ```
 brew install step
-brew install kubesealbrew install kubeseal
+brew install kubeseal
+brew install jq
 ```
 
 **Sync Linkerd App**
