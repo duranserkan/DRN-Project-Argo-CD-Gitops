@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: linkerd-crds
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   project: linkerd
   source:
@@ -19,4 +21,3 @@ spec:
       prune: true
     syncOptions:
       - ApplyOutOfSyncOnly=true
-      - SyncWave=2

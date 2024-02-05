@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: linkerd-bootstrap
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: linkerd
   source:
@@ -18,4 +20,3 @@ spec:
       prune: true
     syncOptions:
       - ApplyOutOfSyncOnly=true
-      - SyncWave=1
