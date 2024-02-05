@@ -30,7 +30,7 @@ spec:
         value: kubernetes.io/tls
         # -- Allow overriding the runAsNonRoot behaviour (<https://github.com/linkerd/linkerd2/issues/7308>)
       - name: proxyInit.runAsRoot
-        value: true
+        value: "true"
   destination:
     namespace: linkerd
     server: https://kubernetes.default.svc
