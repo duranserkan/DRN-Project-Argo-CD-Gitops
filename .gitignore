@@ -397,3 +397,52 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 .idea/
+
+.DS_Store
+
+#Private keys etc
+*.key
+*.keys
+*.priv
+*.rsa
+*.key.json
+
+.env
+.env.production
+*.ssh
+*.ssh-key
+
+.key-mrc
+
+## Certificate Authority
+*.ca
+
+## Certificate
+*.crt
+
+## Certificate Sign Request
+*.csr
+
+## Certificate
+*.der
+
+## Key database file
+*.kdb
+
+## OSCP request data
+*.org
+
+## PKCS #12
+*.p12
+
+## PEM-encoded certificate data
+*.pem
+
+## Random number seed
+*.rnd
+
+## SSLeay data
+*.ssleay
+
+## S/MIME message
+*.smime

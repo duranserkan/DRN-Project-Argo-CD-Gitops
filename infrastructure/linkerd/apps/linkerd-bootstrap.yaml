@@ -12,8 +12,3 @@ spec:
   destination:
     namespace: linkerd
     server: https://kubernetes.default.svc
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: linkerd

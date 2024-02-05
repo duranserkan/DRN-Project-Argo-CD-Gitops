@@ -52,7 +52,7 @@ This project recommends following tools for anyone who doesn't have strong Kuber
 - [ ] Kubernetes hardening practices
 
 ## About Deployment
-Following deployment instructions gathered together from official documentations and refactored for DRN Project ArgoCD GitOps .
+Following deployment instructions gathered together from official documentations and refactored for DRN Project ArgoCD GitOps.
 ### Deploy [Argo CD](https://argo-cd.readthedocs.io/en/stable/getting_started/)
 ```
 kubectl create namespace argocd
@@ -101,22 +101,21 @@ kubectl -n kube-system rollout status deploy/sealed-secrets
 **Create mTLS trust anchor**
 ```
 #Create a new mTLS trust anchor private key and certificate
-step certificate create root.linkerd.cluster.local sample-trust.crt sample-trust.key \
+step certificate create root.linkerd.cluster.local drn-trust.crt drn-trust.key \
   --profile root-ca \
   --no-password \
   --not-after 43800h \
   --insecure
   
 #Confirm the details (encryption algorithm, expiry date, SAN etc.) of the new trust anchor:  
-step certificate inspect sample-trust.crt
+step certificate inspect drn-trust.crt
 ```
 
 ```
 #Create the SealedSecret resource to store the encrypted trust anchor
-kubectl create ns linkerd
 kubectl -n linkerd create secret tls linkerd-trust-anchor \
-  --cert sample-trust.crt \
-  --key sample-trust.key \
+  --cert drn-trust.crt \
+  --key drn-trust.key \
   --dry-run=client -oyaml | \
 kubeseal --controller-name=sealed-secrets -oyaml - | \
 kubectl patch -f - \
