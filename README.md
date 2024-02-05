@@ -156,6 +156,8 @@ argocd app sync linkerd
 argocd app sync linkerd-crds
 argocd app sync linkerd-control-plane
 linkerd check
+linkerd viz install | kubectl apply -f -
+linkerd viz dashboard &
 ```
 
 ### Deploy Sample and Nexus Apps
