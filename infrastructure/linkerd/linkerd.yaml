@@ -12,8 +12,10 @@ spec:
   destination:
     namespace: linkerd
     server: https://kubernetes.default.svc
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: linkerd
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - SyncWave=-1

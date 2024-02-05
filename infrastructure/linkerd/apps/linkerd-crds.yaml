@@ -8,8 +8,14 @@ spec:
   source:
     chart: linkerd-crds
     repoURL: https://helm.linkerd.io/stable
-    targetRevision: 1.4.0
+    targetRevision: 1.8.0
     helm:
   destination:
     namespace: linkerd
     server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - SyncWave=2

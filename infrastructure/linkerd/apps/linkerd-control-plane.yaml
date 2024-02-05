@@ -8,7 +8,7 @@ spec:
   source:
     chart: linkerd-control-plane
     repoURL: https://helm.linkerd.io/stable
-    targetRevision: 1.9.0
+    targetRevision: 1.16.10
     helm:
       parameters:
       - name: identityTrustAnchorsPEM
@@ -29,6 +29,12 @@ spec:
   destination:
     namespace: linkerd
     server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - SyncWave=3
   ignoreDifferences:
   - group: ""
     kind: Secret

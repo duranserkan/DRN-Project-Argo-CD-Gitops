@@ -12,3 +12,9 @@ spec:
   destination:
     namespace: linkerd
     server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - SyncWave=1

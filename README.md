@@ -74,10 +74,11 @@ argocd login 127.0.0.1:8080 \
 
 > This guide uses the [step cli](https://smallstep.com/docs/step-cli/installation/) to create certificates used by the Linkerd clusters to enforce mTLS, so make sure you have installed step for your environment.
 
-**Install step, kubeseal and jq CLIs**
+**Install step, kubeseal, linkerd and jq CLIs**
 ```
 brew install step
 brew install kubeseal
+brew install linkerd
 brew install jq
 ```
 
