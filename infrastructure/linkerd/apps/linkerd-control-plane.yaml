@@ -28,6 +28,18 @@ spec:
           -----END CERTIFICATE-----
       - name: identity.issuer.scheme
         value: kubernetes.io/tls
+      - name: policyValidator.externalSecret
+        value: "true"
+      - name: policyValidator.caBundle
+        value: "ca.crt"
+      - name: proxyInjector.externalSecret
+        value: "true"
+      - name: proxyInjector.caBundle
+        value: "ca.crt"
+      - name: profileValidator.externalSecret
+        value: "true"
+      - name: profileValidator.caBundle
+        value: "ca.crt"
         # -- Allow overriding the runAsNonRoot behaviour (<https://github.com/linkerd/linkerd2/issues/7308>)
       - name: proxyInit.runAsRoot
         value: "true"

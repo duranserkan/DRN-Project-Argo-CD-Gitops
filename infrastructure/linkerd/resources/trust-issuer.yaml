@@ -15,7 +15,7 @@ metadata:
 spec:
   secretName: linkerd-identity-issuer
   duration: 730h0m0s
-  renewBefore: 1h0m0s
+  renewBefore: 72h0m0s
   issuerRef:
     name: linkerd-trust-anchor
     kind: Issuer
