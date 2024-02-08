@@ -6,7 +6,7 @@ metadata:
 spec:
   project: linkerd
   source:
-    chart: cert-manager/trust-manager
+    chart: trust-manager
     repoURL: https://charts.jetstack.io
     targetRevision: v0.8.0
   destination:
