@@ -1,7 +1,6 @@
 apiVersion: bitnami.com/v1alpha1
 kind: SealedSecret
 metadata:
-  creationTimestamp: null
   name: linkerd-trust-anchor
   namespace: linkerd
 spec:
@@ -12,7 +11,6 @@ spec:
     metadata:
       annotations:
         linkerd.io/created-by: linkerd/cli stable-2.14.9
-        cert-manager.io/allow-direct-injection: "true"
       creationTimestamp: null
       labels:
         linkerd.io/control-plane-component: identity
