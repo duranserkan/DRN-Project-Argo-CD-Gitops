@@ -23,16 +23,16 @@ spec:
         value: "true"
       - name: proxyInit.runAsRoot # (<https://github.com/linkerd/linkerd2/issues/7308>)
         value: "true"
-    # Use the contents of files as parameters (uses Helm's --set-file)
-    fileParameters:
-      - name: identityTrustAnchorsPEM
-        path: ca.crt
-      - name: policyValidator.caBundle
-        path: ca.crt
-      - name: proxyInjector.caBundle
-        path: ca.crt
-      - name: profileValidator.caBundle
-        path: ca.crt
+      # Use the contents of files as parameters (uses Helm's --set-file)
+      fileParameters:
+        - name: identityTrustAnchorsPEM
+          path: ca.crt
+        - name: policyValidator.caBundle
+          path: ca.crt
+        - name: proxyInjector.caBundle
+          path: ca.crt
+        - name: profileValidator.caBundle
+          path: ca.crt
   destination:
     namespace: linkerd
     server: https://kubernetes.default.svc
