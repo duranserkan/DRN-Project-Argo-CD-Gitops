@@ -15,6 +15,8 @@ spec:
       parameters:
       - name: identity.issuer.scheme
         value: kubernetes.io/tls
+      - name: identity.externalCA
+        value: "true"
       - name: policyValidator.externalSecret
         value: "true"
       - name: proxyInjector.externalSecret
