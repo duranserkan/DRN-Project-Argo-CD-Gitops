@@ -18,3 +18,5 @@ spec:
       kind: CustomResourceDefinition
     - group: apiregistration.k8s.io
       kind: APIService
+    - group: ""
+      kind: Namespace
