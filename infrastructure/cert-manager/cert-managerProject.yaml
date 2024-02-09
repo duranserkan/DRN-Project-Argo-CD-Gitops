@@ -13,6 +13,8 @@ spec:
     server: https://kubernetes.default.svc
   - namespace: cert-manager
     server: https://kubernetes.default.svc
+  - namespace: kube-system
+    server: https://kubernetes.default.svc
   clusterResourceWhitelist:
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration
@@ -24,8 +26,6 @@ spec:
       kind: APIService
     - group: ""
       kind: Namespace
-    - group: policy
-      kind: PodSecurityPolicy
     - group: rbac.authorization.k8s.io
       kind: ClusterRole
     - group: rbac.authorization.k8s.io
