@@ -5,8 +5,8 @@ metadata:
   namespace: linkerd
 spec:
   secretName: linkerd-policy-validator-k8s-tls
-  duration: 72h
-  renewBefore: 24h
+  duration: 24000h
+  renewBefore: 73h
   issuerRef:
     name: linkerd-trust-anchor
     kind: ClusterIssuer
@@ -27,8 +27,8 @@ metadata:
   namespace: linkerd
 spec:
   secretName: linkerd-proxy-injector-k8s-tls
-  duration: 72h
-  renewBefore: 24h
+  duration: 24000h
+  renewBefore: 73h
   issuerRef:
     name: linkerd-trust-anchor
     kind: ClusterIssuer
@@ -48,8 +48,8 @@ metadata:
   namespace: linkerd
 spec:
   secretName: linkerd-sp-validator-k8s-tls
-  duration: 72h
-  renewBefore: 24h
+  duration: 24000h
+  renewBefore: 73h
   issuerRef:
     name: linkerd-trust-anchor
     kind: ClusterIssuer
