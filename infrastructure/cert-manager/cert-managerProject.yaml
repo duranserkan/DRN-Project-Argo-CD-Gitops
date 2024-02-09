@@ -26,6 +26,8 @@ spec:
       kind: APIService
     - group: ""
       kind: Namespace
+    - group: policy
+      kind: PodSecurityPolicy
     - group: rbac.authorization.k8s.io
       kind: ClusterRole
     - group: rbac.authorization.k8s.io
