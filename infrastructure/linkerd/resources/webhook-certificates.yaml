@@ -9,7 +9,7 @@ spec:
   renewBefore: 24h
   issuerRef:
     name: linkerd-trust-anchor
-    kind: Issuer
+    kind: ClusterIssuer
   commonName: linkerd-policy-validator.linkerd.svc
   dnsNames:
     - linkerd-policy-validator.linkerd.svc
@@ -31,7 +31,7 @@ spec:
   renewBefore: 24h
   issuerRef:
     name: linkerd-trust-anchor
-    kind: Issuer
+    kind: ClusterIssuer
   commonName: linkerd-proxy-injector.linkerd.svc
   dnsNames:
     - linkerd-proxy-injector.linkerd.svc
@@ -52,7 +52,7 @@ spec:
   renewBefore: 24h
   issuerRef:
     name: linkerd-trust-anchor
-    kind: Issuer
+    kind: ClusterIssuer
   commonName: linkerd-sp-validator.linkerd.svc
   dnsNames:
     - linkerd-sp-validator.linkerd.svc
