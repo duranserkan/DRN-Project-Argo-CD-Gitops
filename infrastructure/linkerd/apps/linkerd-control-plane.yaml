@@ -23,12 +23,12 @@ spec:
           value: "true"
         - name: profileValidator.externalSecret
           value: "true"
-        - name: policyValidator.injectCaFromSecret
-          value: "linkerd-policy-validator-k8s-tls"
-        - name: proxyInjector.injectCaFromSecret
-          value: "linkerd-proxy-injector-k8s-tls"
-        - name: profileValidator.injectCaFromSecret
-          value: "linkerd-sp-validator-k8s-tls"
+        - name: policyValidator.injectCaFrom
+          value: "linkerd/linkerd-policy-validator"
+        - name: proxyInjector.injectCaFrom
+          value: "linkerd/linkerd-proxy-injector"
+        - name: profileValidator.injectCaFrom
+          value: "linkerd/linkerd-sp-validator"
         - name: proxyInit.runAsRoot # (<https://github.com/linkerd/linkerd2/issues/7308>)
           value: "true"
   destination:

@@ -5,9 +5,6 @@ metadata:
   namespace: linkerd
 spec:
   secretName: linkerd-policy-validator-k8s-tls
-  secretTemplate:
-    annotations:
-      cert-manager.io/allow-direct-injection: "true"
   duration: 72h
   renewBefore: 24h
   issuerRef:
@@ -30,9 +27,6 @@ metadata:
   namespace: linkerd
 spec:
   secretName: linkerd-proxy-injector-k8s-tls
-  secretTemplate:
-    annotations:
-      cert-manager.io/allow-direct-injection: "true"
   duration: 72h
   renewBefore: 24h
   issuerRef:
@@ -54,9 +48,6 @@ metadata:
   namespace: linkerd
 spec:
   secretName: linkerd-sp-validator-k8s-tls
-  secretTemplate:
-    annotations:
-      cert-manager.io/allow-direct-injection: "true"
   duration: 72h
   renewBefore: 24h
   issuerRef:
