@@ -1,19 +1,18 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: linkerd-crds
+  name: cert-manager-bootstrap
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  project: linkerd
+  project: cert-manager
   source:
-    chart: linkerd-crds
-    repoURL: https://helm.linkerd.io/stable
-    targetRevision: 1.8.0
-    helm:
+    path: infrastructure/cert-manager/resources
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    targetRevision: 'preview'
   destination:
-    namespace: linkerd
+    namespace: cert-manager
     server: https://kubernetes.default.svc
   syncPolicy:
     automated:

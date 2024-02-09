@@ -1,10 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: cert-manager
   namespace: argocd
 spec:
-  project: linkerd
+  project: cert-manager
   source:
     chart: cert-manager
     repoURL: https://charts.jetstack.io
@@ -29,8 +34,3 @@ spec:
     kind: CustomResourceDefinition
     jsonPointers:
     - /status
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: cert-manager
