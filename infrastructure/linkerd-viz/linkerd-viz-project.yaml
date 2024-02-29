@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: linkerd-viz
+  namespace: argocd
+spec:
+  # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
+  sourceRepos:
+    - https://helm.linkerd.io/stable
+  destinations:
+  - namespace: argocd
+    server: https://kubernetes.default.svc
+  - namespace: linkerd
+    server: https://kubernetes.default.svc
+  - namespace: linkerd-viz
+    server: https://kubernetes.default.svc
+  - namespace: kube-system
+    server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: "linkerd"
+      kind: Namespace
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: apiregistration.k8s.io
+      kind: APIService
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding

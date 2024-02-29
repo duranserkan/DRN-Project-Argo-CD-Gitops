@@ -5,6 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+#https://artifacthub.io/packages/helm/linkerd2/linkerd-crds
 spec:
   project: linkerd
   source:

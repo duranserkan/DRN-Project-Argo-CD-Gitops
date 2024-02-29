@@ -72,9 +72,13 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/cont
 ```
 kubectl create namespace argocd
 
+#https://artifacthub.io/packages/helm/argo/argo-cd
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
 helm install argocd argo/argo-cd --version 6.4.1 -f infrastructure/argocd/custom-values.yaml
+
+#At least 3 worker nodes for High Availability is needed
+#helm install argocd argo/argo-cd --version 6.4.1 -f infrastructure/argocd/custom-values-ha.yaml
 
 //browser ui https://localhost:8080
 kubectl port-forward svc/argocd-server -n argocd 8080:443
@@ -95,7 +99,7 @@ argocd login 127.0.0.1:8080 \
 **Sync cert-manager**
 > cert-manger configuration refactored to create root-ca automatically. However, [Official guide](https://linkerd.io/2.14/tasks/gitops/) uses the [step cli](https://smallstep.com/docs/step-cli/installation/) to create root-ca.
 ```
-kubectl apply -f infrastructure/cert-manager/cert-managerProject.yaml
+kubectl apply -f infrastructure/cert-manager/cert-manager-project.yaml
 kubectl apply -f infrastructure/cert-manager/cert-manager.yaml
 argocd app sync cert-manager
 ```
@@ -103,26 +107,35 @@ argocd app sync cert-manager
 **Sync sealed-secrets**
 > [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) used for certificate encryption by [Official guide](https://linkerd.io/2.14/tasks/gitops/). This guide doesn't need this. However, it can be used to encrypt other secrets.
 ```
-kubectl apply -f infrastructure/sealed-secrets/sealed-secretsProject.yaml
+kubectl apply -f infrastructure/sealed-secrets/sealed-secrets-project.yaml
 kubectl apply -f infrastructure/sealed-secrets/sealed-secrets.yaml
 argocd app sync sealed-secrets
 ```
 
 **Sync Linkerd App**
-
 ```
-kubectl apply -f infrastructure/linkerd/linkerdProject.yaml
+kubectl apply -f infrastructure/linkerd/linkerd-project.yaml
 kubectl apply -f infrastructure/linkerd/linkerd.yaml
 argocd app sync linkerd
-
 linkerd check
-linkerd viz install | kubectl apply -f -
+
+kubectl apply -f infrastructure/linkerd-viz/linkerd-viz-project.yaml
+kubectl apply -f infrastructure/linkerd-viz/linkerd-viz.yaml
+argocd app sync linkerd-viz
+linkerd viz dashboard &
+```
+
+**Sync Linkerd Viz App**
+```
+kubectl apply -f infrastructure/linkerd-viz/linkerd-viz-project.yaml
+kubectl apply -f infrastructure/linkerd-viz/linkerd-viz.yaml
+argocd app sync linkerd-viz
 linkerd viz dashboard &
 ```
 
 ### Deploy Sample and Nexus Apps
 ```
-kubectl apply -f apps/develop/developProject.yaml
+kubectl apply -f apps/develop/develop-project.yaml
 kubectl apply -f apps/develop/develop.yaml
 argocd app sync drn-project-develop
 ```

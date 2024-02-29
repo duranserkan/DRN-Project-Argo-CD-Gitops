@@ -5,6 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "2"
+##https://artifacthub.io/packages/helm/linkerd2/linkerd-control-plane
 spec:
   project: linkerd
   source:

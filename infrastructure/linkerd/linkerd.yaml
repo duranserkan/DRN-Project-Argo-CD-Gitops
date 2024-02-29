@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: linkerd
   namespace: argocd
+#https://artifacthub.io/packages/helm/linkerd2/linkerd-crds
+#https://artifacthub.io/packages/helm/linkerd2/linkerd-control-plane
 spec:
   project: linkerd
   source:

@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: linkerd-viz
+  namespace: argocd
+#https://artifacthub.io/packages/helm/linkerd2/linkerd-viz
+spec:
+  project: linkerd-viz
+  source:
+    chart: linkerd-viz
+    repoURL: https://helm.linkerd.io/stable
+    targetRevision: 30.12.11
+  destination:
+    namespace: linkerd-viz
+    server: 'https://kubernetes.default.svc'
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
