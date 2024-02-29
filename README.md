@@ -54,107 +54,67 @@ This project recommends following tools for anyone who doesn't have strong Kuber
 ## About Deployment
 Following deployment instructions gathered together from official documentations and refactored for DRN Project ArgoCD GitOps.
 
-### Install [Ingress NGINX Controller](https://github.com/kubernetes/ingress-nginx) for Docker Desktop
-```
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml
-```
-### Deploy [Argo CD](https://argo-cd.readthedocs.io/en/stable/getting_started/)
-```
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-//change after first login
-initialPassword=`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
-
-argocd login 127.0.0.1:8080 \
-  --username=admin \
-  --password="${password}" \
-  --insecure
-```
-
-### Deploy [Linkerd](https://linkerd.io/2.14/tasks/gitops/)
-> This page contains best-effort instructions by the open source community. Production users with mission-critical applications should familiarize themselves with [Linkerd production resources](https://docs.buoyant.io/runbook/getting-started/).
-
-> this guide provides instructions on how to securely generate and manage Linkerd’s mTLS private keys and certificates using [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) and [cert-manager](https://cert-manager.io/docs/). It will also show you how to integrate the auto proxy injection feature into your workflow
-
-> This guide uses the [step cli](https://smallstep.com/docs/step-cli/installation/) to create certificates used by the Linkerd clusters to enforce mTLS, so make sure you have installed step for your environment.
-
-**Install step, kubeseal, linkerd and jq CLIs**
+**Install helm, step, kubeseal, linkerd and jq CLIs**
 ```
 brew install step
 brew install kubeseal
 brew install linkerd
 brew install jq
+brew install helm
+```
+
+### Install [Ingress NGINX Controller](https://github.com/kubernetes/ingress-nginx) for Docker Desktop
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml
+```
+
+### Deploy [Argo CD](https://argo-cd.readthedocs.io/en/stable/getting_started/)
+```
+kubectl create namespace argocd
+
+helm repo add argo https://argoproj.github.io/argo-helm
+helm repo update
+helm install argocd argo/argo-cd --version 6.4.1 -f infrastructure/argocd/custom-values.yaml
+
+//browser ui https://localhost:8080
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+```
+//change after first login
+argoPassword=`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
+argocd login 127.0.0.1:8080 \
+  --username=admin \
+  --password="${argoPassword}" \
+  --insecure 
+```
+
+### Deploy [Linkerd](https://linkerd.io/2.14/tasks/gitops/)
+> This page contains best-effort instructions by the open source community. Production users with mission-critical applications should familiarize themselves with [Linkerd production resources](https://docs.buoyant.io/runbook/getting-started/).
+
+**Sync cert-manager**
+> cert-manger configuration refactored to create root-ca automatically. However, [Official guide](https://linkerd.io/2.14/tasks/gitops/) uses the [step cli](https://smallstep.com/docs/step-cli/installation/) to create root-ca.
+```
+kubectl apply -f infrastructure/cert-manager/cert-managerProject.yaml
+kubectl apply -f infrastructure/cert-manager/cert-manager.yaml
+argocd app sync cert-manager
+```
+
+**Sync sealed-secrets**
+> [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) used for certificate encryption by [Official guide](https://linkerd.io/2.14/tasks/gitops/). This guide doesn't need this. However, it can be used to encrypt other secrets.
+```
+kubectl apply -f infrastructure/sealed-secrets/sealed-secretsProject.yaml
+kubectl apply -f infrastructure/sealed-secrets/sealed-secrets.yaml
+argocd app sync sealed-secrets
 ```
 
 **Sync Linkerd App**
+
 ```
 kubectl apply -f infrastructure/linkerd/linkerdProject.yaml
 kubectl apply -f infrastructure/linkerd/linkerd.yaml
 argocd app sync linkerd
-```
 
-**Sync cert-manager**
-```
-argocd app sync cert-manager
-
-for deploy in "cert-manager" "cert-manager-cainjector" "cert-manager-webhook"; \
-  do kubectl -n cert-manager rollout status deploy/${deploy}; \
-done
-```
-
-**Sync sealed-secrets**
-```
-argocd app sync sealed-secrets
-kubectl -n kube-system rollout status deploy/sealed-secrets
-```
-
-**Create mTLS trust anchor**
-```
-#Create a new mTLS trust anchor private key and certificate
-step certificate create root.linkerd.cluster.local drn-trust.crt drn-trust.key \
-  --profile root-ca \
-  --no-password \
-  --not-after 43800h \
-  --insecure
-  
-#Confirm the details (encryption algorithm, expiry date, SAN etc.) of the new trust anchor:  
-step certificate inspect drn-trust.crt
-```
-
-```
-#Create the SealedSecret resource to store the encrypted trust anchor
-kubectl -n linkerd create secret tls linkerd-trust-anchor \
-  --cert drn-trust.crt \
-  --key drn-trust.key \
-  --dry-run=client -oyaml | \
-kubeseal --controller-name=sealed-secrets -oyaml - | \
-kubectl patch -f - \
-  -p '{"spec": {"template": {"type":"kubernetes.io/tls", "metadata": {"labels": {"linkerd.io/control-plane-component":"identity", "linkerd.io/control-plane-ns":"linkerd"}, "annotations": {"linkerd.io/created-by":"linkerd/cli stable-2.14.9"}}}}}' \
-  --dry-run=client \
-  --type=merge \
-  --local -oyaml > infrastructure/linkerd/resources/trust-anchor.yaml
-```
-This will overwrite the existing SealedSecret resource in your local ***infrastructure/linkerd/resources/trust-anchor.yaml*** file. Confirm that only the spec.encryptedData is changed. ***Commit and push the new trust anchor secret***
-
-**Sync linkerd-bootstrap**
-```
-argocd app sync linkerd-bootstrap
-```
-
->SealedSecrets should have created a secret containing the decrypted trust anchor. Retrieve the decrypted trust anchor from the secret:
-```
-trust_anchor=`kubectl -n linkerd get secret linkerd-trust-anchor -ojsonpath="{.data['tls\.crt']}" | base64 --decode`
-```
-
-> Locate the identityTrustAnchorsPEM variable in your local gitops/argo-apps/linkerd-control-plane.yaml file, and set its value to that of ${trust_anchor}.
-> Ensure that the multi-line string is indented correctly.  ***Commit and push the changes***
-
-**Sync linkerd**
-```
-argocd app sync linkerd
-argocd app sync linkerd-crds
-argocd app sync linkerd-control-plane
 linkerd check
 linkerd viz install | kubectl apply -f -
 linkerd viz dashboard &

@@ -10,7 +10,7 @@ spec:
   source:
     chart: linkerd-control-plane
     repoURL: https://helm.linkerd.io/stable
-    targetRevision: 1.16.10
+    targetRevision: 1.16.11
     helm:
       parameters:
         - name: identity.issuer.scheme
