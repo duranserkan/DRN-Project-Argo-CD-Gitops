@@ -70,15 +70,13 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/cont
 
 ### Deploy [Argo CD](https://argo-cd.readthedocs.io/en/stable/getting_started/)
 ```
-kubectl create namespace argocd
-
 #https://artifacthub.io/packages/helm/argo/argo-cd
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
-helm install argocd argo/argo-cd --version 6.4.1 -f infrastructure/argocd/custom-values.yaml
+helm install argocd argo/argo-cd --version 6.6.0 -f infrastructure/argocd/custom-values.yaml --create-namespace -n argocd
 
 #At least 3 worker nodes for High Availability is needed
-#helm install argocd argo/argo-cd --version 6.4.1 -f infrastructure/argocd/custom-values-ha.yaml
+#helm install argocd argo/argo-cd --version 6.6.0 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd
 
 //browser ui https://localhost:8080
 kubectl port-forward svc/argocd-server -n argocd 8080:443
@@ -118,11 +116,6 @@ kubectl apply -f infrastructure/linkerd/linkerd-project.yaml
 kubectl apply -f infrastructure/linkerd/linkerd.yaml
 argocd app sync linkerd
 linkerd check
-
-kubectl apply -f infrastructure/linkerd-viz/linkerd-viz-project.yaml
-kubectl apply -f infrastructure/linkerd-viz/linkerd-viz.yaml
-argocd app sync linkerd-viz
-linkerd viz dashboard &
 ```
 
 **Sync Linkerd Viz App**
@@ -130,6 +123,7 @@ linkerd viz dashboard &
 kubectl apply -f infrastructure/linkerd-viz/linkerd-viz-project.yaml
 kubectl apply -f infrastructure/linkerd-viz/linkerd-viz.yaml
 argocd app sync linkerd-viz
+linkerd viz check
 linkerd viz dashboard &
 ```
 
