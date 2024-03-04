@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: nexus
+  name: sample
   annotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
@@ -16,7 +16,7 @@ spec:
             pathType: ImplementationSpecific
             backend:
               service:
-                name: nexus
+                name: sample
                 port:
                   name: http
   # TLS configuration (uncomment and use if SSL is configured)

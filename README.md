@@ -4,8 +4,11 @@
 
 [![master](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/master.yml/badge.svg?branch=master)](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/master.yml)
 [![develop](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/develop.yml/badge.svg?branch=develop)](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/develop.yml)
+[![Docker Hub](https://img.shields.io/badge/images-blue?logo=docker&label=dockerhub
+)](https://hub.docker.com/u/duranserkan)
 [![wiki](https://img.shields.io/badge/Doc-Awesome_Kubernetes-blue)](https://github.com/tomhuang12/awesome-k8s-resources)
 [![wiki](https://img.shields.io/badge/Doc-Awesome_Argo-orange)](https://github.com/akuity/awesome-argo)
+
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
@@ -54,13 +57,12 @@ This project recommends following tools for anyone who doesn't have strong Kuber
 ## About Deployment
 Following deployment instructions gathered together from official documentations and refactored for DRN Project ArgoCD GitOps.
 
-**Install helm, step, kubeseal, linkerd and jq CLIs**
+**Install helm, step, kubeseal and linkerd CLIs**
 ```
+brew install helm
 brew install step
 brew install kubeseal
 brew install linkerd
-brew install jq
-brew install helm
 ```
 
 ### Install [Ingress NGINX Controller](https://github.com/kubernetes/ingress-nginx) for Docker Desktop
@@ -77,12 +79,12 @@ helm install argocd argo/argo-cd --version 6.6.0 -f infrastructure/argocd/custom
 
 #At least 3 worker nodes for High Availability is needed
 #helm install argocd argo/argo-cd --version 6.6.0 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd
+```
 
+```
 //browser ui https://localhost:8080
 kubectl port-forward svc/argocd-server -n argocd 8080:443
-```
 
-```
 //change after first login
 argoPassword=`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
 argocd login 127.0.0.1:8080 \
@@ -110,7 +112,7 @@ kubectl apply -f infrastructure/sealed-secrets/sealed-secrets.yaml
 argocd app sync sealed-secrets
 ```
 
-**Sync Linkerd App**
+**Sync Linkerd**
 ```
 kubectl apply -f infrastructure/linkerd/linkerd-project.yaml
 kubectl apply -f infrastructure/linkerd/linkerd.yaml
@@ -118,13 +120,21 @@ argocd app sync linkerd
 linkerd check
 ```
 
-**Sync Linkerd Viz App**
+**Sync Linkerd Viz**
 ```
 kubectl apply -f infrastructure/linkerd-viz/linkerd-viz-project.yaml
 kubectl apply -f infrastructure/linkerd-viz/linkerd-viz.yaml
 argocd app sync linkerd-viz
 linkerd viz check
 linkerd viz dashboard &
+```
+
+**Sync Postgresql**
+> **Don't use this in production.** Instead, use managed database services for production. For this, PV provisioner support in the underlying infrastructure is required.
+```
+kubectl apply -f infrastructure/postgresql/postgresql-project.yaml
+kubectl apply -f infrastructure/postgresql/postgresql.yaml
+argocd app sync postgresql
 ```
 
 ### Deploy Sample and Nexus Apps

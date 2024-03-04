@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample
+  namespace: drn-project
+  labels:
+    app: sample
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample
+  template:
+    metadata:
+      name: sample
+      labels:
+        app: sample
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: sample
+          image: duranserkan/drn-project-sample:0.2.2-preview001
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - mountPath: /config
+              name: config
+          ports:
+          - containerPort: 5988
+            name: http
+            protocol: TCP
+      volumes:
+        - name: config
+          configMap:
+            name: config

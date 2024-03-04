@@ -6,13 +6,13 @@ namespace: drn-project-develop
 #namePrefix: develop-
 #nameSuffix: -0.2.2-preview002
 images:
-  - name: duranserkan/drn-project-nexus
+  - name: duranserkan/drn-project-sample
     newTag: 0.2.2-preview004
 replicas:
-  - name: nexus
+  - name: sample
     count: 1
 configMapGenerator:
   - name: config
     literals:
-      - environment=Development
+      - Environment=Development
       - DrnContext_AutoMigrateDevEnvironment=true
