@@ -7,7 +7,7 @@ namespace: drn-project-develop
 #nameSuffix: -0.2.2-preview002
 images:
   - name: duranserkan/drn-project-sample
-    newTag: 0.2.2-preview004
+    newTag: 0.2.2-preview005
 replicas:
   - name: sample
     count: 1
@@ -20,4 +20,4 @@ patches:
   - path: deployment-patch.yaml
     target:
       kind: Deployment
-      name: nexus
+      name: sample

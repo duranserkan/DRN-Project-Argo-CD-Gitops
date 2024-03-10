@@ -7,14 +7,14 @@ namespace: drn-project-develop
 #nameSuffix: -0.2.2-preview002
 images:
   - name: duranserkan/drn-project-nexus
-    newTag: 0.2.2-preview004
+    newTag: 0.2.2-preview005
 replicas:
   - name: nexus
     count: 1
 configMapGenerator:
   - name: config
     literals:
-      - environment=Development
+      - Environment=Development
       - DrnContext_AutoMigrateDevEnvironment=true
 patches:
   - path: deployment-patch.yaml
