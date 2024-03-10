@@ -12,7 +12,7 @@ replicas:
   - name: sample
     count: 1
 configMapGenerator:
-  - name: config
+  - name: sample-config
     literals:
       - Environment=Development
       - DrnContext_AutoMigrateDevEnvironment=true

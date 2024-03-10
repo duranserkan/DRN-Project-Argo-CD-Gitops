@@ -12,7 +12,7 @@ replicas:
   - name: nexus
     count: 1
 configMapGenerator:
-  - name: config
+  - name: nexus-config
     literals:
       - Environment=Development
       - DrnContext_AutoMigrateDevEnvironment=true
