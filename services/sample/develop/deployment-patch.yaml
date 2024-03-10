@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nexus
+  name: postgresql
 spec:
   template:
     spec:
       volumes:
         - name: postgresql
           secret:
-            secretName: postgresql/postgresql
+            secretName: postgresql
       containers:
         - name: sample
           volumeMounts:

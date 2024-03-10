@@ -7,6 +7,7 @@ spec:
   # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
   sourceRepos:
     - https://github.com/duranserkan/DRN-Project-Deployment.git
+    - https://charts.bitnami.com/bitnami
   destinations:
     - namespace: argocd
       server: https://kubernetes.default.svc

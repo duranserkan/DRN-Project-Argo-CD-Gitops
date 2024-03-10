@@ -5,7 +5,7 @@ metadata:
   namespace: argocd
 #https://artifacthub.io/packages/helm/bitnami/postgresql
 spec:
-  project: postgresql
+  project: drn-project-develop
   source:
     chart: postgresql
     repoURL: https://charts.bitnami.com/bitnami
@@ -17,7 +17,7 @@ spec:
         - name: auth.database
           value: drnDb
   destination:
-    namespace: postgresql
+    namespace: drn-project-develop
     server: 'https://kubernetes.default.svc'
   syncPolicy:
     automated:
