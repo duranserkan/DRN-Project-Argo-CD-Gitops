@@ -10,7 +10,7 @@ spec:
           secret:
             secretName: postgresql/postgresql
       containers:
-        - name: nexus
+        - name: sample
           volumeMounts:
             - name: postgresql
               mountPath: /config
