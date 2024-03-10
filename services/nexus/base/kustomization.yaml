@@ -3,4 +3,3 @@ kind: Kustomization #kubectl apply -k --dry-run=client -o yaml ./
 resources:
   - deployment.yaml
   - service.yaml
-  - ingress.yaml
