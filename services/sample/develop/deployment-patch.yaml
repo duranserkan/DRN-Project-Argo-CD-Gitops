@@ -14,3 +14,5 @@ spec:
           volumeMounts:
             - name: postgresql
               mountPath: /config
+            - name: config
+              mountPath: /config
