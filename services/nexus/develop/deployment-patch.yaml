@@ -13,6 +13,5 @@ spec:
         - name: nexus
           volumeMounts:
             - name: postgresql
-              mountPath: /config
-            - name: config
-              mountPath: /config
+              mountPath: /config/DrnContext_DevPassword
+              subPath: DrnContext_DevPassword
