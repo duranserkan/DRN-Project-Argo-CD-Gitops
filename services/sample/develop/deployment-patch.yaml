@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus
+spec:
+  template:
+    spec:
+      volumes:
+        - name: postgresql
+          secret:
+            secretName: postgresql/postgresql
+      containers:
+        - name: nexus
+          volumeMounts:
+            - name: postgresql
+              mountPath: /config

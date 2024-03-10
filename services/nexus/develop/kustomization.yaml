@@ -16,3 +16,8 @@ configMapGenerator:
     literals:
       - environment=Development
       - DrnContext_AutoMigrateDevEnvironment=true
+patches:
+  - path: deployment-patch.yaml
+    target:
+      kind: Deployment
+      name: nexus
