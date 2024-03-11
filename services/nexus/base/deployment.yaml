@@ -17,6 +17,7 @@ spec:
         app: nexus
     spec:
       restartPolicy: Always
+      serviceAccountName: nexus
       containers:
         - name: nexus
           image: duranserkan/drn-project-nexus:0.2.2-preview001
@@ -28,6 +29,11 @@ spec:
           - containerPort: 5988
             name: http
             protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 100Mi
+              ephemeral-storage: 1Gi
       volumes:
         - name: config
           configMap:

@@ -12,8 +12,6 @@ spec:
     targetRevision: 14.3.1
     helm:
       parameters:
-        - name: auth.secretKeys.adminPasswordKey
-          value: drnPassword
         - name: auth.database
           value: drnDb
   destination:

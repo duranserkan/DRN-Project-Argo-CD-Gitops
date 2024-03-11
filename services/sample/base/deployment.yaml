@@ -17,6 +17,7 @@ spec:
         app: sample
     spec:
       restartPolicy: Always
+      serviceAccountName: sample
       containers:
         - name: sample
           image: duranserkan/drn-project-sample:0.2.2-preview001
@@ -28,6 +29,11 @@ spec:
           - containerPort: 5988
             name: http
             protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 100Mi
+              ephemeral-storage: "250M"
       volumes:
         - name: config
           configMap:
