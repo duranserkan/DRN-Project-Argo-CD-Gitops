@@ -23,7 +23,7 @@ spec:
           image: duranserkan/drn-project-nexus:0.2.2-preview001
           imagePullPolicy: IfNotPresent
           volumeMounts:
-            - mountPath: /config
+            - mountPath: /appconfig/json-settings
               name: config
           ports:
           - containerPort: 5988

@@ -7,15 +7,14 @@ namespace: drn-project-develop
 #nameSuffix: -0.2.2-preview002
 images:
   - name: duranserkan/drn-project-sample
-    newTag: 0.2.2-preview006
+    newTag: 0.2.2-preview008
 replicas:
   - name: sample
     count: 1
 configMapGenerator:
   - name: sample-config
-    literals:
-      - Environment=Development
-      - DrnContext_AutoMigrateDevEnvironment=true
+    files:
+      - mounted-settings.json
 patches:
   - path: deployment-patch.yaml
     target:

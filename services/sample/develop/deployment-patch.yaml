@@ -13,6 +13,6 @@ spec:
         - name: sample
           volumeMounts:
             - name: postgresql
-              mountPath: /config
+              mountPath: /appconfig/key-per-file-settings
               subPath: postgres-password
               readOnly: true
