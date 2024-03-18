@@ -1,21 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: linkerd-viz
+  name: linkerd-jaeger
   namespace: argocd
-#https://artifacthub.io/packages/helm/linkerd2/linkerd-viz
+#https://artifacthub.io/packages/helm/linkerd2/linkerd-jaeger
 spec:
-  project: linkerd-viz
+  project: linkerd-jaeger
   source:
-    chart: linkerd-viz
+    chart: linkerd-jaeger
     repoURL: https://helm.linkerd.io/stable
     targetRevision: 30.12.11
-    helm:
-      parameters:
-        - name: jaegerUrl
-          value: jaeger.linkerd-jaeger:16686
   destination:
-    namespace: linkerd-viz
+    namespace: linkerd-jaeger
     server: 'https://kubernetes.default.svc'
   syncPolicy:
     automated:

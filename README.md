@@ -120,7 +120,16 @@ argocd app sync linkerd
 linkerd check
 ```
 
-**Sync Linkerd Viz**
+**Sync Linkerd Jaeger (Optional)**
+```
+kubectl apply -f infrastructure/linkerd-jaeger/linkerd-jaeger-project.yaml
+kubectl apply -f infrastructure/linkerd-jaeger/linkerd-jaeger.yaml
+argocd app sync linkerd-jaeger
+linkerd jaeger check
+linkerd jaeger dashboard &
+```
+
+**Sync Linkerd Viz (Optional)**
 ```
 kubectl apply -f infrastructure/linkerd-viz/linkerd-viz-project.yaml
 kubectl apply -f infrastructure/linkerd-viz/linkerd-viz.yaml
