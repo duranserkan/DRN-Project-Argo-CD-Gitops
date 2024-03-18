@@ -14,6 +14,8 @@ spec:
     server: https://kubernetes.default.svc
   - namespace: linkerd-viz
     server: https://kubernetes.default.svc
+  - namespace: linkerd-jaeger
+    server: https://kubernetes.default.svc
   - namespace: kube-system
     server: https://kubernetes.default.svc
   clusterResourceWhitelist:
