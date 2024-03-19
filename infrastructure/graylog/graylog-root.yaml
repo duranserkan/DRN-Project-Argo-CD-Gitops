@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: graylog-root
+  namespace: argocd
+#https://artifacthub.io/packages/helm/kong-z/graylog
+spec:
+  project: graylog
+  source:
+    path: infrastructure/graylog/apps
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    targetRevision: 'preview'
+  destination:
+    namespace: graylog
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true

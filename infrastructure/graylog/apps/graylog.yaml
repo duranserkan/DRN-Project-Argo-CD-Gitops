@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: graylog
+  namespace: argocd
+#https://artifacthub.io/packages/helm/kong-z/graylog
+spec:
+  project: graylog
+  source:
+    chart: graylog
+    repoURL: https://charts.kong-z.com/
+    targetRevision: 2.3.5
+    helm:
+      parameters:
+        - name: tags.install-mongodb
+          value: "false"
+        - name: graylog.mongodb.uri
+          value: "mongodb://mongodb-mongodb-replicaset-0.mongodb-mongodb-replicaset.graylog.svc.cluster.local:27017/graylog?replicaSet=rs0"
+  destination:
+    namespace: graylog
+    server: 'https://kubernetes.default.svc'
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true

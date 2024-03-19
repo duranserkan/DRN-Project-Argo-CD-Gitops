@@ -19,8 +19,8 @@ spec:
     server: 'https://kubernetes.default.svc'
   syncPolicy:
     automated:
-      selfHeal: true
-      prune: true
+      selfHeal: false #self heal causes postgres-password secret regenerate that doesn't match with existing pvc
+      prune: false
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - CreateNamespace=true
