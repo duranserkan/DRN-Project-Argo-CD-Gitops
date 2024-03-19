@@ -14,7 +14,7 @@ spec:
       values: |
         extraEnvVars:
         - name: EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU
-          value: 1
+          value: "1"
 #https://github.com/bitnami/charts/issues/3635
 #https://github.com/bitnami/containers/issues/40947
   destination:
