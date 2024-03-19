@@ -11,6 +11,9 @@ spec:
     repoURL: https://charts.bitnami.com/bitnami
     targetRevision: 15.0.2
     helm:
+      parameters:
+        - name: image.debug
+          value: "true"
       values: |
         extraEnvVars:
         - name: EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU
