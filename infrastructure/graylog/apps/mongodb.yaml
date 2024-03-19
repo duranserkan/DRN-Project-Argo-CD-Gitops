@@ -18,6 +18,19 @@ spec:
         extraEnvVars:
         - name: EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU
           value: "1"
+        customStartupProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 20
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 30
+          exec:
+            command:
+              - sh
+              - -c
+              - |
+                mongosh --eval 'disableTelemetry()'
+                /bitnami/scripts/startup-probe.sh
 #https://github.com/bitnami/charts/issues/3635
 #https://github.com/bitnami/containers/issues/40947
   destination:
