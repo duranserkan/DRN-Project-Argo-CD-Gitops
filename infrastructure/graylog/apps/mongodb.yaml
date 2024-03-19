@@ -18,10 +18,31 @@ spec:
         extraEnvVars:
           - name: EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU
             value: "1"
+        resources:
+          limits:
+            cpu: "300m"
+            memory: "2048Mi"
+          requests:
+            cpu: "40m"
+            memory: "258Mi"
+        livenessProbe:
+          enabled: true
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 40
+          failureThreshold: 6
+          successThreshold: 1
+        readinessProbe:
+          enabled: true
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 40
+          failureThreshold: 6
+          successThreshold: 1
         customStartupProbe:
           initialDelaySeconds: 5
           periodSeconds: 20
-          timeoutSeconds: 10
+          timeoutSeconds: 30
           successThreshold: 1
           failureThreshold: 30
           exec:
