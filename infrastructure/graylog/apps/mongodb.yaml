@@ -13,7 +13,7 @@ spec:
     helm:
       parameters:
         - name: image.debug
-          value: "true"
+          value: true
       values: |
         extraEnvVars:
         - name: EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU
