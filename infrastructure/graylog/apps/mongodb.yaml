@@ -14,10 +14,10 @@ spec:
       parameters:
         - name: image.debug
           value: true
-      values: |
+      valuesObject:
         extraEnvVars:
-        - name: EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU
-          value: "1"
+          - name: EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU
+            value: "1"
         customStartupProbe:
           initialDelaySeconds: 5
           periodSeconds: 20
