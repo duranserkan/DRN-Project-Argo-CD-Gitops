@@ -3,7 +3,7 @@ kind: MongoDBCommunity
 metadata:
   name: mongodb
 spec:
-  members: 1
+  members: 3
   type: ReplicaSet
   version: "6.0.14"
   security:
@@ -22,10 +22,3 @@ spec:
       scramCredentialsSecretName: my-scram
   additionalMongodConfig:
     storage.wiredTiger.engineConfig.journalCompressor: zlib
-  statefulSet:
-    spec:
-      template:
-        spec:
-          containers:
-            - name: mongodb-agent
-              image: "quay.io/mongodb/mongodb-agent-ubi:12.0.28.7763-1"
