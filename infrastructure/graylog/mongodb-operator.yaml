@@ -9,13 +9,13 @@ spec:
   source:
     chart: community-operator
     repoURL: https://mongodb.github.io/helm-charts
-    targetRevision: 0.9.0
+    targetRevision: 0.8.1
     helm:
       parameters: #fix according to https://stackoverflow.com/questions/77374226/mongodb-kubernetes-operator-mongodb-agent-is-never-ready
         - name: agent.name
           value: "mongodb-agent"
         - name: agent.version
-          value: "12.0.25.7724-1"
+          value: "12.0.24.7719-1"
         - name: versionUpgradeHook.name
           value: "mongodb-kubernetes-operator-version-upgrade-post-start-hook"
         - name: versionUpgradeHook.version
