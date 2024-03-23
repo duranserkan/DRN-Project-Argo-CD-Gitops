@@ -14,8 +14,10 @@ spec:
       parameters:
         - name: tags.install-mongodb
           value: "false"
-        - name: graylog.mongodb.uri
-          value: "mongodb://mongodb-mongodb-replicaset-0.mongodb-mongodb-replicaset.graylog.svc.cluster.local:27017/graylog?replicaSet=rs0"
+        - name: graylog.mongodb.uriSecretName
+          value: "mongodb-graylog-admin"
+        - name: graylog.mongodb.uriSecretKey
+          value: "connectionString.standardSrv"
   destination:
     namespace: graylog
     server: 'https://kubernetes.default.svc'
