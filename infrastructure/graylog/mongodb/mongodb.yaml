@@ -1,0 +1,24 @@
+apiVersion: mongodbcommunity.mongodb.com/v1
+kind: MongoDBCommunity
+metadata:
+  name: mongodb
+spec:
+  members: 3
+  type: ReplicaSet
+  version: "6.0.5"
+  security:
+    authentication:
+      modes: ["SCRAM"]
+  users:
+    - name: admin
+      db: graylog
+      passwordSecretRef: # a reference to the secret that will be used to generate the user's password
+        name: mongo-admin-password
+      roles:
+        - name: clusterAdmin
+          db: graylog
+        - name: userAdminAnyDatabase
+          db: graylog
+      scramCredentialsSecretName: my-scram
+  additionalMongodConfig:
+    storage.wiredTiger.engineConfig.journalCompressor: zlib

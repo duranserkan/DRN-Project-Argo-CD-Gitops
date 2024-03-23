@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mongodb
+  namespace: argocd
+spec:
+  project: graylog
+  source:
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    path: infrastructure/graylog/mongodb
+    targetRevision: 'preview'
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: graylog
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - SyncWave=0

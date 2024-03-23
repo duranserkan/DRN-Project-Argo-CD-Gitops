@@ -10,6 +10,7 @@ spec:
     - https://charts.bitnami.com/bitnami
     - https://opensearch-project.github.io/helm-charts
     - https://github.com/duranserkan/DRN-Project-Deployment.git
+    - https://mongodb.github.io/helm-charts
   destinations:
     - namespace: argocd
       server: https://kubernetes.default.svc
@@ -19,3 +20,5 @@ spec:
   clusterResourceWhitelist:
   - group: ""
     kind: Namespace
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition

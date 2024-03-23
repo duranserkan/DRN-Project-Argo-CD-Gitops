@@ -149,7 +149,12 @@ argocd app sync postgresql
 > **Don't use this approach in production.** Instead, use managed database services for production. For this, PV provisioner support in the underlying infrastructure is required.
 ```
 kubectl apply -f infrastructure/graylog/graylog-project.yaml
-kubectl apply -f infrastructure/graylog/graylog-root.yaml
+kubectl apply -f infrastructure/graylog/mongodb-operator.yaml
+
+kubectl create secret generic mongo-admin-password --from-literal=password=yourpassword --namespace graylog
+kubectl apply -f infrastructure/graylog/mongodb-app.yaml
+
+#kubectl apply -f infrastructure/graylog/graylog-root.yaml
 argocd app sync graylog-root
 ```
 
