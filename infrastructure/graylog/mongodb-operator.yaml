@@ -11,19 +11,13 @@ spec:
     repoURL: https://mongodb.github.io/helm-charts
     targetRevision: 0.9.0
     helm:
-      parameters:
+      parameters: #fix according to https://stackoverflow.com/questions/77374226/mongodb-kubernetes-operator-mongodb-agent-is-never-ready
         - name: agent.name
           value: "mongodb-agent"
         - name: agent.version
-          value: "12.0.25.7724-1"
-        - name: versionUpgradeHook.name
-          value: "mongodb-kubernetes-operator-version-upgrade-post-start-hook"
-        - name: versionUpgradeHook.version
-          value: "1.0.8"
-        - name: readinessProbe.name
-          value: "mongodb-kubernetes-readiness"
-        - name: readinessProbe.version
-          value: "1.0.17"
+          value: "12.0.24.7719-1"
+        - name: registry.agent
+          value: "docker.io/mohsinonxrm"
   destination:
     namespace: graylog
     server: 'https://kubernetes.default.svc'
