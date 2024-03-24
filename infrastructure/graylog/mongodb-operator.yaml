@@ -12,6 +12,10 @@ spec:
     targetRevision: 0.9.0
     helm:
       parameters: #https://quay.io/organization/mongodb - image repositories
+        - name: mongodb.name
+          value: "mongodb-community-server"
+        - name: mongodb.repo
+          value: "quay.io/mongodb"
         - name: agent.name
           value: "mongodb-agent-ubi"
         - name: agent.version
