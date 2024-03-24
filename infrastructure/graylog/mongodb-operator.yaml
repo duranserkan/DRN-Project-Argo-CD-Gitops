@@ -9,21 +9,21 @@ spec:
   source:
     chart: community-operator
     repoURL: https://mongodb.github.io/helm-charts
-    targetRevision: 0.9.0-b20240324T000000Z
+    targetRevision: 0.9.0
     helm:
       parameters: #https://quay.io/organization/mongodb - image repositories
         - name: agent.name
           value: "mongodb-agent-ubi"
         - name: agent.version
-          value: "12.0.29.7785-1"
+          value: "12.0.28.7763-1"
         - name: versionUpgradeHook.name
           value: "mongodb-kubernetes-operator-version-upgrade-post-start-hook"
         - name: versionUpgradeHook.version
-          value: "1.0.8-b20240324T000000Z"
+          value: "1.0.8"
         - name: readinessProbe.name
           value: "mongodb-kubernetes-readinessprobe"
         - name: readinessProbe.version
-          value: "1.0.17-b20240324T000000Z"
+          value: "1.0.17"
   destination:
     namespace: graylog
     server: 'https://kubernetes.default.svc'
