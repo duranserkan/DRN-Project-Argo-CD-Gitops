@@ -152,10 +152,10 @@ kubectl apply -f infrastructure/graylog/graylog-project.yaml
 kubectl apply -f infrastructure/graylog/mongodb-operator.yaml
 
 kubectl create secret generic mongo-admin-password --from-literal=password=yourpassword --namespace graylog
-kubectl apply -f infrastructure/graylog/mongodb-app.yaml
+kubectl apply -f infrastructure/graylog/mongodb.yaml
 
-#kubectl apply -f infrastructure/graylog/graylog-root.yaml
-argocd app sync graylog-root
+kubectl apply -f infrastructure/graylog/graylog.yaml
+argocd app sync graylog
 ```
 
 ### Deploy Sample and Nexus Apps

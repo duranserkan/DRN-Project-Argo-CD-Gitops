@@ -12,12 +12,25 @@ spec:
     targetRevision: 2.3.5
     helm:
       parameters:
+        - name: graylog.image.tag
+          value: "5.2.5"
         - name: tags.install-mongodb
           value: "false"
         - name: graylog.mongodb.uriSecretName
           value: "mongodb-admin-admin"
         - name: graylog.mongodb.uriSecretKey
           value: "connectionString.standardSrv"
+      valuesObject:
+        graylog:
+          input:
+            udp:
+              service:
+                name: drn-udp-gelf
+                type: ClusterIP
+              ports:
+                - name: gelf
+                  port: 12201
+  #https://go2docs.graylog.org/5-0/getting_in_log_data/gelf.html
   destination:
     namespace: graylog
     server: 'https://kubernetes.default.svc'
