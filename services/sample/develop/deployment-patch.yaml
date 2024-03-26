@@ -5,6 +5,7 @@ metadata:
 spec:
   template:
     spec:
+      automountServiceAccountToken: false
       volumes:
         - name: postgresql
           secret:
@@ -16,3 +17,8 @@ spec:
               mountPath: /appconfig/key-per-file-settings/postgres-password
               subPath: postgres-password
               readOnly: true
+          resources:
+            limits:
+              cpu: 500m
+              memory: 100Mi
+              ephemeral-storage: 1Gi

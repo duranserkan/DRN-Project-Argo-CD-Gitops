@@ -16,6 +16,7 @@ spec:
       labels:
         app: sample
     spec:
+      automountServiceAccountToken: false
       restartPolicy: Always
       serviceAccountName: sample
       containers:

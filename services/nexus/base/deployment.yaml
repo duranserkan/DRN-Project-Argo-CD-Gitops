@@ -16,6 +16,7 @@ spec:
       labels:
         app: nexus
     spec:
+      automountServiceAccountToken: false
       restartPolicy: Always
       serviceAccountName: nexus
       containers:
