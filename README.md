@@ -17,14 +17,22 @@
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=bugs)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
 
+TL;DR: You can
+* use [DRN.Framework](https://www.nuget.org/packages/DRN.Framework.Testing/#readme-body-tab) nuget packages to easily develop and test distributed reliable dotnet applications.
+* use Argo CD GitOps to easily deploy your apps to a kubernetes cluster with Linkerd service mesh.
+* use [Nexus App](https://hub.docker.com/r/duranserkan/drn-project-nexus) (not functional yet)
+  * for service discovery
+  * to get remote settings
+  * to get unified microservices topology and their self-documentation
+* Sample app is used for demonstration, replace it with actual services.
+* Use this repository structure as boilerplate template for your actual projects
+* Use DRN Project Pulumi GitOps to create an oracle cloud kubernetes cluster (not created yet)
 
-[Distributed Reliable .Net](https://github.com/duranserkan/DRN-Project) project aims to provide somewhat opinionated design and out of the box solutions to enterprise application development.
-Expected result is spending less time on wiring while getting better maintainability and observability.
-The project benefits from the best practices, open source solutions and personal production experience.
-This project is about managing software complexity, architecting good solutions and a promise to deliver a good software.
+[About Project, Kubernetes and ArgoCD](#about-project) | [GitOps Roadmap](#gitops-roadmap) | [Tools](#tools) | [Deployment](#deployment)
 
-## About Kubernetes, ArgoCD and GitOps
-The DRN Project is committed to following best practices, ensuring that the end result is always satisfying and worth the effort. While not adhering blindly, the project emphasizes the importance of implementing best practices, particularly evident in its Continuous Integration part of the DevSecOps pipeline.
+## About Project, Kubernetes and ArgoCD
+
+The [Distributed Reliable .Net](https://github.com/duranserkan/DRN-Project?tab=readme-ov-file#drn-project) project is committed to following best practices, ensuring that the end result is always satisfying and worth the effort. While not adhering blindly, the project emphasizes the importance of implementing best practices, particularly evident in its Continuous Integration part of the DevSecOps pipeline.
 
 It should do the same with Continuous Deployment and Delivery. However, deciding a good delivery and deployment practice for many cases and being reasonable upfront is challenging task. The solution must be flexible and complexity should be manageable. Therefore, Kubernetes is the obvious answer :)
 
@@ -38,7 +46,7 @@ It was puzzling, like trying to find a generalized solution for [the Navier–St
 
 ArgoCD elegantly handles the final aspect through GitOps, while the first two assumptions aim to simplify the management of complexity and maintenance for small teams or projects.
 
-## About Tools
+## Tools
 High quality output is not a coincidence. It is natural result of good people's labour that works with right processes and tools.
 
 This project recommends following tools for anyone who doesn't have strong Kubernetes experience as a starter pack. 
@@ -47,14 +55,17 @@ This project recommends following tools for anyone who doesn't have strong Kuber
 * [kubectx + kubens](https://github.com/ahmetb/kubectx)  - `kubectx` helps you switch between clusters back and forth, and `kubens` helps you switch between Kubernetes namespaces smoothly.
 * [OpenLens](https://github.com/MuhammedKalkan/OpenLens) - Lens it's an useful, attractive, open source user interface (UI) for working with Kubernetes clusters.
 
-
-## About Deployment Roadmap
+## GitOps Roadmap
 - [X] Minimal working pipeline
 - [X] Linkerd support
-- [ ] Postgres and Rabbit Operators for development environment
+- [X] Development environment support
+  - [X] Postgres
+  - [X] Graylog
+  - [ ] RabbitMQ
+- [ ] Pulumi support to create an oracle cloud kubernetes cluster
 - [ ] Kubernetes hardening practices
 
-## About Deployment
+## Deployment
 Following deployment instructions gathered together from official documentations and refactored for DRN Project ArgoCD GitOps.
 
 **Install helm, step, kubeseal and linkerd CLIs**
@@ -71,6 +82,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/cont
 ```
 
 ### Deploy [Argo CD](https://argo-cd.readthedocs.io/en/stable/getting_started/)
+**Install**
 ```
 #https://artifacthub.io/packages/helm/argo/argo-cd
 helm repo add argo https://argoproj.github.io/argo-helm
@@ -80,13 +92,19 @@ helm install argocd argo/argo-cd --version 6.6.0 -f infrastructure/argocd/custom
 #At least 3 worker nodes for High Availability is needed
 #helm install argocd argo/argo-cd --version 6.6.0 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd
 ```
+**Login**
 
+**Browser UI - https://localhost:8080**
 ```
-//browser ui https://localhost:8080
 kubectl port-forward svc/argocd-server -n argocd 8080:443
-
-//change after first login
+```
+**Initial password**
+```
+#change this after first login
 argoPassword=`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
+```
+**ArgoCD cli login**
+```
 argocd login 127.0.0.1:8080 \
   --username=admin \
   --password="${argoPassword}" \
@@ -137,6 +155,7 @@ argocd app sync linkerd-viz
 linkerd viz check
 linkerd viz dashboard &
 ```
+### Deploy Dev Environment Dependencies
 
 **Sync Postgresql (Optional)**
 > **Don't use this approach in production.** Instead, use managed database services for production. For this, PV provisioner support in the underlying infrastructure is required.
@@ -146,19 +165,27 @@ argocd app sync postgresql
 ```
 
 **Sync Graylog (Optional)**
-> **Don't use this approach in production.** Instead, use managed database services for production. For this, PV provisioner support in the underlying infrastructure is required.
+> **Don't use this approach in production.** 
+> Instead, use managed database services for production. 
+> For this, PV provisioner support in the underlying infrastructure is required.
+> This configuration uses multi-platform Mongodb images that support **Arm 64-bit architecture**.
 ```
 kubectl apply -f infrastructure/graylog/graylog-project.yaml
+kubectl create secret generic mongo-admin-password \
+--from-literal=password=yourpassword \
+--namespace graylog
+
 kubectl apply -f infrastructure/graylog/mongodb-operator.yaml
-
-kubectl create secret generic mongo-admin-password --from-literal=password=yourpassword --namespace graylog
 kubectl apply -f infrastructure/graylog/mongodb.yaml
+argocd app sync mongodb
+```
 
+```
 kubectl apply -f infrastructure/graylog/graylog.yaml
 argocd app sync graylog
 ```
-
 ### Deploy Sample and Nexus Apps
+
 ```
 kubectl apply -f apps/develop/develop-project.yaml
 kubectl apply -f apps/develop/develop.yaml
