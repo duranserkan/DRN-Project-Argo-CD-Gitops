@@ -87,10 +87,10 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/cont
 #https://artifacthub.io/packages/helm/argo/argo-cd
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
-helm install argocd argo/argo-cd --version 6.6.0 -f infrastructure/argocd/custom-values.yaml --create-namespace -n argocd
+helm install argocd argo/argo-cd --version 6.8.0 -f infrastructure/argocd/custom-values.yaml --create-namespace -n argocd
 
 #At least 3 worker nodes for High Availability is needed
-#helm install argocd argo/argo-cd --version 6.6.0 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd
+#helm install argocd argo/argo-cd --version 6.8.0 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd
 ```
 **Login**
 

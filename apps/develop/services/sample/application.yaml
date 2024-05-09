@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
     path: services/sample/develop
-    targetRevision: 'preview'
+    targetRevision: 'develop'
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: drn-project-develop

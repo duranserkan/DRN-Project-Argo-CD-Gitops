@@ -8,7 +8,7 @@ spec:
   source:
     chart: trust-manager
     repoURL: https://charts.jetstack.io
-    targetRevision: v0.8.0
+    targetRevision: v0.9.2
   destination:
     namespace: cert-manager
     server: https://kubernetes.default.svc
