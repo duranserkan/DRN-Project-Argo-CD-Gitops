@@ -15,7 +15,6 @@
       }
     }
   },
-  ,
   "Serilog": {
     "Docs": "https://github.com/serilog/serilog-settings-configuration",
     "Using": [
