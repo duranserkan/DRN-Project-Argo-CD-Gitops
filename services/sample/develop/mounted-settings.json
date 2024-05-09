@@ -3,5 +3,49 @@
   "DrnAppFeatures": {
     "AutoMigrateDevEnvironment": true,
     "LaunchExternalDependencies": false
+  },
+  "Kestrel": {
+    "Docs": "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints",
+    "EndpointDefaults": {
+      "Protocols": "Http1"
+    },
+    "Endpoints": {
+      "All": {
+        "Url": "http://*:5998"
+      }
+    }
+  },
+  ,
+  "Serilog": {
+    "Docs": "https://github.com/serilog/serilog-settings-configuration",
+    "Using": [
+      "Serilog.Sinks.Console",
+      "Serilog.Sinks.Graylog"
+    ],
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft.Hosting.Lifetime": "Information",
+        "Microsoft": "Warning",
+        "System": "Warning"
+      }
+    },
+    "WriteTo": [
+      {
+        "Name": "Console",
+        "Args": {
+          "theme": "Serilog.Sinks.SystemConsole.Themes.AnsiConsoleTheme::Code, Serilog.Sinks.Console",
+          "outputTemplate": "[BEGIN {Timestamp:HH:mm:ss.fffffff} {Level:u3} {SourceContext}]{NewLine}{Message:lj}{NewLine}[END {Timestamp:HH:mm:ss.fffffff} {Level:u3} {SourceContext}]{NewLine}"
+        }
+      },
+      {
+        "Name": "Graylog",
+        "Args": {
+          "hostnameOrAddress": "drn-udp-gelf",
+          "port": "12201",
+          "transportType": "Udp"
+        }
+      }
+    ]
   }
 }

@@ -160,6 +160,7 @@ linkerd viz dashboard &
 **Sync Postgresql (Optional)**
 > **Don't use this approach in production.** Instead, use managed database services for production. For this, PV provisioner support in the underlying infrastructure is required.
 ```
+kubectl apply -f apps/develop/develop-project.yaml
 kubectl apply -f infrastructure/postgresql/postgresql.yaml
 argocd app sync postgresql
 ```
