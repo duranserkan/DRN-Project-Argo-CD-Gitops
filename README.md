@@ -171,6 +171,7 @@ argocd app sync postgresql
 > This configuration uses multi-platform Mongodb images that support **Arm 64-bit architecture**.
 ```
 kubectl apply -f infrastructure/graylog/graylog-project.yaml
+kubectl create namespace graylog
 kubectl create secret generic mongo-admin-password \
 --from-literal=password=yourpassword \
 --namespace graylog

@@ -1,4 +1,7 @@
 {
   "Environment": "development",
-  "DrnContext_AutoMigrateDevEnvironment": true
+  "DrnAppFeatures": {
+    "AutoMigrateDevEnvironment": true,
+    "LaunchExternalDependencies": false
+  }
 }

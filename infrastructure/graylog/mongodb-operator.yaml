@@ -21,7 +21,7 @@ spec:
         - name: agent.name
           value: "mongodb-agent-ubi"
         - name: agent.version
-          value: "12.0.28.7763-1"
+          value: "12.0.31.7825-1"
         - name: versionUpgradeHook.name
           value: "mongodb-kubernetes-operator-version-upgrade-post-start-hook"
         - name: versionUpgradeHook.version
@@ -29,7 +29,7 @@ spec:
         - name: readinessProbe.name
           value: "mongodb-kubernetes-readinessprobe"
         - name: readinessProbe.version
-          value: "1.0.17"
+          value: "1.0.18"
   destination:
     namespace: graylog
     server: 'https://kubernetes.default.svc'
