@@ -30,6 +30,14 @@ spec:
           value: "mongodb-kubernetes-readinessprobe"
         - name: readinessProbe.version
           value: "1.0.18"
+        - name: operator.resources.limits.cpu
+          value: "100m"
+        - name: operator.resources.limits.memory
+          value: "200Mi"
+        - name: operator.resources.requests.cpu
+          value: "0"
+        - name: operator.resources.requests.memory
+          value: "0"
   destination:
     namespace: graylog
     server: 'https://kubernetes.default.svc'

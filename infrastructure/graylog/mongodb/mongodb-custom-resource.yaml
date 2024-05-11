@@ -3,7 +3,7 @@ kind: MongoDBCommunity
 metadata:
   name: mongodb
 spec:
-  members: 3
+  members: 1
   type: ReplicaSet
   version: "6.0.15"
   security:

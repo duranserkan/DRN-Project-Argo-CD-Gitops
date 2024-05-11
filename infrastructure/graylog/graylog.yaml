@@ -20,6 +20,12 @@ spec:
           value: "mongodb-admin-admin"
         - name: graylog.mongodb.uriSecretKey
           value: "connectionString.standardSrv"
+        - name: graylog.options.processbufferProcessors
+          value: "100m"
+        - name: graylog.options.inputbufferProcessors
+          value: "100m"
+        - name: graylog.options.outputbufferProcessors
+          value: "100m"
       valuesObject:
         graylog:
           input:
