@@ -9,24 +9,26 @@ spec:
   source:
     chart: graylog
     repoURL: https://charts.kong-z.com/
-    targetRevision: 2.3.5
+    targetRevision: 2.3.7
     helm:
       parameters:
         - name: graylog.image.tag
-          value: "5.2.5"
+          value: "5.2.7"
         - name: tags.install-mongodb
           value: "false"
         - name: graylog.mongodb.uriSecretName
           value: "mongodb-admin-admin"
         - name: graylog.mongodb.uriSecretKey
           value: "connectionString.standardSrv"
-        - name: graylog.options.processbufferProcessors
+        - name: graylog.resources.requests.cpu
           value: "100m"
-        - name: graylog.options.inputbufferProcessors
+        - name: opensearch.resources.requests.cpu
           value: "100m"
-        - name: graylog.options.outputbufferProcessors
-          value: "100m"
+        - name: opensearch.resources.limits.cpu
+          value: "200m"
       valuesObject:
+        opensearch:
+          singleNode: true
         graylog:
           input:
             udp:

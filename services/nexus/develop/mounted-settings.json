@@ -40,7 +40,7 @@
       {
         "Name": "Graylog",
         "Args": {
-          "hostnameOrAddress": "drn-udp-gelf",
+          "hostnameOrAddress": "drn-udp-gelf.graylog",
           "port": "12201",
           "transportType": "Udp"
         }
