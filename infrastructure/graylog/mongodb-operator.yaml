@@ -9,7 +9,7 @@ spec:
   source:
     chart: community-operator
     repoURL: https://mongodb.github.io/helm-charts
-    targetRevision: 0.9.0
+    targetRevision: 0.10.0
     helm:
       parameters: #https://quay.io/organization/mongodb - image repositories
         - name: database.namespace
@@ -21,7 +21,7 @@ spec:
         - name: agent.name
           value: "mongodb-agent-ubi"
         - name: agent.version
-          value: "12.0.31.7825-1"
+          value: "12.0.32.7857-1"
         - name: versionUpgradeHook.name
           value: "mongodb-kubernetes-operator-version-upgrade-post-start-hook"
         - name: versionUpgradeHook.version
@@ -29,7 +29,7 @@ spec:
         - name: readinessProbe.name
           value: "mongodb-kubernetes-readinessprobe"
         - name: readinessProbe.version
-          value: "1.0.18"
+          value: "1.0.19"
         - name: operator.resources.limits.cpu
           value: "100m"
         - name: operator.resources.limits.memory

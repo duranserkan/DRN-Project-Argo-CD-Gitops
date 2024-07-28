@@ -9,11 +9,11 @@ spec:
   source:
     chart: graylog
     repoURL: https://charts.kong-z.com/
-    targetRevision: 2.3.7
+    targetRevision: 2.3.8
     helm:
       parameters:
         - name: graylog.image.tag
-          value: "5.2.7"
+          value: "5.2.9"
         - name: tags.install-mongodb
           value: "false"
         - name: graylog.mongodb.uriSecretName
