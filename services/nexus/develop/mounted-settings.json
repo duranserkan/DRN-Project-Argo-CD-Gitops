@@ -1,5 +1,6 @@
 {
   "Environment": "development",
+  "AllowedHosts": "*",
   "DrnAppFeatures": {
     "AutoMigrateDevEnvironment": true,
     "LaunchExternalDependencies": false
@@ -14,6 +15,13 @@
         "Url": "http://*:5988"
       }
     }
+  },
+  "HostOptions": {
+    "ShutdownTimeout": "00:00:15",
+    "StartupTimeout": "00:00:15",
+    "ServicesStartConcurrently": true,
+    "ServicesStopConcurrently": true,
+    "BackgroundServiceExceptionBehavior": "StopHost"
   },
   "Serilog": {
     "Docs": "https://github.com/serilog/serilog-settings-configuration",
