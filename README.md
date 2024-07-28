@@ -4,9 +4,11 @@
 
 [![master](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/master.yml/badge.svg?branch=master)](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/master.yml)
 [![develop](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/develop.yml/badge.svg?branch=develop)](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/develop.yml)
-[![Docker Hub](https://img.shields.io/badge/images-blue?logo=docker&label=dockerhub
+[![Docker Hub](https://img.shields.io/badge/images-2496ED?logo=docker&label=dockerhub
 )](https://hub.docker.com/u/duranserkan)
-[![wiki](https://img.shields.io/badge/Doc-Awesome_Kubernetes-blue)](https://github.com/tomhuang12/awesome-k8s-resources)
+[![Nuget](https://img.shields.io/badge/packages-004880?logo=nuget&label=nuget
+)](https://www.nuget.org/profiles/duranserkan)
+[![wiki](https://img.shields.io/badge/Doc-Awesome_Kubernetes-326CE5)](https://github.com/tomhuang12/awesome-k8s-resources)
 [![wiki](https://img.shields.io/badge/Doc-Awesome_Argo-orange)](https://github.com/akuity/awesome-argo)
 
 
