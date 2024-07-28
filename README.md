@@ -80,7 +80,7 @@ brew install linkerd
 
 ### Install [Ingress NGINX Controller](https://github.com/kubernetes/ingress-nginx) for Docker Desktop
 ```
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.1/deploy/static/provider/cloud/deploy.yaml
 ```
 
 ### Deploy [Argo CD](https://argo-cd.readthedocs.io/en/stable/getting_started/)
@@ -89,10 +89,10 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/cont
 #https://artifacthub.io/packages/helm/argo/argo-cd
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
-helm install argocd argo/argo-cd --version 6.8.0 -f infrastructure/argocd/custom-values.yaml --create-namespace -n argocd
+helm install argocd argo/argo-cd --version 7.3.11 -f infrastructure/argocd/custom-values.yaml --create-namespace -n argocd
 
 #At least 3 worker nodes for High Availability is needed
-#helm install argocd argo/argo-cd --version 6.8.0 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd
+#helm install argocd argo/argo-cd --version 7.3.11 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd
 ```
 **Login**
 
