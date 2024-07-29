@@ -7,7 +7,7 @@ spec:
   project: drn-project-develop
   source:
     repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
-    path: apps/develop/services
+    path: apps/develop
     targetRevision: 'preview'
     directory:
       recurse: true
