@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: graylog
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/service-upstream: "true"
+    # Additional annotations for SSL, CORS, etc., can be added here.
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /graylog(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: graylog-web
+                port:
+                  number: 9000
+  # TLS configuration (uncomment and use if SSL is configured)
+  # tls:
+  # - hosts:
+  #   - public-api.yourdomain.com
+  #   secretName: public-api-tls
