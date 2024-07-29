@@ -192,6 +192,6 @@ argocd app sync graylog
 
 ```
 kubectl apply -f apps/develop/develop-project.yaml
-kubectl apply -f apps/develop/develop.yaml
+kubectl apply -f apps/develop.yaml
 argocd app sync drn-project-develop
 ```
