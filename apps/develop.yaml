@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
     path: apps/develop
-    targetRevision: 'preview'
+    targetRevision: 'develop'
     directory:
       recurse: true
   destination:
@@ -19,4 +19,5 @@ spec:
       selfHeal: true
       prune: true
     syncOptions:
+      - CreateNamespace=true
       - ApplyOutOfSyncOnly=true
