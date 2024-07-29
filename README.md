@@ -162,7 +162,7 @@ linkerd viz dashboard &
 **Sync Postgresql (Optional)**
 > **Don't use this approach in production.** Instead, use managed database services for production. For this, PV provisioner support in the underlying infrastructure is required.
 ```
-kubectl apply -f apps/develop/develop-project.yaml
+kubectl apply -f apps/develop-project.yaml
 kubectl apply -f infrastructure/postgresql/postgresql.yaml
 argocd app sync postgresql
 ```
@@ -191,7 +191,7 @@ argocd app sync graylog
 ### Deploy Sample and Nexus Apps
 
 ```
-kubectl apply -f apps/develop/develop-project.yaml
+kubectl apply -f apps/develop-project.yaml
 kubectl apply -f apps/develop.yaml
 argocd app sync drn-project-develop
 ```
