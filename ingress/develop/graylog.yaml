@@ -16,7 +16,7 @@ spec:
             pathType: ImplementationSpecific
             backend:
               service:
-                name: graylog-web
+                name: graylog-web.graylog
                 port:
                   number: 9000
   # TLS configuration (uncomment and use if SSL is configured)
