@@ -78,11 +78,6 @@ brew install kubeseal
 brew install linkerd
 ```
 
-### Install [Ingress NGINX Controller](https://github.com/kubernetes/ingress-nginx) for Docker Desktop
-```
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.1/deploy/static/provider/cloud/deploy.yaml
-```
-
 ### Deploy [Argo CD](https://argo-cd.readthedocs.io/en/stable/getting_started/)
 **Install**
 ```
@@ -157,6 +152,14 @@ argocd app sync linkerd-viz
 linkerd viz check
 linkerd viz dashboard &
 ```
+
+### Install [Ingress NGINX Controller](https://github.com/kubernetes/ingress-nginx) for Docker Desktop
+```
+kubectl apply -f apps/develop-project.yaml
+kubectl apply -f infrastructure/ingress-nginx-controller/ingress-nginx-controller.yaml
+argocd app sync ingress-nginx-controller
+```
+
 ### Deploy Dev Environment Dependencies
 
 **Sync Postgresql (Optional)**

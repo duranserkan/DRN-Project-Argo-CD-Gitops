@@ -45,7 +45,7 @@ spec:
   syncPolicy:
     automated:
       selfHeal: false #self heal causes password secret regenerate that doesn't match with existing pvc
-      prune: true
+      prune: false
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - CreateNamespace=true

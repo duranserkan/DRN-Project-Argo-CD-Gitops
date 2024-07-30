@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx-controller
+  namespace: argocd
+#https://artifacthub.io/packages/helm/bitnami/postgresql
+spec:
+  project: drn-project-develop
+  source:
+    chart: ingress-nginx
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    targetRevision: 4.11.1
+    helm:
+      valuesObject:
+        controller:
+          podAnnotations:
+            linkerd.io/inject: enabled
+  destination:
+    namespace: drn-project-develop
+    server: 'https://kubernetes.default.svc'
+  syncPolicy:
+    automated:
+      selfHeal: true #self heal causes postgres-password secret regenerate that doesn't match with existing pvc
+      prune: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true

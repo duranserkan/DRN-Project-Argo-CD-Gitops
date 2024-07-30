@@ -2,5 +2,3 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: drn-project-develop
-  annotations:
-    linkerd.io/inject: enabled
