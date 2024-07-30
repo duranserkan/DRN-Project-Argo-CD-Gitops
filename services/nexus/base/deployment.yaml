@@ -5,6 +5,8 @@ metadata:
   namespace: drn-project
   labels:
     app: nexus
+  annotations:
+    linkerd.io/inject: enabled
 spec:
   replicas: 1
   selector:

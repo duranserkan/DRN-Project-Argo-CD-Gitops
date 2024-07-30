@@ -3,8 +3,6 @@ kind: Service
 metadata:
   name: nexus
   namespace: drn-project
-  annotations:
-    linkerd.io/inject: enabled
   labels:
     app: nexus
 spec:
