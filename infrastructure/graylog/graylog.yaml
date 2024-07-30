@@ -44,7 +44,7 @@ spec:
     server: 'https://kubernetes.default.svc'
   syncPolicy:
     automated:
-      selfHeal: true
+      selfHeal: false #self heal causes password secret regenerate that doesn't match with existing pvc
       prune: true
     syncOptions:
       - ApplyOutOfSyncOnly=true
