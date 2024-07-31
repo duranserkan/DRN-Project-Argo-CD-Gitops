@@ -13,6 +13,8 @@ spec:
     helm:
       valuesObject:
         controller:
+          config:
+            http2: "true"
           podAnnotations:
             linkerd.io/inject: enabled
   destination:
