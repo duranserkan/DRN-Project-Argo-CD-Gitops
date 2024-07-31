@@ -6,6 +6,18 @@ metadata:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/service-upstream: "true"
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "false"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-Port $server_port;
+      proxy_set_header X-Forwarded-Host $host;
+      proxy_set_header X-Forwarded-Server $hostname;
+      proxy_set_header X-Original-URI $request_uri;
+      proxy_set_header X-Forwarded-Path $uri;
+      proxy_set_header X-Forwarded-Prefix /api;
+      proxy_set_header X-Forwarded-Protocol $scheme;
+      proxy_set_header X-Forwarded-Ssl $ssl_protocol;
     # Additional annotations for SSL, CORS, etc., can be added here.
 spec:
   ingressClassName: nginx
