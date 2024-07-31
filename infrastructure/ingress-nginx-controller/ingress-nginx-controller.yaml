@@ -13,6 +13,7 @@ spec:
     helm:
       valuesObject:
         controller:
+          allowSnippetAnnotations: true
           config:
             http2: "true"
           podAnnotations:
