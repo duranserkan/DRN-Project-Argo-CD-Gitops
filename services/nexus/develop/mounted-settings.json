@@ -7,7 +7,7 @@
     "InternalRequestHttpVersion": "2.0"
   },
   "Kestrel": {
-    "Docs": "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints",
+    "Docs": "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints#configure-http-protocols",
     "EndpointDefaults": {
       "Protocols": "Http2"
     },
