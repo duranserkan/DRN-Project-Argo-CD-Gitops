@@ -4,12 +4,12 @@
   "DrnAppFeatures": {
     "AutoMigrateDevEnvironment": true,
     "LaunchExternalDependencies": false,
-    "InternalRequestHttpVersion": "2.0"
+    "InternalRequestHttpVersion": "1.1"
   },
   "Kestrel": {
     "Docs": "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints#configure-http-protocols",
     "EndpointDefaults": {
-      "Protocols": "Http2"
+      "Protocols": "Http1"
     },
     "Endpoints": {
       "All": {

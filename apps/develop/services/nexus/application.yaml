@@ -14,8 +14,8 @@ spec:
     namespace: drn-project-develop
   syncPolicy:
     automated:
-      selfHeal: true
+      selfHeal: false
       prune: true
     syncOptions:
-      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=false
       - SyncWave=-1
