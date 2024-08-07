@@ -8,9 +8,8 @@ metadata:
     nginx.ingress.kubernetes.io/service-upstream: "true"
     nginx.ingress.kubernetes.io/use-forwarded-headers: "false"
     nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header X-Forwarded-Ssl $ssl_protocol;
       proxy_set_header X-Forwarded-Server $hostname;
-      proxy_set_header X-Forwarded-Host $http_host;
+      proxy_set_header X-Forwarded-Ssl $ssl_protocol;
       proxy_set_header X-Forwarded-Prefix /api;
       proxy_set_header X-Original-URI $request_uri;
       proxy_set_header X-Forwarded-Path $uri;
