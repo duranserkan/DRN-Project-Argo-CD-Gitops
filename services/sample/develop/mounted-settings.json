@@ -4,7 +4,7 @@
   "DrnAppFeatures": {
     "AutoMigrateDevEnvironment": true,
     "LaunchExternalDependencies": false,
-    "InternalRequestHttpVersion": "1.1",
+    "InternalRequestHttpVersion": "2.0",
     "NexusAddress": "nexus"
   },
   "Kestrel": {
