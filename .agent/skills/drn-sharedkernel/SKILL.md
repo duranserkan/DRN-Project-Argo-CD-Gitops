@@ -1,0 +1,335 @@
+---
+name: drn-sharedkernel
+description: "DRN.Framework.SharedKernel - Foundational domain primitives, exception hierarchy, repository contracts and cancellation semantics, pagination, JSON conventions, app constants, and shared extensions. Keywords: entity, aggregate-root, domain-event, repository, repository-cancellation, cancellation, pagination, exception, json, domain-modeling, source-known-id, entity-type, appconstants, path-extensions"
+last-updated: 2026-09-12
+difficulty: intermediate
+tokens: ~2.5K
+---
+
+# DRN.Framework.SharedKernel
+
+> Lightweight domain primitives, exceptions, and shared code. No external DRN dependencies — safe for Contract and Domain layers.
+
+## When to Apply
+- Defining domain entities and aggregates
+- Working with domain events
+- Using or extending DRN exceptions
+- Understanding repository contracts
+- Accessing JSON serialization conventions
+- Using shared casing or safe path extensions in lower-layer packages
+
+---
+
+## DiSCOS Alignment
+
+| DiSCOS Principle | SharedKernel Expression |
+|------------------|------------------------|
+| Security First | Source-Known IDs hide internal `long` behind external `Guid`; `MaliciousRequestException` aborts connection |
+| Abstraction | Domain primitives (`SourceKnownEntity`, `AggregateRoot`, `DomainEvent`) encode patterns; implement specifics |
+| TRIZ (Separation in Space) | Dual-ID system resolves DB performance vs. external security without tradeoff |
+
+---
+
+## Entity Base Class
+
+```csharp
+public abstract class SourceKnownEntity(long id = 0)
+{
+    public long Id { get; internal set; }
+    [ConcurrencyCheck]
+    public DateTimeOffset ModifiedAt { get; protected internal set; }
+    public DateTimeOffset CreatedAt { get; }
+    public SourceKnownEntityId EntityIdSource { get; internal set; }
+    public Guid EntityId => EntityIdSource.EntityId;
+
+    // ID validation
+    public SourceKnownEntityId GetEntityId(Guid id, EntityTypeId expected, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault);
+    public SourceKnownEntityId GetEntityId<TEntity>(Guid id, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault);
+
+    // Secure ↔ Plain conversion (idempotent, injected via ISourceKnownEntityIdOperations)
+    public SourceKnownEntityId ToSecure(SourceKnownEntityId id);
+    public SourceKnownEntityId ToPlain(SourceKnownEntityId id);
+    
+    // Auto-called by EF save interceptor alongside timestamp updates
+    internal void MarkAsCreated();   // Adds created event
+    internal void MarkAsModified();  // Adds modified event
+    internal void MarkAsDeleted();   // Adds deleted event
+}
+```
+
+> [!WARNING]
+> Each non-abstract entity requires unique `[EntityType<TApp>(byte)]` (where `TApp : IAppId`) or a derived domain attribute. Enforced at compile time by `DRN.Framework.SharedKernel.Analyzers`:
+> - `DRN0001` (Error): Mandatory `[EntityType]` on concrete `SourceKnownEntity` descendants.
+> - `DRN0002` (Error): Duplicate `EntityType` byte values per `AppId` across local compilation and referenced assemblies. In aggregator projects (host apps, integration tests), flags cross-referenced assembly collisions at compilation end while deduplicating shared diamond dependencies.
+> - `DRN0003` (Error): Invalid `[EntityType]` on abstract classes, private classes, or non-`SourceKnownEntity` types.
+> - `DRN0004` (Warning): Duplicate entity class names per `AppId` across the domain model (local and referenced).
+> - `DRN0005` (Error): Multiple production `AppId` partitions in a single application compilation (unless `<AllowMultipleAppIds>true</AllowMultipleAppIds>`, `<IsTestProject>true</IsTestProject>`, or `<UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>` is configured).
+> - `DRN0006` (Error): Unresolvable or non-constant `AppId` on `IAppId` implementations in `[EntityType]` declarations.
+> - `DRN0007` (Error): Statically resolved `AppId` outside the supported `0..127` range in local or referenced `[EntityType]` declarations.
+> - `DRN0008` (Error): Unsupported derived entity attribute constructor. Each derived class has one constructor, taking one byte or byte-backed enum parameter forwarded unchanged through to `EntityTypeAttribute<TApp>`. Source declarations are validated even without entity uses; referenced signatures are checked but compiled bodies rely on producer-side analyzer validation. AppId is resolved only from the framework generic binding, never a shadowed named property or extra constructor argument.
+> - `DRN0009` (Error): Constant `EntityTypeId` constructor AppId and AppId property initializers/assignments must be within `0..127`.
+> - `DRN0010` (Error): Constant `SourceKnownEntityIdFormat` arguments and assignments must be defined enum values. Mutable locals and dynamic inputs still require runtime validation.
+> - `DRN0011` (Warning): Descendants must not hide `Id`, `EntityId`, or `EntityIdSource` with another member, explicitly or implicitly.
+> - `DRN0012` (Warning): Concrete, effectively non-private entities must not have type parameters or generic containers. Abstract generic bases and closed concrete descendants are allowed.
+> - `DRN0013` (Error): Rejects known abstract entities in metadata calls, method groups, direct `typeof` lookups, and repository bindings (including derived types and aliases). Allows runtime-instance and application-only overloads, unresolved type parameters, unbound definitions, and dynamic Type values; no `new()` constraint is added.
+> - `DRN0014` (Error): Rejects GetEntityId/ToSecure/ToPlain on provably fresh entities, including local aliases and constructor this. Unknown constructors/effects/control flow and potentially null inputs remain runtime concerns. Use injected ID utilities before EF materialization or SavingChanges attaches operations; initialization and IsPendingInsert do not prove persistence.
+> - Usage checks also apply to tests; use non-constant inputs for runtime rejection fixtures. See [diagnostic scope and examples](../../../DRN.Framework.SharedKernel/README.md#compile-time-roslyn-analyzers) for constructor proof limits and supported exceptions.
+> - Privacy includes private containing types: effectively private entities are excluded from required-attribute/collision analysis; local annotations on them report `DRN0003`.
+
+### Application Partitions & Attributes
+
+- **`IAppId`**: Interface requiring `static abstract byte AppId { get; }` (valid range `0..127`). Exposes partition constants `IAppId.DefaultAppId` (0), `IAppId.NexusAppId` (126), `IAppId.TestAppId` (127), and `IAppId.MaxAppId` (127).
+- **`DefaultApp` (`AppId = 0`, `Value = 0`)**: Built-in default application partition for standalone domains and single-application systems (`[EntityType<DefaultApp>(byte)]`).
+- **`NexusApp` (`AppId = 126`, `Value = 126`)**: Built-in Nexus service partition (`[EntityType<NexusApp>(byte)]` or domain-derived `[NexusEntityType(NexusEntityTypes)]`).
+- **`TestApp` (`AppId = 127`, `Value = 127`)**: Built-in partition for test entities to isolate test fixtures.
+- **`[TestEntityType(byte)]`**: Convenience attribute (`TestEntityTypeAttribute`) binding directly to `TestApp` (`AppId = 127`) without generic type boilerplate in test projects.
+
+### AggregateRoot
+
+```csharp
+public abstract class AggregateRoot(long id = 0) : SourceKnownEntity(id);
+public abstract class AggregateRoot<TModel>(long id = 0) : AggregateRoot(id), IEntityWithModel<TModel>
+{
+    public TModel Model { get; set; } = null!;  // Auto-mapped to jsonb
+}
+```
+
+### Domain Events
+
+```csharp
+public interface IDomainEvent { Guid Id { get; } DateTimeOffset Date { get; } Guid EntityId { get; } }
+public abstract class DomainEvent(SourceKnownEntity entity) : IDomainEvent;
+public abstract class EntityCreated(SourceKnownEntity entity) : DomainEvent(entity);
+public abstract class EntityModified(SourceKnownEntity entity) : DomainEvent(entity);
+public abstract class EntityDeleted(SourceKnownEntity entity) : DomainEvent(entity);
+```
+
+---
+
+## Source-Known Identity System
+
+`SourceKnownGenerationTime.Initialize(minimumUtc, defaultEpoch)` configures one process-wide pair. An explicit epoch requires a minimum in the same call. Inputs must be ISO 8601 UTC; the minimum rounds upward to 250ms relative to the epoch. Startup or first ID/epoch use freezes both values, even if generation validation fails; conflicting updates then fail. Historical conversion freezes the pair without enforcing the floor.
+
+Keep the origin identical across a dataset's services and restarts: IDs do not store it. Only epoch 0 and both halves are supported; extending support requires a persistence contract, not just different limits. The default minimum is source-maintained, never derived from build timestamps. See [configuration and limits](../../../DRN.Framework.SharedKernel/README.md#trusted-minimum-generation-time).
+
+Balances DB performance (`long`) with external security (`Guid`) and type safety. `ISourceKnownEntityIdOperations` defines the core contract (`Generate`, nullable/nonnullable `Parse`, all `Validate` overloads, `ToSecure`, `ToPlain`) in SharedKernel; implemented by `SourceKnownEntityIdUtils` in Utils and injected into entities by EF interceptors.
+
+Operations Parse/Validate and domain/repository GUID helpers use non-nullable `SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault`. `ISourceKnownEntityIdOperations.DefaultFormat` is immutable Secure/Plain, set by the Utils constructor from Nexus settings. Helpers forward format selection to parsing; generated and parsed records check validity and expected identity without another format check. Record ValidateId(), Validate<TEntity>() and Validate(expected), plus repository record reads/deletes, have no format parameter and accept either representation. Records are trusted internal values and do not reauthenticate GUIDs. Explicit Auto accepts both GUID forms during parsing and conversion reauthentication. Undefined formats throw for null GUIDs/empty GUID batches too. Replace null GUID-format arguments with ConfiguredDefault, rebuild consumers and provide DefaultFormat in custom operations. See [Utils format contract](../drn-utils/SKILL.md#id-generation).
+
+```csharp
+public readonly record struct SourceKnownId(
+    long Id, DateTimeOffset CreatedAt, uint InstanceId, byte AppId, byte AppInstanceId);
+
+public readonly record struct SourceKnownEntityId(
+    SourceKnownId Source, Guid EntityId, byte EntityType, bool Valid, bool Secure);
+```
+
+### Validation Approaches
+
+Use `Validate<TEntity>()` or `Validate(new EntityTypeId(entityType, expectedAppId))` to check both identity components. Domain `GetEntityId` helpers accept the same expectations. `EntityTypeId` requires both arguments, including zero, and has no implicit byte conversion. `ValidateId()` and the domain GUID helper's boolean validation option check validity only. Utils service validation additionally selects a configured or explicitly typed partition; see [drn-utils](../drn-utils/SKILL.md#nexus-keys).
+
+**1. Injectable Utility** (service layer — recommended):
+```csharp
+var id = sourceKnownEntityIdUtils.Validate<User>(externalGuid);
+```
+
+**2. Repository** (data entry point):
+```csharp
+var id = userRepository.GetEntityId(externalGuid);
+```
+
+**3. Domain Entity** (intra-domain):
+```csharp
+var id = userInstance.GetEntityId<User>(externalGuid);
+```
+
+### Secure ↔ Plain Conversion
+
+Available on entity, repository, and injectable utility — idempotent:
+```csharp
+var secureId = entity.ToSecure(entityId);      // or repository.ToSecure(entityId)
+var plainId = entity.ToPlain(entityId);  // or sourceKnownEntityIdUtils.ToPlain(entityId)
+```
+
+---
+
+## Repository Contract
+
+```csharp
+// Public contract excerpt. See SourceKnownRepository.cs for XML docs and full remarks.
+public interface ISourceKnownRepository<TEntity> where TEntity : AggregateRoot
+{
+    RepositorySettings<TEntity> Settings { get; set; }
+    CancellationToken CancellationToken { get; }
+    void CancelWhen(CancellationToken token);
+    void CancelChanges();
+    Task<int> SaveChangesAsync();
+    
+    // Identity Conversion & Validation
+    SourceKnownEntityId GetEntityId(Guid id, bool validate = true, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault);
+    SourceKnownEntityId? GetEntityId(Guid? id, bool validate = true, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault);
+    SourceKnownEntityId GetEntityId<TOtherEntity>(Guid id, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault) where TOtherEntity : SourceKnownEntity;
+    SourceKnownEntityId? GetEntityId<TOtherEntity>(Guid? id, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault) where TOtherEntity : SourceKnownEntity;
+    SourceKnownEntityId[] GetEntityIds(IReadOnlyCollection<Guid> ids, bool validate = true, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault);
+    SourceKnownEntityId?[] GetEntityIds(IReadOnlyCollection<Guid?> ids, bool validate = true, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault);
+    
+    // Retrieval by GUID (External ID)
+    Task<TEntity> GetAsync(Guid id, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault);
+    Task<TEntity> GetAsync(SourceKnownEntityId id);
+    Task<TEntity?> GetOrDefaultAsync(Guid id, bool validate = true, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault);
+    Task<TEntity?> GetOrDefaultAsync(SourceKnownEntityId id, bool validate = true);
+    
+    // Batch Retrieval
+    Task<TEntity[]> GetAsync(IReadOnlyCollection<Guid> ids, SourceKnownEntityIdFormat format = SourceKnownEntityIdFormat.ConfiguredDefault);
+    Task<TEntity[]> GetAsync(IReadOnlyCollection<SourceKnownEntityId> ids);
+    Task<TEntity[]> GetAllAsync(); // ⚠️ Use with caution - only for small/known-size collections
+    
+    // Queries
+    Task<bool> AnyAsync(Expression<Func<TEntity, bool>>? predicate = null);
+    Task<bool> AllAsync(Expression<Func<TEntity, bool>> predicate);
+    Task<long> CountAsync(Expression<Func<TEntity, bool>>? predicate = null);
+    
+    // Commands
+    void Add(params IReadOnlyCollection<TEntity> entities);
+    void Remove(params IReadOnlyCollection<TEntity> entities);
+    Task<int> CreateAsync(params IReadOnlyCollection<TEntity> entities);
+    Task<int> DeleteAsync(params IReadOnlyCollection<TEntity> entities);
+    Task<int> DeleteAsync(params IReadOnlyCollection<Guid> ids);
+    Task<int> DeleteAsync(IReadOnlyCollection<Guid> ids, SourceKnownEntityIdFormat format);
+    Task<int> DeleteAsync(params IReadOnlyCollection<SourceKnownEntityId> ids);
+    
+    // Pagination
+    Task<PaginationResultModel<TEntity>> PaginateAsync(PaginationRequest request, EntityCreatedFilter? filter = null);
+    Task<PaginationResultModel<TEntity>> PaginateAsync(PaginationResultInfo? resultInfo = null, long jumpTo = 1,
+        int pageSize = -1, int maxSize = -1, PageSortDirection direction = PageSortDirection.None,
+        long totalCount = -1, bool updateTotalCount = false);
+    IAsyncEnumerable<PaginationResultModel<TEntity>> PaginateAllAsync(PaginationRequest request, EntityCreatedFilter? filter = null);
+}
+```
+
+**Key Behaviors**:
+- `PaginationRequest.From()` defaults to size 10, maximum 100, and ascending order. Size, effective maximum size, or direction changes reset to page 1 with a fresh cursor while retaining omitted size, maximum size, and direction from the previous request. Maximum sizes are capped at `PageSize.MaxSizeThreshold` (1,000) before comparison so repeated above-threshold inputs preserve navigation.
+- `Get(OrDefault)Async` with `Guid` auto-validates ID format and EntityType byte before querying
+- `PaginateAllAsync` returns `IAsyncEnumerable` for efficient large dataset streaming
+- `CancellationToken` exposes the repository scope token (uses Root when `Settings.ScopeKey` is null, or named scope when set), `CancelWhen(token)` links a lifetime token, and `CancelChanges` cancels the effective scope.
+- Group selection is implementation-defined. The default EntityFramework implementation uses Root when `ScopeKey` is null; see [drn-entityframework](../drn-entityframework/SKILL.md#repository-cancellation).
+- See [drn-utils](../drn-utils/SKILL.md#scoped-cancellation) for root-wide and operation-only cancellation.
+
+### Pagination
+
+```csharp
+public class PaginationRequest
+{
+    public long PageNumber { get; init; }
+    public PageSize PageSize { get; init; }
+    public PageCursor PageCursor { get; init; } // Holds FirstId/LastId for stable paging
+    public static PaginationRequest Default;
+}
+
+public class PaginationResultModel<TModel>
+{
+    public IReadOnlyList<TModel> Items { get; }
+    public PaginationResultInfo Info { get; } // Next/Prev page metadata
+    public PaginationResultModel<TMapped> ToModel<TMapped>(Func<TModel, TMapped> mapper);
+}
+```
+
+- **Stable Navigation**: `PageCursor` with `FirstId`/`LastId` prevents data inconsistencies during concurrent viewing
+- **Bi-directional**: `RequestNextPage()`, `RequestPreviousPage()`, `RequestPage(n)` on `PaginationResultInfo`
+- **Bounded Jumps**: Page jumps move at most ten pages per request while preserving the requested direction
+- **URL-Serializable**: `PaginationRequest` natively works with `[FromQuery]`
+- **Filtering**: `EntityCreatedFilter.After(date)` for date-based filtering
+
+```csharp
+// API pagination pattern
+var filter = EntityCreatedFilter.After(DateTimeOffset.UtcNow.AddDays(-7));
+var result = await repository.PaginateAsync(request, filter);
+return result.ToModel(entity => entity.ToDto());
+```
+
+### DTO Rules
+
+> [!IMPORTANT]
+> 1. DTOs **must** derive from `Dto` base class (primary constructor accepting `SourceKnownEntity?`)
+> 2. Public APIs must **never** return Entities — always DTOs
+> 3. Expose only `Guid` IDs, never `long Id` or `SourceKnownEntityId`
+
+---
+
+## Exceptions
+
+| Factory | Exception | HTTP Status |
+|---------|-----------|-------------|
+| `ExceptionFor.Validation(msg)` | `ValidationException` | 400 |
+| `ExceptionFor.Unauthorized(msg)` | `UnauthorizedException` | 401 |
+| `ExceptionFor.Forbidden(msg)` | `ForbiddenException` | 403 |
+| `ExceptionFor.NotFound(msg)` | `NotFoundException` | 404 |
+| `ExceptionFor.Conflict(msg)` | `ConflictException` | 409 |
+| `ExceptionFor.Expired(msg)` | `ExpiredException` | 410 |
+| `ExceptionFor.UnprocessableEntity(msg)` | `UnprocessableEntityException` | 422 |
+| `ExceptionFor.Configuration(msg)` | `ConfigurationException` | 500 |
+| `ExceptionFor.MaliciousRequest(msg)` | `MaliciousRequestException` | Abort |
+
+All factories accept optional `category` parameter for sub-classification: `ExceptionFor.NotFound("User not found", category: "Users")`. Exceptions expose `Category` and `Status` properties.
+
+---
+
+## JSON Conventions
+
+`JsonConventions.DefaultOptions` — globally applied: Web defaults, enum→string, long→string, camelCase, AllowTrailingCommas, MaxDepth=32. Auto-applied by `DrnTestContext` and `DrnProgramBase`.
+
+---
+
+## AppConstants
+
+```csharp
+AppConstants.ProcessId;          AppConstants.AppInstanceId;
+AppConstants.EntryAssemblyName;  AppConstants.EntryAssemblyNameNormalized;
+AppConstants.EntryAssemblyFullName;
+AppConstants.LocalAppDataPath;   AppConstants.TempPath;
+AppConstants.LocalIpAddress;
+```
+
+`TempPath` order, with `EntryAssemblyNameNormalized` appended at every step: `DrnAppDataSettings__TempPath/<EntryAssemblyNameNormalized>` -> `DrnAppDataSettings__DataPath/Temp/<EntryAssemblyNameNormalized>` -> `<LocalApplicationData>/Temp/<EntryAssemblyNameNormalized>`. `LocalAppDataPath` uses `DrnAppDataSettings__DataPath` as-is when configured, otherwise `<LocalApplicationData>/<EntryAssemblyNameNormalized>`. `IAppData` creates/cleans directories and resolves safe child paths.
+
+## Shared Extensions
+
+```csharp
+using DRN.Framework.SharedKernel.Extensions;
+
+"OrderHistory".ToSnakeCase();    // order_history
+"sample hosted".ToPascalCase();  // SampleHosted
+"/data/app".GetPathWithinDirectory("exports", "orders.json");
+```
+
+`GetPathWithinDirectory()` rejects parent-directory and symbolic-link traversal. Use it for file-serving, manifests, uploads, and app-data child paths.
+
+## Attributes
+
+| Attribute | Purpose |
+|-----------|---------|
+| `[IgnoreLog]` | Exclude properties from scoped logging |
+| `[SecureKey]` | Validate string meets secure key requirements |
+| `[EntityType<TApp>(byte)]` | Unique entity type ID bound to application partition `TApp : IAppId` |
+| `[TestEntityType(byte)]` | Convenience entity type attribute bound directly to `TestApp` (`AppId = 127`) |
+| `[NexusEntityType(enum)]` | Nexus domain entity type attribute bound directly to `NexusApp` (`AppId = 126`) |
+
+---
+
+## Related Skills
+
+- [drn-domain-design.md](../drn-domain-design/SKILL.md) - Domain & Repository patterns
+- [drn-entityframework.md](../drn-entityframework/SKILL.md) - DrnContext usage
+- [drn-utils.md](../drn-utils/SKILL.md) - DI and settings
+- [overview-ddd-architecture.md](../overview-ddd-architecture/SKILL.md) - Domain modeling
+
+---
+
+## Global Usings
+
+```csharp
+global using DRN.Framework.SharedKernel.Domain;
+global using DRN.Framework.SharedKernel;
+global using DRN.Framework.SharedKernel.Extensions;
+global using DRN.Framework.SharedKernel.Json;
+```
