@@ -6,7 +6,7 @@ metadata:
 spec:
   project: drn-project-develop
   source:
-    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git'
     path: apps/develop
     targetRevision: 'develop'
     directory:

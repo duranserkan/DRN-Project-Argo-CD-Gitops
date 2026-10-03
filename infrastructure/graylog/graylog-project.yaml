@@ -6,19 +6,21 @@ metadata:
 spec:
   # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
   sourceRepos:
-    - https://charts.kong-z.com/
-    - https://charts.bitnami.com/bitnami
-    - https://opensearch-project.github.io/helm-charts
-    - https://github.com/duranserkan/DRN-Project-Deployment.git
+    - https://graylog2.github.io/graylog-helm
+    - https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git
     - https://mongodb.github.io/helm-charts
   destinations:
     - namespace: argocd
       server: https://kubernetes.default.svc
     - namespace: graylog
       server: https://kubernetes.default.svc
-  # Deny all cluster-scoped resources from being created, except for Namespace
+  # Permit namespace creation, operator CRDs and webhook registration RBAC.
   clusterResourceWhitelist:
   - group: ""
     kind: Namespace
   - group: apiextensions.k8s.io
     kind: CustomResourceDefinition
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding

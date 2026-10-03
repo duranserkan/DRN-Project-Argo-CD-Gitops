@@ -8,15 +8,17 @@ kind: Application
 metadata:
   name: cert-manager-chart
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   project: cert-manager
   source:
     chart: cert-manager
     repoURL: https://charts.jetstack.io
-    targetRevision: v1.15.1
+    targetRevision: v1.21.2
     helm:
       parameters:
-      - name: installCRDs
+      - name: crds.enabled
         value: "true"
   destination:
     namespace: cert-manager
@@ -28,7 +30,6 @@ spec:
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - Validate=false
-      - SyncWave=0
   ignoreDifferences:
   - group: apiextensions.k8s.io
     kind: CustomResourceDefinition

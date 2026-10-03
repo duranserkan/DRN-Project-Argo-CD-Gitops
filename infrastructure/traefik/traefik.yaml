@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argocd
+#https://artifacthub.io/packages/helm/traefik/traefik/41.6.1
+spec:
+  project: networking
+  source:
+    chart: traefik
+    repoURL: https://traefik.github.io/charts
+    targetRevision: 41.6.1
+    helm:
+      skipCrds: true
+      valuesObject:
+        deployment:
+          podAnnotations:
+            linkerd.io/inject: enabled
+        ingressClass:
+          enabled: false
+        providers:
+          kubernetesCRD:
+            enabled: false
+          kubernetesIngress:
+            enabled: false
+          kubernetesGateway:
+            enabled: true
+            nativeLBByDefault: true
+            namespaces:
+              - drn-project-develop
+        gateway:
+          name: drn-project
+        api:
+          dashboard: false
+        ports:
+          websecure:
+            expose:
+              default: false
+  destination:
+    namespace: drn-project-develop
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true

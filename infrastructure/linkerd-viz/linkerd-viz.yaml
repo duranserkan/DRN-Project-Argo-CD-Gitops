@@ -3,17 +3,13 @@ kind: Application
 metadata:
   name: linkerd-viz
   namespace: argocd
-#https://artifacthub.io/packages/helm/linkerd2/linkerd-viz
+#https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-viz/2026.7.2
 spec:
   project: linkerd-viz
   source:
     chart: linkerd-viz
-    repoURL: https://helm.linkerd.io/stable
-    targetRevision: 30.12.11
-    helm:
-      parameters:
-        - name: jaegerUrl
-          value: jaeger.linkerd-jaeger:16686
+    repoURL: https://helm.linkerd.io/edge
+    targetRevision: 2026.7.2
   destination:
     namespace: linkerd-viz
     server: 'https://kubernetes.default.svc'

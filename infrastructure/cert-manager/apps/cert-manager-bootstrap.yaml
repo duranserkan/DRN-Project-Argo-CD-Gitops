@@ -9,7 +9,7 @@ spec:
   project: cert-manager
   source:
     path: infrastructure/cert-manager/resources
-    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git'
     targetRevision: 'preview'
   destination:
     namespace: cert-manager
