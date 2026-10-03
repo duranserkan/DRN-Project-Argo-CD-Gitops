@@ -11,6 +11,8 @@
 *.sln.docstates
 *.env
 .*env
+.env.production
+.env.development
 !.sample-env
 
 # Agent workflow state
@@ -131,6 +133,13 @@ StyleCopReport.xml
 *.log
 *.aux
 *.out
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.toc
+*.xdv
+*.abs
 *.tlog
 *.vspscc
 *.vssscc
@@ -462,14 +471,35 @@ FodyWeavers.xsd
 .*_home/
 .dotnet/
 
+# Private keys and SSH files
+*.key
+*.keys
+*.priv
+*.rsa
+*.key.json
+*.ssh
+*.ssh-key
+.key-mrc
+
 cmake*.*
 
 # Editor directories and files
 *.ntvs*
 *.njsproj
-*.sln
 *.sw?
 
 # Agent-generated process artifacts (should never be committed)
 CLARIFY-*.md
 DEVELOP-*.md
+
+# Local Kubernetes credentials
+.kube/
+kubeconfig
+kubeconfig.*
+*.kubeconfig
+
+# Generated vulnerability scan report
+/trivy-results.sarif
+
+# Keep GitOps source files trackable: manifests, Helm values and lockfiles,
+# sealed secrets, public certificates, and deployment scripts.
