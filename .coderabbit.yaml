@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+
+reviews:
+  auto_review:
+    enabled: true
+    base_branches:
+      - ".*"
+  profile: assertive
+  review_status: true
+  review_details: false
+  poem: false
+  in_progress_fortune: false
+  enable_prompt_for_ai_agents: true
+  path_filters:
+    - "!**/.DS_Store"
+  path_instructions:
+    - path: "apps/**"
+      instructions: |
+        Review Argo CD workload Applications and AppProjects.
+        - Verify repository URLs, target refs, source paths, destination namespaces and AppProject allowlists together.
+        - Check child Application discovery, sync-wave annotations and parent Application health assessment. Independent child auto-syncs are not serialized by parent waves.
+        - Keep database prerequisites explicit. Review pruning and Application deletion separately, including finalizers and resource retention.
+
+    - path: "infrastructure/**"
+      instructions: |
+        Review infrastructure as the GitOps control plane.
+        - Verify Helm values and rendered resource requirements against the exact pinned chart. Do not assume current chart defaults apply to another version.
+        - Check AppProject source and destination permissions and cluster resource allowlists against resources actually managed by each Application.
+        - Check CRD and controller installation order, webhook readiness, sync hooks and selective-sync behavior.
+        - Review automatic pruning, deletion, self-healing and ignoreDifferences for unintended data loss or unmanaged drift.
+        - New or updated images and dependencies need canonical digest or provenance evidence. Verify platform support without treating a minimum Kubernetes version as tested compatibility.
+
+    - path: "infrastructure/{cert-manager,linkerd,linkerd-viz,sealed-secrets}/**"
+      instructions: |
+        Review certificate, identity and secret-management boundaries.
+        - Verify issuer references, Secret names, trust namespaces, trust bundle distribution and webhook CA injection.
+        - Distinguish certificate renewal from key rotation. Root key rotation requires overlapping trust and coordinated consumer adoption.
+        - Keep ignoreDifferences narrowly scoped and verify whether synchronization preserves externally managed fields.
+        - Never commit private keys or plaintext credentials. SealedSecret controller and namespace references must match deployment settings.
+
+    - path: "infrastructure/{gateway-api,networking,traefik}/**"
+      instructions: |
+        Review shared networking and Gateway API ownership.
+        - Keep shared Gateway API CRDs under one owner and verify compatibility with both Linkerd and Traefik.
+        - Check GatewayClass, Gateway listeners, namespaces, route attachment, Service ports and public exposure together.
+        - Verify Service-based routing for meshed ingress, forwarded-header trust and removal of client-controlled routing override headers.
+        - Treat HTTP-only development exposure as intentional only when documented. Require explicit TLS configuration for production exposure.
+
+    - path: "infrastructure/graylog/**"
+      instructions: |
+        Review Graylog, Data Node, MongoDB and credential bootstrap as a coupled deployment.
+        - Verify supported component versions, operator-generated Secret names and the chart's external Secret contract.
+        - Bootstrap retries must preserve credentials and the Graylog encryption secret. Distinguish fresh initialization from recovery and fail closed when that distinction is unsafe.
+        - Check least-privilege bootstrap RBAC, bounded waits, hook ordering and logs for secret exposure.
+        - Verify storage, host prerequisites, GELF Service ports and manual input provisioning against the deployment guide.
+
+    - path: "services/**"
+      instructions: |
+        Review Kubernetes workload manifests and Kustomize overlays.
+        - Environment overlays own namespaces. Check patch targets, image overrides, selectors, Service ports, ConfigMap generation and Secret mounts together.
+        - Verify application settings against the deployed image's contract. A setting supported by newer application source is not proof for an older image.
+        - Check resource sizing, health probes, service accounts and Linkerd injection against workload requirements.
+        - HTTPRoutes must attach to the intended Gateway listener and preserve documented path rewrites and forwarded-header behavior.
+        - Stateful resources need deliberate retention, credential handling and recovery. Keep development availability limitations explicit.
+        - Never commit plaintext passwords or private keys. Document restarts required by Secret subPath mounts after rotation.
+
+    - path: ".github/workflows/**"
+      instructions: |
+        Review workflows and nested composite actions as CI security boundaries.
+        - Use pull_request rather than pull_request_target when executing PR code. Check fork behavior, secret availability and token permissions.
+        - Require full immutable commit SHAs with version comments for added or updated third-party actions. Verify tag-to-commit alignment upstream.
+        - Check shell quoting and pass untrusted GitHub expressions through environment variables rather than interpolating executable shell text.
+        - Preserve meaningful vulnerability and code-scanning gates. Check scanner exit status and SARIF production before upload, including failure paths.
+        - Do not suppress a failing scan merely to make CI green. Verify action runtime compatibility, timeouts and required-check behavior.
+
+    - path: ".github/CODEOWNERS"
+      instructions: |
+        Verify ownership patterns against actual repository paths.
+        - Preserve ownership of application, infrastructure, service and CI changes.
+        - Flag stale paths and unowned review-control configuration when ownership changes are in scope.
+
+    - path: "{README.md,todo.md}"
+      instructions: |
+        Review operational documentation against the manifests.
+        - Verify deployment order, Git refs, chart versions, namespaces, resource names, endpoints and prerequisites.
+        - Distinguish clean installation from migration and recovery. Flag destructive or credential-regenerating recovery guidance.
+        - Keep optional dependencies and manual provisioning explicit. Planned work must not be described as installed capability.
+        - Report unverified cluster compatibility honestly. Do not claim execution evidence from static inspection.
+
+    - path: ".agent/**"
+      instructions: |
+        Review agent instructions for portability and consistency.
+        - Keep generic skills repository-agnostic and project facts in the repository profile when present.
+        - Verify referenced files, skill loaders, workflow status contracts and approval gates.
+        - Preserve restrictions on helper scripts, command execution, staging and committing.
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - ".agent/rules/DiSCOS.md"
+      - ".agent/skills/basic-code-review/SKILL.md"
+      - ".agent/skills/basic-security-checklist/SKILL.md"
+      - ".agent/skills/basic-git-conventions/SKILL.md"
+      - ".agent/workflows/review.md"
+  learnings:
+    scope: local
