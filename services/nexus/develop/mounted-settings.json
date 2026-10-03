@@ -5,11 +5,18 @@
   "DrnContext_DevPort": 5432,
   "DrnContext_DevUsername": "drn",
   "DrnContext_DevDatabase": "drnDb",
-  "DrnAppFeatures": {
-    "AutoMigrateDevEnvironment": true,
-    "LaunchExternalDependencies": false,
-    "InternalRequestHttpVersion": "2.0",
+  "NexusAppSettings": {
+    "AppId": 126,
+    "AppInstanceId": 0,
     "NexusAddress": "nexus"
+  },
+  "DrnAppFeatures": {
+    "InternalRequestHttpVersion": "2.0"
+  },
+  "DrnDevelopmentSettings": {
+    "AutoMigrateDevelopment": true,
+    "LaunchExternalDependencies": false,
+    "Prototype": false
   },
   "Kestrel": {
     "Docs": "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints#configure-http-protocols",
@@ -29,36 +36,17 @@
     "ServicesStopConcurrently": true,
     "BackgroundServiceExceptionBehavior": "StopHost"
   },
-  "Serilog": {
-    "Docs": "https://github.com/serilog/serilog-settings-configuration",
-    "Using": [
-      "Serilog.Sinks.Console",
-      "Serilog.Sinks.Graylog"
-    ],
-    "MinimumLevel": {
-      "Default": "Information",
-      "Override": {
-        "Microsoft.Hosting.Lifetime": "Information",
-        "Microsoft": "Warning",
-        "System": "Warning"
+  "NLog": {
+    "targets": {
+      "graylog-http": {
+        "address": "http://drn-gelf.graylog:12201/gelf"
       }
     },
-    "WriteTo": [
+    "rules": [
       {
-        "Name": "Console",
-        "Args": {
-          "restrictedToMinimumLevel": "Warning",
-          "theme": "Serilog.Sinks.SystemConsole.Themes.AnsiConsoleTheme::Code, Serilog.Sinks.Console",
-          "outputTemplate": "[BEGIN {Timestamp:HH:mm:ss.fffffff} {Level:u3} {SourceContext}]{NewLine}{Message:lj}{NewLine}[END {Timestamp:HH:mm:ss.fffffff} {Level:u3} {SourceContext}]{NewLine}"
-        }
-      },
-      {
-        "Name": "Graylog",
-        "Args": {
-          "hostnameOrAddress": "drn-udp-gelf.graylog",
-          "port": "12201",
-          "transportType": "Udp"
-        }
+        "logger": "*",
+        "minLevel": "Info",
+        "writeTo": "console, graylog-http, file"
       }
     ]
   }
