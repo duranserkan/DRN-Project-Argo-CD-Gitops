@@ -7,7 +7,8 @@ namespace: drn-project-develop
 #nameSuffix: -0.2.2-preview002
 images:
   - name: duranserkan/drn-project-nexus
-    newTag: 0.5.1-preview001
+    newTag: 0.10.0
+    digest: sha256:a249f70738e2ff9ee96231aa40ca8e4165896adc0475b75e2f11621c91b61bd1
 replicas:
   - name: nexus
     count: 1

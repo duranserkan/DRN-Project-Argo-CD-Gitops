@@ -30,11 +30,13 @@ spec:
           image:
             tag: 7.1.8@sha256:aa2685186060b3a735f072e1e87368b6466728a1aee9c0338c3a407e4d032092
           service:
-            nameOverride: drn-udp-gelf
+            nameOverride: drn-gelf
+          # Only GELF HTTP. The chart still declares port 13302, but no
+          # Forwarder listener starts unless its input is created in Graylog.
           inputs:
-            - name: gelf-udp
+            - name: gelf-http
               port: 12201
-              protocol: UDP
+              protocol: TCP
           podAnnotations:
             linkerd.io/inject: disabled
           podDisruptionBudget:

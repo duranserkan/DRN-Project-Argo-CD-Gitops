@@ -18,15 +18,36 @@ spec:
         linkerd.io/inject: enabled
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
       restartPolicy: Always
       serviceAccountName: nexus
       containers:
         - name: nexus
-          image: duranserkan/drn-project-nexus:0.2.2-preview001
+          image: duranserkan/drn-project-nexus:0.10.0@sha256:a249f70738e2ff9ee96231aa40ca8e4165896adc0475b75e2f11621c91b61bd1
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           volumeMounts:
             - mountPath: /appconfig/json-settings
               name: config
+              readOnly: true
+            - mountPath: /appdata
+              name: app-data
+            - mountPath: /apptemp
+              name: app-temp
+            - mountPath: /applogs
+              name: app-logs
+            - mountPath: /tmp
+              name: runtime-temp
           ports:
           - containerPort: 5988
             name: http
@@ -44,3 +65,11 @@ spec:
         - name: config
           configMap:
             name: nexus-config
+        - name: app-data
+          emptyDir: {}
+        - name: app-temp
+          emptyDir: {}
+        - name: app-logs
+          emptyDir: {}
+        - name: runtime-temp
+          emptyDir: {}

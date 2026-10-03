@@ -359,12 +359,14 @@ kubectl -n graylog get secret graylog-admin-password \
 kubectl apply -f infrastructure/graylog/graylog.yaml
 argocd app sync graylog
 argocd app wait graylog --sync --timeout 300
-kubectl -n graylog port-forward svc/drn-udp-gelf 9000:9000
+kubectl -n graylog port-forward svc/drn-gelf 9000:9000
 ```
 
 Keep the port-forward running and open [Graylog](http://localhost:9000). Complete Data Node provisioning using the setup credentials in pod logs if prompted, then log in as `admin` with your saved password. Update `graylog.config.network.externalUri` if exposing another URL.
 
-Under System / Inputs, create a **global GELF UDP input** on `0.0.0.0:12201`. Helm exposes the port but does not create the input. Sample and Nexus send logs to `drn-udp-gelf.graylog:12201`. Set index replicas to `0` for the single Data Node.
+Under System / Inputs, create a **global GELF HTTP input** on `0.0.0.0:12201` with **Enable Bulk Receiving** selected. Helm exposes the TCP port but does not create the input. Set index replicas to `0` for the single Data Node.
+
+Sync Graylog and create the HTTP input before syncing Sample and Nexus. Both send logs to `http://drn-gelf.graylog:12201/gelf`. After verifying HTTP delivery, remove any previous UDP or Forwarder inputs in Graylog. Graylog is not meshed, so this connection does not use Linkerd mTLS.
 
 ```sh
 argocd app wait graylog --sync --health --timeout 600
@@ -374,6 +376,10 @@ kubectl -n graylog get pods,pvc
 Verify a received Sample or Nexus message in the UI. This single-instance stack has no configured backups and incurs maintenance downtime. Automatic pruning is disabled, and MongoDB is protected from Argo CD deletion. Restart Graylog and Data Node after credential rotation.
 
 ### Deploy Sample and Nexus Apps
+
+Sample and Nexus use digest-pinned `0.10.0` images for amd64 and arm64. Containers run as non-root with read-only root filesystems. Writable data and logs use `emptyDir` volumes and are lost when pods are removed.
+
+Development settings use the shared PostgreSQL service with automatic migrations enabled and prototype mode disabled. App IDs are explicit: Sample `0`, Nexus `126`, and instance ID `0` for both. Logs go to console, file, and Graylog HTTP, with category filters inherited from the images.
 
 Argo CD Application declarations live under `apps/`. App-specific workload manifests and HTTPRoutes live together under `services/`. Service bases do not declare a namespace. Each environment overlay owns that choice, so deploy through an overlay rather than applying a base directly. The [sample Application](apps/develop/services/sample/application.yaml) reads `services/sample/develop`, whose `drn-project-develop` namespace applies to its HTTPRoute as well as its workloads. Nexus uses the same namespace through its own development overlay. These Git sources follow `develop`, so publish the changes to that ref before syncing.
 

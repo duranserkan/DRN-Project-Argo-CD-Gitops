@@ -18,15 +18,36 @@ spec:
         linkerd.io/inject: enabled
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
       restartPolicy: Always
       serviceAccountName: sample
       containers:
         - name: sample
-          image: duranserkan/drn-project-sample:0.2.2-preview001
+          image: duranserkan/drn-project-sample:0.10.0@sha256:3209452f81dd75cf6ae42bfefc28444d18296b164b5c32c5464bff38c91bafd4
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           volumeMounts:
             - mountPath: /appconfig/json-settings
               name: config
+              readOnly: true
+            - mountPath: /appdata
+              name: app-data
+            - mountPath: /apptemp
+              name: app-temp
+            - mountPath: /applogs
+              name: app-logs
+            - mountPath: /tmp
+              name: runtime-temp
           ports:
           - containerPort: 5998
             name: http
@@ -44,3 +65,11 @@ spec:
         - name: config
           configMap:
             name: sample-config
+        - name: app-data
+          emptyDir: {}
+        - name: app-temp
+          emptyDir: {}
+        - name: app-logs
+          emptyDir: {}
+        - name: runtime-temp
+          emptyDir: {}

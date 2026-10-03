@@ -6,12 +6,25 @@ spec:
   template:
     spec:
       automountServiceAccountToken: false
+      # Match the base: Trivy scans this partial manifest independently.
+      securityContext:
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
         - name: postgresql
           secret:
             secretName: postgresql-app
       containers:
         - name: sample
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           volumeMounts:
             - name: postgresql
               mountPath: /appconfig/key-per-file-settings/postgres-password
