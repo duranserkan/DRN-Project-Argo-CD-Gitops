@@ -6,23 +6,13 @@ metadata:
 spec:
   # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
   sourceRepos:
-    - https://github.com/duranserkan/DRN-Project-Deployment.git
-    - https://charts.bitnami.com/bitnami
-    - https://kubernetes.github.io/ingress-nginx
+    - https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git
   destinations:
     - namespace: argocd
       server: https://kubernetes.default.svc
     - namespace: drn-project-develop
       server: https://kubernetes.default.svc
-  # Deny all cluster-scoped resources from being created, except for Namespace
+  # Allow namespace creation for workload and PostgreSQL Applications.
   clusterResourceWhitelist:
   - group: ""
     kind: Namespace
-  - group: admissionregistration.k8s.io
-    kind: ValidatingWebhookConfiguration
-  - group: rbac.authorization.k8s.io
-    kind: ClusterRole
-  - group: rbac.authorization.k8s.io
-    kind: ClusterRoleBinding
-  - group: networking.k8s.io
-    kind: IngressClass

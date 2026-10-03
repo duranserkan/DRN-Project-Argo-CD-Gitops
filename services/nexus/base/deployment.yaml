@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nexus
-  namespace: drn-project
   labels:
     app: nexus
 spec:
@@ -35,6 +34,10 @@ spec:
           resources:
             limits:
               cpu: 500m
+              memory: 100Mi
+              ephemeral-storage: 1Gi
+            requests:
+              cpu: 100m
               memory: 100Mi
               ephemeral-storage: 1Gi
       volumes:

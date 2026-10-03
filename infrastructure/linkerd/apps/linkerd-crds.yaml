@@ -5,14 +5,13 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-#https://artifacthub.io/packages/helm/linkerd2/linkerd-crds
+#https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-crds/2026.7.2
 spec:
   project: linkerd
   source:
     chart: linkerd-crds
-    repoURL: https://helm.linkerd.io/stable
-    targetRevision: 1.8.0
-    helm:
+    repoURL: https://helm.linkerd.io/edge
+    targetRevision: 2026.7.2
   destination:
     namespace: linkerd
     server: https://kubernetes.default.svc

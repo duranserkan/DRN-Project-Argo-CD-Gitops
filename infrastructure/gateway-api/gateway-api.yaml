@@ -1,21 +1,21 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cert-manager
+  name: gateway-api
   namespace: argocd
 spec:
-  project: cert-manager
+  project: networking
   source:
-    path: infrastructure/cert-manager/apps
+    path: infrastructure/gateway-api/resources
     repoURL: 'https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git'
     targetRevision: 'preview'
   destination:
-    namespace: cert-manager
+    namespace: drn-project-develop
     server: https://kubernetes.default.svc
   syncPolicy:
     automated:
       selfHeal: true
-      prune: true
+      prune: false
     syncOptions:
-      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
       - CreateNamespace=true

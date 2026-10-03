@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Verified 2026-10-03 against the GitHub release asset digest and downloaded bytes.
+  # Source: https://api.github.com/repos/kubernetes-sigs/gateway-api/releases/tags/v1.5.1
+  # SHA-256: 751002b3b91a87f7ae3bd2517c79a47a8d7ed6702901808a1cf9bd97d284f9b8
+  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/standard-install.yaml

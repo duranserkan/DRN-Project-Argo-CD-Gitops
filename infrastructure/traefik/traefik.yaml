@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argocd
+#https://artifacthub.io/packages/helm/traefik/traefik/41.6.1
+spec:
+  project: networking
+  source:
+    chart: traefik
+    repoURL: https://traefik.github.io/charts
+    # Verified 2026-10-03 against https://traefik.github.io/charts/index.yaml and chart bytes.
+    # Chart: https://traefik.github.io/charts/traefik/traefik-41.6.1.tgz
+    # SHA-256: 1e65d46bae0ba0baef460a1d82686b50f156372865a3d7d8a85b51c3855b2ef9
+    # The chart defaults to docker.io/library/traefik:v3.7.13 without an image digest pin.
+    # Image index verified 2026-10-03: sha256:24841fe2de7304c149343d877d2923b4c8800a38ba015dea9174c23b20e344a0
+    # Source: https://hub.docker.com/v2/repositories/library/traefik/tags/v3.7.13
+    # These hashes record provenance only; deployment still resolves the version and tag.
+    targetRevision: 41.6.1
+    helm:
+      skipCrds: true
+      valuesObject:
+        deployment:
+          podAnnotations:
+            linkerd.io/inject: enabled
+        ingressClass:
+          enabled: false
+        providers:
+          kubernetesCRD:
+            enabled: false
+          kubernetesIngress:
+            enabled: false
+          kubernetesGateway:
+            enabled: true
+            nativeLBByDefault: true
+            namespaces:
+              - drn-project-develop
+        gateway:
+          name: drn-project
+        api:
+          dashboard: false
+        ports:
+          websecure:
+            expose:
+              default: false
+  destination:
+    namespace: drn-project-develop
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
