@@ -59,7 +59,7 @@ This repository contains GitOps configuration, so application build, test, packa
 | `develop` | Push to `develop` | Trivy, SonarCloud and CodeQL |
 | `master` | Push to `master`, plus Sunday at 13:29 UTC | Trivy, SonarCloud and CodeQL |
 
-Trivy scans filesystem vulnerabilities, secrets and infrastructure misconfigurations and uploads SARIF.
+Trivy scans filesystem vulnerabilities, secrets and infrastructure misconfigurations. HIGH or CRITICAL findings fail the job. SARIF reports include those severities and are uploaded even when findings fail the scan, provided a report exists and the job has not been cancelled.
 CodeQL analyzes GitHub Actions workflows using the `actions` language, without an application build.
 SonarCloud uses `sonar-project.properties` and requires the `SONAR_TOKEN` repository secret.
 PR jobs do not receive that secret and invoke pinned upstream scanner actions directly.
@@ -68,7 +68,7 @@ Checkouts disable persisted credentials, and each scanner has a separate job wit
 Dependabot checks GitHub Actions weekly and targets `develop`.
 
 Configure branch rulesets to require the PR `trivy` and `codeql` checks and code-scanning results at the desired severity thresholds.
-A successful SARIF upload alone does not reject findings. The Sonar scan submits analysis without waiting for a quality gate.
+SonarCloud branch scans wait up to 600 seconds for the quality gate and fail if it fails or the wait times out.
 Scheduled workflows run on the repository's default branch.
 
 ## Tools
@@ -117,6 +117,13 @@ helm install argocd argo/argo-cd --version 10.9.6 -f infrastructure/argocd/custo
 # Alternative: use HA values instead of the command above (at least 3 worker nodes).
 # helm install argocd argo/argo-cd --version 10.9.6 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd --wait --timeout 10m
 ```
+
+Restrict the built-in `default` AppProject after installation. On an existing cluster, first move any Applications using `default` to an appropriate scoped project. All Applications supplied here use named projects.
+
+```sh
+kubectl apply -f infrastructure/argocd/default-project.yaml
+```
+
 **Login**
 
 Keep port forwarding running in a separate terminal. Open the [browser UI](https://localhost:8080).
@@ -249,7 +256,7 @@ linkerd viz dashboard &
 
 ### Deploy [Traefik Gateway API](https://github.com/traefik/traefik/blob/v3.7.13/docs/content/reference/install-configuration/providers/kubernetes/kubernetes-gateway.md)
 
-The official [Traefik chart `41.6.1`](https://artifacthub.io/packages/helm/traefik/traefik/41.6.1) installs Traefik `v3.7.13` from `https://traefik.github.io/charts`. It creates the `traefik` GatewayClass and `drn-project` HTTP Gateway in `drn-project-develop`. Only the Gateway API provider is enabled. Traefik-specific CRDs and Ingress resources are disabled.
+The official [Traefik chart `41.6.1`](https://artifacthub.io/packages/helm/traefik/traefik/41.6.1) installs Traefik `v3.7.13` from `https://traefik.github.io/charts`. The Traefik image is pinned by digest for reproducible deployments. `versionOverride: v3.7.13` lets the chart check version compatibility when using that digest. It creates the `traefik` GatewayClass and `drn-project` HTTP Gateway in `drn-project-develop`. Only the Gateway API provider is enabled. Traefik-specific CRDs and Ingress resources are disabled.
 
 Install it after Gateway API and Linkerd are healthy. Its pods use normal Linkerd injection and `nativeLBByDefault` routes through Service IPs, following Linkerd's [Service-based ingress integration](https://linkerd.io/docs/tasks/using-ingress/#ingress-details). The pinned Traefik `v3.7.13` documentation targets Gateway API `1.6.1`. Its watched resource versions exist in the pinned `1.5.1` bundle, but this exact combination has not been validated on a cluster. Check Gateway and HTTPRoute status and traffic after installation.
 
