@@ -48,6 +48,29 @@ It was puzzling, like trying to find a generalized solution for [the Navier–St
 
 [Argo CD](https://argo-cd.readthedocs.io/en/stable/) handles the final aspect through GitOps, while the first two assumptions aim to simplify the management of complexity and maintenance for small teams or projects.
 
+## Continuous Integration
+
+The workflows follow DRN-Project's branch separation and use composite actions under `.github/actions`.
+This repository contains GitOps configuration, so application build, test, packaging and image publishing actions are not included.
+
+| Workflow | Trigger | Checks |
+|---|---|---|
+| `pull-request` | PRs into `develop` or `master` | Trivy and CodeQL |
+| `develop` | Push to `develop` | Trivy, SonarCloud and CodeQL |
+| `master` | Push to `master`, plus Sunday at 13:29 UTC | Trivy, SonarCloud and CodeQL |
+
+Trivy scans filesystem vulnerabilities, secrets and infrastructure misconfigurations and uploads SARIF.
+CodeQL analyzes GitHub Actions workflows using the `actions` language, without an application build.
+SonarCloud uses `sonar-project.properties` and requires the `SONAR_TOKEN` repository secret.
+PR jobs do not receive that secret and invoke pinned upstream scanner actions directly.
+Branch workflows reuse local composite actions. Keep their scanner settings aligned with the PR workflow.
+Checkouts disable persisted credentials, and each scanner has a separate job with scoped permissions and a timeout.
+Dependabot checks GitHub Actions weekly and targets `develop`.
+
+Configure branch rulesets to require the PR `trivy` and `codeql` checks and code-scanning results at the desired severity thresholds.
+A successful SARIF upload alone does not reject findings. The Sonar scan submits analysis without waiting for a quality gate.
+Scheduled workflows run on the repository's default branch.
+
 ## Tools
 High quality output is not a coincidence. It is natural result of good people's labour that works with right processes and tools.
 
@@ -89,10 +112,10 @@ Run from the repository root with `kubectl` configured for the intended cluster:
 #https://artifacthub.io/packages/helm/argo/argo-cd
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
-helm install argocd argo/argo-cd --version 10.9.6 -f infrastructure/argocd/custom-values.yaml --create-namespace -n argocd
+helm install argocd argo/argo-cd --version 10.9.6 -f infrastructure/argocd/custom-values.yaml --create-namespace -n argocd --wait --timeout 10m
 
 # Alternative: use HA values instead of the command above (at least 3 worker nodes).
-# helm install argocd argo/argo-cd --version 10.9.6 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd
+# helm install argocd argo/argo-cd --version 10.9.6 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd --wait --timeout 10m
 ```
 **Login**
 
@@ -121,6 +144,14 @@ argocd login 127.0.0.1:8080 \
 ### Git repository sources
 
 All Git-backed Applications and AppProject allowlists use `https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git`. Workload Applications follow `develop`; infrastructure Git sources follow `preview`. Publish the intended manifests to the corresponding ref before syncing.
+
+When using a fork or this repository as a template, complete these steps before applying any AppProject or Application manifests:
+
+1. Replace the original Git repository URL in every Application `spec.source.repoURL` and AppProject `spec.sourceRepos` entry under `apps/` and `infrastructure/` with your repository URL. Include child Applications. Keep Helm chart repository URLs unchanged.
+2. Publish the updated manifests to your repository's `develop` branch and `preview` ref. If you use different refs, update the Git-backed Applications' `targetRevision` values and publish to those refs instead.
+3. For a private repository, configure Argo CD repository credentials before syncing.
+
+Changing only your local Git remote does not change where Argo CD reads manifests. Unchanged Application URLs continue to deploy from the original repository.
 
 ### Deploy [Linkerd](https://linkerd.io/2-edge/tasks/gitops/)
 > This page contains best-effort instructions by the open source community. Production users with mission-critical applications should familiarize themselves with [Linkerd production resources](https://docs.buoyant.io/runbook/getting-started/).
