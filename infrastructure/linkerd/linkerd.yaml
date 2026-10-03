@@ -3,13 +3,13 @@ kind: Application
 metadata:
   name: linkerd
   namespace: argocd
-#https://artifacthub.io/packages/helm/linkerd2/linkerd-crds
-#https://artifacthub.io/packages/helm/linkerd2/linkerd-control-plane
+#https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-crds/2026.7.2
+#https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-control-plane/2026.7.2
 spec:
   project: linkerd
   source:
     path: infrastructure/linkerd/apps
-    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git'
     targetRevision: 'preview'
   destination:
     namespace: linkerd

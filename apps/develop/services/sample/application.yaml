@@ -3,10 +3,12 @@ kind: Application
 metadata:
   name: sample
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   project: drn-project-develop
   source:
-    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git'
     path: services/sample/develop
     targetRevision: 'develop'
   destination:
@@ -18,4 +20,3 @@ spec:
       prune: true
     syncOptions:
       - ApplyOutOfSyncOnly=false
-      - SyncWave=0

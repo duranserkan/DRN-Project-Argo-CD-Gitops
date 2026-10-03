@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudnative-pg
+  namespace: argocd
+spec:
+  project: cloudnative-pg
+  source:
+    chart: cloudnative-pg
+    repoURL: https://cloudnative-pg.github.io/charts
+    # Chart SHA256: b53d3991fe84bcf38767e7702cae78666265427a127a26fff168ab4207d2b1df
+    targetRevision: 0.29.1
+    helm:
+      valuesObject:
+        image:
+          tag: 1.30.1@sha256:923c267ec29636db3bee20f993d0ec4973fa22998e1adad37da79e4d32b5bc07
+        podAnnotations:
+          linkerd.io/inject: disabled
+  destination:
+    namespace: cnpg-system
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      # CRD removal would also delete database Cluster resources.
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

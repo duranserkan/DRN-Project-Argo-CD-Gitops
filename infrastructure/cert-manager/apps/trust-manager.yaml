@@ -3,12 +3,14 @@ kind: Application
 metadata:
   name: trust-manager
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: cert-manager
   source:
     chart: trust-manager
     repoURL: https://charts.jetstack.io
-    targetRevision: v0.12.0
+    targetRevision: v0.24.0
   destination:
     namespace: cert-manager
     server: https://kubernetes.default.svc
@@ -19,4 +21,3 @@ spec:
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - Validate=false
-      - SyncWave=1

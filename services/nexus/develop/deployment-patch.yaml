@@ -9,13 +9,13 @@ spec:
       volumes:
         - name: postgresql
           secret:
-            secretName: postgresql
+            secretName: postgresql-app
       containers:
         - name: nexus
           volumeMounts:
             - name: postgresql
               mountPath: /appconfig/key-per-file-settings/postgres-password
-              subPath: postgres-password
+              subPath: password
               readOnly: true
           resources:
             limits:

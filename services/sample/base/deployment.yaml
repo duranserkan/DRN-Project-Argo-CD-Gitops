@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sample
-  namespace: drn-project
   labels:
     app: sample
 spec:

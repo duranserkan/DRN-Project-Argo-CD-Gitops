@@ -18,6 +18,7 @@ spec:
   duration: 175200h
   renewBefore: 87600h
   privateKey:
+    rotationPolicy: Never
     algorithm: ECDSA
     size: 256
   issuerRef:

@@ -1,6 +1,10 @@
 {
   "Environment": "development",
   "AllowedHosts": "*",
+  "DrnContext_DevHost": "postgresql-rw",
+  "DrnContext_DevPort": 5432,
+  "DrnContext_DevUsername": "drn",
+  "DrnContext_DevDatabase": "drnDb",
   "DrnAppFeatures": {
     "AutoMigrateDevEnvironment": true,
     "LaunchExternalDependencies": false,

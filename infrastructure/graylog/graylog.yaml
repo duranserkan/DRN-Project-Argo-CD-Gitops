@@ -3,48 +3,56 @@ kind: Application
 metadata:
   name: graylog
   namespace: argocd
-#https://artifacthub.io/packages/helm/kong-z/graylog
+# https://artifacthub.io/packages/helm/graylog2/graylog/2.1.0
 spec:
   project: graylog
   source:
     chart: graylog
-    repoURL: https://charts.kong-z.com/
-    targetRevision: 2.3.8
+    repoURL: https://graylog2.github.io/graylog-helm
+    # Official chart archive SHA256, verified against the publisher's index.
+    # cdbda2dbf1839fa4306ba453c9a8639c442852c748156a9fe6f6530e60101cbb
+    targetRevision: 2.1.0
     helm:
-      parameters:
-        - name: graylog.image.tag
-          value: "5.2.9"
-        - name: tags.install-mongodb
-          value: "false"
-        - name: graylog.mongodb.uriSecretName
-          value: "mongodb-admin-admin"
-        - name: graylog.mongodb.uriSecretKey
-          value: "connectionString.standardSrv"
-        - name: graylog.resources.requests.cpu
-          value: "100m"
-        - name: opensearch.resources.requests.cpu
-          value: "100m"
-        - name: opensearch.resources.limits.cpu
-          value: "200m"
+      skipTests: true
       valuesObject:
-        opensearch:
-          singleNode: true
+        global:
+          # Created and preserved by the MongoDB credential bootstrap Job.
+          existingSecretName: graylog-credentials
+        mongodb:
+          communityResource:
+            enabled: false
         graylog:
-          input:
-            udp:
-              service:
-                name: drn-udp-gelf
-                type: ClusterIP
-              ports:
-                - name: gelf
-                  port: 12201
-  #https://go2docs.graylog.org/5-0/getting_in_log_data/gelf.html
+          enterprise: false
+          replicas: 1
+          config:
+            network:
+              externalUri: "http://localhost:9000/"
+          image:
+            tag: 7.1.8@sha256:aa2685186060b3a735f072e1e87368b6466728a1aee9c0338c3a407e4d032092
+          service:
+            nameOverride: drn-udp-gelf
+          inputs:
+            - name: gelf-udp
+              port: 12201
+              protocol: UDP
+          podAnnotations:
+            linkerd.io/inject: disabled
+          podDisruptionBudget:
+            enabled: false
+        datanode:
+          replicas: 1
+          image:
+            tag: 7.1.8@sha256:f44b03a0652c92dac1a0a494f6486783ff02879e2e4762f53073e69d4195dd3e
+          podAnnotations:
+            linkerd.io/inject: disabled
+          podDisruptionBudget:
+            enabled: false
   destination:
     namespace: graylog
     server: 'https://kubernetes.default.svc'
   syncPolicy:
     automated:
-      selfHeal: false #self heal causes password secret regenerate that doesn't match with existing pvc
+      selfHeal: true
       prune: false
     syncOptions:
       - ApplyOutOfSyncOnly=true

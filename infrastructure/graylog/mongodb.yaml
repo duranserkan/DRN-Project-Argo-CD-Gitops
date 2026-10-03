@@ -6,7 +6,7 @@ metadata:
 spec:
   project: graylog
   source:
-    repoURL: 'https://github.com/duranserkan/DRN-Project-Deployment.git'
+    repoURL: 'https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git'
     path: infrastructure/graylog/mongodb
     targetRevision: 'preview'
   destination:
@@ -15,7 +15,6 @@ spec:
   syncPolicy:
     automated:
       selfHeal: true
-      prune: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
-      - SyncWave=0

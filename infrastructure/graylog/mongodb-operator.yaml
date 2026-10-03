@@ -3,48 +3,42 @@ kind: Application
 metadata:
   name: mongodb-operator
   namespace: argocd
-#https://artifacthub.io/packages/helm/mongodb-helm-charts/community-operator
+# https://artifacthub.io/packages/helm/mongodb-helm-charts/mongodb-kubernetes/1.13.0
 spec:
   project: graylog
   source:
-    chart: community-operator
+    chart: mongodb-kubernetes
     repoURL: https://mongodb.github.io/helm-charts
-    targetRevision: 0.10.0
+    # Official chart archive SHA256, verified against the publisher's index.
+    # 6db616c756bfcd25a575722b024c852a030a0cc985e7b168aff0ae4049c7e13b
+    targetRevision: 1.13.0
     helm:
-      parameters: #https://quay.io/organization/mongodb - image repositories
-        - name: database.namespace
-          value: "graylog"
-        - name: mongodb.name
-          value: "mongodb-community-server"
-        - name: mongodb.repo
-          value: "quay.io/mongodb"
-        - name: agent.name
-          value: "mongodb-agent-ubi"
-        - name: agent.version
-          value: "12.0.32.7857-1"
-        - name: versionUpgradeHook.name
-          value: "mongodb-kubernetes-operator-version-upgrade-post-start-hook"
-        - name: versionUpgradeHook.version
-          value: "1.0.8"
-        - name: readinessProbe.name
-          value: "mongodb-kubernetes-readinessprobe"
-        - name: readinessProbe.version
-          value: "1.0.19"
-        - name: operator.resources.limits.cpu
-          value: "100m"
-        - name: operator.resources.limits.memory
-          value: "200Mi"
-        - name: operator.resources.requests.cpu
-          value: "0"
-        - name: operator.resources.requests.memory
-          value: "0"
+      valuesObject:
+        operator:
+          version: 1.13.0@sha256:0184a96e324f8fb6c53bedb8f859762166fe7e996d00214efe3ec51a502b3db3
+          watchedResources:
+            - mongodbcommunity
+          enableClusterMongoDBRoles: false
+          telemetry:
+            enabled: false
+        community:
+          agent:
+            version: 109.0.0.9285-1@sha256:2d819aff81c5d9be80017791ad9e6f8c0fef828b476c9ed1cba8fe9838b07cd2
+        versionUpgradeHook:
+          version: 1.0.10@sha256:65e653bd319022328102bbd4aa8559810fe10282608af359e34e224e98116652
+        readinessProbe:
+          version: 1.0.24@sha256:dd861b4254ebf0458c460e9445fcda89a5b101ad39f9719fd09c33a99511d928
   destination:
     namespace: graylog
     server: 'https://kubernetes.default.svc'
   syncPolicy:
+    managedNamespaceMetadata:
+      annotations:
+        linkerd.io/inject: disabled
     automated:
-      selfHeal: false
-      prune: true
+      selfHeal: true
+      # Retain operator CRDs and database resources during pruning.
+      prune: false
     syncOptions:
-      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
       - CreateNamespace=true

@@ -1,0 +1,28 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgresql
+  annotations:
+    # Database retirement must be deliberate, including during Application deletion.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.15-202609281634-system-bookworm@sha256:0247662c3abc95f79adc342bf9f01ff64ffaa45f71f49189943733ffda47fea6
+  enableSuperuserAccess: false
+  # A single development instance must not block node drains.
+  enablePDB: false
+  inheritedMetadata:
+    annotations:
+      linkerd.io/inject: disabled
+  bootstrap:
+    initdb:
+      database: drnDb
+      owner: drn
+  storage:
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi

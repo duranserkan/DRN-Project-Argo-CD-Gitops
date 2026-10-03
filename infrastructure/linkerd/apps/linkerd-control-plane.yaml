@@ -5,13 +5,13 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "2"
-##https://artifacthub.io/packages/helm/linkerd2/linkerd-control-plane
+#https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-control-plane/2026.7.2
 spec:
   project: linkerd
   source:
     chart: linkerd-control-plane
-    repoURL: https://helm.linkerd.io/stable
-    targetRevision: 1.16.11
+    repoURL: https://helm.linkerd.io/edge
+    targetRevision: 2026.7.2
     helm:
       parameters:
         - name: identity.issuer.scheme
@@ -41,7 +41,8 @@ spec:
       prune: true
     syncOptions:
       - ApplyOutOfSyncOnly=true
-      - SyncWave=3
+      # Preserve cert-manager's injected CA bundles during sync.
+      - RespectIgnoreDifferences=true
   ignoreDifferences:
   - group: ""
     kind: Secret
@@ -61,17 +62,17 @@ spec:
     jsonPointers:
     - /data/tls.crt
     - /data/tls.key
-  - group: admissionregistration.k8s.io/v1
+  - group: admissionregistration.k8s.io
     kind: MutatingWebhookConfiguration
     name:  linkerd-proxy-injector-webhook-config
     jsonPointers:
     - /webhooks/0/clientConfig/caBundle
-  - group: admissionregistration.k8s.io/v1
+  - group: admissionregistration.k8s.io
     kind: ValidatingWebhookConfiguration
     name:  linkerd-sp-validator-webhook-config
     jsonPointers:
     - /webhooks/0/clientConfig/caBundle
-  - group: admissionregistration.k8s.io/v1
+  - group: admissionregistration.k8s.io
     kind: ValidatingWebhookConfiguration
     name:  linkerd-policy-validator-webhook-config
     jsonPointers:

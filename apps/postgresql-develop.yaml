@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgresql-develop
+  namespace: argocd
+spec:
+  project: drn-project-develop
+  source:
+    repoURL: https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git
+    path: services/postgresql/develop
+    targetRevision: develop
+  destination:
+    namespace: drn-project-develop
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
