@@ -397,7 +397,7 @@ Verify a received Sample or Nexus message in the UI. This single-instance stack 
 
 ### Deploy Sample and Nexus Apps
 
-Sample and Nexus use digest-pinned `0.10.0` images for amd64 and arm64. Containers run as non-root with read-only root filesystems. Writable data and logs use `emptyDir` volumes and are lost when pods are removed.
+Sample and Nexus use digest-pinned `0.10.1-preview001` images for amd64 and arm64. Containers run as non-root with read-only root filesystems. Writable data and logs use `emptyDir` volumes and are lost when pods are removed.
 
 Development settings use the shared PostgreSQL service with automatic migrations enabled and prototype mode disabled. App IDs are explicit: Sample `0`, Nexus `126`, and instance ID `0` for both. Logs go to console, file, and Graylog HTTP, with category filters inherited from the images.
 
