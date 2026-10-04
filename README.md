@@ -263,7 +263,6 @@ Grafana is installed separately from Viz. The [Grafana Application](infrastructu
 ```sh
 kubectl apply -f infrastructure/grafana/grafana-project.yaml
 kubectl apply -f infrastructure/grafana/grafana.yaml
-kubectl apply -f infrastructure/linkerd-viz/linkerd-viz.yaml
 argocd app wait grafana linkerd-viz --sync --health --timeout 300
 linkerd viz dashboard
 ```
@@ -366,6 +365,8 @@ Later full syncs preserve existing Secrets. Back them up with the database. The 
 
 **Sync Graylog**
 
+When upgrading an installation with **DRN logging revision 1**, export any local input customizations and uninstall that pack under System / Content Packs before syncing and restarting Graylog with revision 2. This briefly interrupts ingestion. The startup loader installs each revision separately, so leaving revision 1 installed would create a competing input on port `12201`. Reapply any required customizations after installation.
+
 Retrieve the generated admin password in a private terminal and save it securely. Never paste it into Git or shared output. If you supplied existing Graylog credentials, use their original password.
 
 ```sh
@@ -382,7 +383,11 @@ kubectl -n graylog port-forward svc/drn-graylog 9000:9000
 
 Keep the port-forward running and open [Graylog](http://localhost:9000). Complete Data Node provisioning using the setup credentials in pod logs if prompted, then log in as `admin` with your saved password. Update `graylog.config.network.externalUri` if exposing another URL.
 
-Graylog installs the **DRN GELF HTTP** global input on `0.0.0.0:12201` at startup from the bundled content pack. Bulk receiving supports Sample.Hosted and DRN.Nexus.Hosted batches. Its JSON extractor preserves `Logs` and exposes scoped properties as `scope_TraceId`, `scope_EventName`, and other `scope_` fields. The same pack revision is installed only once. Remove any manually created HTTP input on this port before enabling the pack. Set index replicas to `0` for the single Data Node.
+Graylog installs the **DRN GELF HTTP** global input on `0.0.0.0:12201` at startup from the bundled **DRN logging** content pack, revision `2`, summarized as **GELF HTTP input for DRN Apps**. Bulk receiving supports DRN Apps batches. Its JSON extractor preserves `Logs` and exposes scoped properties as `scope_TraceId`, `scope_EventName`, and other `scope_` fields. The same pack revision is installed only once. Remove any manually created HTTP input on this port before enabling the pack. Set index replicas to `0` for the single Data Node.
+
+The pack also creates the **DRN** stream using the default index set. DRN scoped logs carry `ScopedLog=true` inside `Logs`. The JSON extractor exposes this as `scope_ScopedLog`, and the stream matches the exact value `true`. Messages without that marker do not match. Other inputs can feed this stream if they extract the same field. Matching messages remain in the default stream. Graylog `7.1.9` creates content-pack streams paused. Under Streams, start **DRN** after installation and verify that a new scoped message appears there. A ConfigMap sync alone does not rerun the startup loader. Restart Graylog after the updated content pack is mounted.
+
+If revision `2` was already installed with the input-source rule, edit the **DRN** stream rule to match `scope_ScopedLog` exactly against `true` and remove the input's `drn_log_source` static field. Restarting does not reinstall an already installed revision.
 
 Sync Graylog and confirm the input is running under System / Inputs before syncing Sample and Nexus. Both send logs to `http://drn-graylog.graylog:12201/gelf` with LF separators and compression disabled for bulk decoding. After verifying HTTP delivery, remove any previous UDP or Forwarder inputs in Graylog. Graylog is not meshed, so this connection does not use Linkerd mTLS.
 
@@ -397,7 +402,7 @@ Verify a received Sample or Nexus message in the UI. This single-instance stack 
 
 ### Deploy Sample and Nexus Apps
 
-Sample and Nexus use digest-pinned `0.10.1-preview001` images for amd64 and arm64. Containers run as non-root with read-only root filesystems. Writable data and logs use `emptyDir` volumes and are lost when pods are removed.
+Sample and Nexus use digest-pinned `0.10.1-preview002` images for amd64 and arm64. Containers run as non-root with read-only root filesystems. Writable data and logs use `emptyDir` volumes and are lost when pods are removed.
 
 Development settings use the shared PostgreSQL service with automatic migrations enabled and prototype mode disabled. App IDs are explicit: Sample `0`, Nexus `126`, and instance ID `0` for both. Logs go to console, file, and Graylog HTTP, with category filters inherited from the images.
 

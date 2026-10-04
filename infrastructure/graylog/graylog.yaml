@@ -31,10 +31,10 @@ spec:
                 {
                   "v": "1",
                   "id": "45744736-f5e8-4885-a6a9-5306ac3602e3",
-                  "rev": 1,
+                  "rev": 2,
                   "name": "DRN logging",
-                  "summary": "GELF HTTP input for Sample.Hosted and DRN.Nexus.Hosted",
-                  "description": "Accepts newline-separated GELF batches from the hosted apps.",
+                  "summary": "GELF HTTP input for DRN Apps",
+                  "description": "Accepts newline-separated GELF batches from DRN Apps and routes scoped logs to the DRN stream.",
                   "vendor": "DRN",
                   "url": "https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops",
                   "parameters": [],
@@ -69,6 +69,29 @@ spec:
                         "condition_value": {"@type": "string", "@value": ""},
                         "order": {"@type": "integer", "@value": 0}
                       }]
+                    },
+                    "constraints": []
+                  }, {
+                    "v": "1",
+                    "id": "b72dd514-12a4-4c63-b236-a2e6f31d1efb",
+                    "type": {"name": "stream", "version": "1"},
+                    "data": {
+                      "title": {"@type": "string", "@value": "DRN"},
+                      "description": {"@type": "string", "@value": "DRN scoped logs identified by scope_ScopedLog=true."},
+                      "disabled": {"@type": "boolean", "@value": true},
+                      "matching_type": {"@type": "string", "@value": "AND"},
+                      "stream_rules": [{
+                        "type": {"@type": "string", "@value": "EXACT"},
+                        "field": {"@type": "string", "@value": "scope_ScopedLog"},
+                        "value": {"@type": "string", "@value": "true"},
+                        "inverted": {"@type": "boolean", "@value": false},
+                        "description": {"@type": "string", "@value": "Messages carrying the ScopedLog=true marker extracted from Logs."}
+                      }],
+                      "alert_conditions": [],
+                      "alarm_callbacks": [],
+                      "outputs": [],
+                      "default_stream": {"@type": "boolean", "@value": false},
+                      "remove_matches": {"@type": "boolean", "@value": false}
                     },
                     "constraints": []
                   }]
