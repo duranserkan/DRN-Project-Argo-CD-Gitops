@@ -78,6 +78,8 @@ spec:
                 editable: false
                 options:
                   path: /var/lib/grafana/dashboards/default
+        # Verify TLS certificates when downloading dashboards.
+        defaultCurlOptions: "-sf"
         # Dashboard revisions from Linkerd edge-26.7.2/grafana/values.yaml.
         dashboards:
           default:
