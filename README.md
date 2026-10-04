@@ -232,6 +232,10 @@ argocd app wait gateway-api --sync --health --timeout 300
 
 The parent and certificate bootstrap Applications follow `preview`. Linkerd uses the cert-manager CA, issuer Secret and webhook certificates. Sync waves install the bootstrap resources, Linkerd CRDs and control plane in that order.
 
+The control plane sets `proxy.defaultInboundPolicy: all-authenticated`. Meshed workloads require an authenticated Linkerd client unless an explicit policy overrides this default. Authentication uses the peer's mTLS certificate, not a caller-supplied `l5d-client-id` header. Any trusted mesh identity can call Sample, Nexus and Graylog. PostgreSQL, MongoDB and Data Node remain unmeshed. See [Service protection](#service-protection) for the security boundary.
+
+For an existing installation, sync Traefik's public-listener policy before enabling the stricter Linkerd default. Recreate existing meshed workload pods after the control-plane sync so their injected proxy configuration uses the new default. Verify that meshed calls succeed, unmeshed calls to backend application ports fail, and external requests through Traefik still succeed. Kubernetes health probes and explicit chart policies have their own authorization behavior. See [Linkerd authorization policy](https://linkerd.io/docs/reference/authorization-policy/).
+
 cert-manager injects the CA bundles into the proxy injector, service profile validator and policy validator webhook configurations. The control-plane Application excludes those fields from drift comparison and uses [`RespectIgnoreDifferences=true`](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/#respect-ignore-differences-configs) to preserve their live values during subsequent syncs. On initial creation, cert-manager populates the CA bundles after the webhook configurations exist.
 
 ```sh
@@ -274,6 +278,8 @@ Open `/grafana/` on the dashboard's local URL. Access is anonymous and read-only
 The official [Traefik chart `41.6.1`](https://artifacthub.io/packages/helm/traefik/traefik/41.6.1) installs Traefik `v3.7.13` from `https://traefik.github.io/charts`. The Traefik image is pinned by digest for reproducible deployments. `versionOverride: v3.7.13` lets the chart check version compatibility when using that digest. It creates the `traefik` GatewayClass and `drn-project` HTTP Gateway in `drn-project-develop`. Only the Gateway API provider is enabled. Traefik-specific CRDs and Ingress resources are disabled.
 
 Install it after Gateway API and Linkerd are healthy. Its pods use normal Linkerd injection and `nativeLBByDefault` routes through Service IPs, following Linkerd's [Service-based ingress integration](https://linkerd.io/docs/tasks/using-ingress/#ingress-details). The pinned Traefik `v3.7.13` documentation targets Gateway API `1.6.1`. Its watched resource versions exist in the pinned `1.5.1` bundle, but this exact combination has not been validated on a cluster. Check Gateway and HTTPRoute status and traffic after installation.
+
+The `traefik-public-web` Linkerd Server allows unauthenticated traffic only on Traefik's `web` port. Its `proxyProtocol: HTTP/1` restricts this public cleartext path to HTTP/1.1 at the inbound proxy. Traefik uses h2c separately for Sample and Nexus backends, as declared by their Service ports. Public HTTP/2 requires a future HTTPS listener and certificate configuration. Other Traefik ports inherit the authenticated default unless another policy applies. Keep the Server's pod selector aligned with the Helm release name and namespace when adapting this installation.
 
 ```sh
 kubectl apply -f infrastructure/networking/networking-project.yaml
@@ -318,7 +324,7 @@ kubectl -n drn-project-develop wait --for=condition=Ready cluster.postgresql.cnp
 
 Bootstrap creates the `drnDb` database owned by the non-superuser role `drn`. CloudNativePG generates the `postgresql-app` Secret with the application's `password` key and exposes the primary through `postgresql-rw:5432`. Both apps mount that key at `/appconfig/key-per-file-settings/postgres-password` and set the framework's `DrnContext_DevHost`, `DrnContext_DevPort`, `DrnContext_DevUsername` and `DrnContext_DevDatabase` settings explicitly. See [CloudNativePG application connections](https://cloudnative-pg.io/docs/1.30/applications/). No database passwords are stored in Git. Restart the app Deployments after rotating credentials because their `subPath` mounts retain the mounted value.
 
-This development configuration has no replicas or scheduled backups. It disables the database PodDisruptionBudget so node drains can proceed, with database downtime expected. Linkerd injection is disabled for the operator and database resources. Superuser network access is disabled. Both Applications enable self-healing and disable automatic pruning; the database Cluster also has `Prune=false,Delete=false` to retain it during Argo CD pruning or Application deletion. Configure and verify backups, recovery and availability before using self-managed PostgreSQL for production.
+This development configuration has no replicas or scheduled backups. It disables the database PodDisruptionBudget so node drains can proceed, with database downtime expected. Linkerd injection is disabled for the operator and database resources. PostgreSQL rejects non-TLS network connections through `hostnossl all all all reject`. CloudNativePG's preceding local and certificate replication rules remain intact. Superuser network access is disabled. Both Applications enable self-healing and disable automatic pruning; the database Cluster also has `Prune=false,Delete=false` to retain it during Argo CD pruning or Application deletion. Configure and verify backups, recovery and availability before using self-managed PostgreSQL for production.
 
 **Sync Graylog (Optional)**
 
@@ -330,7 +336,7 @@ For **fresh development installations only**, using official charts and Graylog 
 | [MongoDB Controllers for Kubernetes](https://artifacthub.io/packages/helm/mongodb-helm-charts/mongodb-kubernetes/1.13.0) | `1.13.0` | Operator `1.13.0` | `https://mongodb.github.io/helm-charts` |
 | MongoDB Community Server | Separate `MongoDBCommunity` resource | `8.2.12` | `quay.io/mongodb/mongodb-community-server` |
 
-MongoDB stays within Graylog's [supported `8.2` series](https://go2docs.graylog.org/current/downloading_and_installing_graylog/compatibility_matrix.htm). Images are digest-pinned for amd64 and arm64. Linkerd injection is disabled, and Data Node manages OpenSearch internally.
+MongoDB stays within Graylog's [supported `8.2` series](https://go2docs.graylog.org/current/downloading_and_installing_graylog/compatibility_matrix.htm). Images are digest-pinned for amd64 and arm64. Only the Graylog server enables Linkerd injection. MongoDB, its operator and Data Node remain unmeshed, and Data Node manages OpenSearch internally. Install Linkerd and its policy CRDs before the Graylog Application.
 
 The database's [readiness role](infrastructure/graylog/mongodb/readiness-rbac.yaml) lets its probe read `mongodb-config` and update the version annotation on `mongodb-0`. Extend its pod-name list when adding members.
 
@@ -391,7 +397,7 @@ The pack also creates the **DRN** stream using the default index set. DRN scoped
 
 If revision `2` was already installed with the input-source rule, edit the **DRN** stream rule to match `scope_ScopedLog` exactly against `true` and remove the input's `drn_log_source` static field. Restarting does not reinstall an already installed revision.
 
-Sync Graylog and confirm the input is running under System / Inputs before syncing Sample and Nexus. Both send logs to `http://drn-graylog.graylog:12201/gelf` with LF separators and compression disabled for bulk decoding. After verifying HTTP delivery, remove any previous UDP or Forwarder inputs in Graylog. Graylog is not meshed, so this connection does not use Linkerd mTLS.
+Sync Graylog and confirm the input is running under System / Inputs before syncing Sample and Nexus. Both send logs to `http://drn-graylog.graylog:12201/gelf` with LF separators and compression disabled for bulk decoding. Linkerd encrypts this connection between proxies and requires a trusted mesh identity. Keep the application URL as HTTP because the proxies provide mesh mTLS. After verifying delivery, remove any previous UDP or Forwarder inputs in Graylog.
 
 Existing installations using `drn-gelf` need a StatefulSet recreation with pods and PVCs preserved, because its `serviceName` is immutable. Keep the old Service until log clients use `drn-graylog`.
 
@@ -405,6 +411,10 @@ Verify a received Sample or Nexus message in the UI. This single-instance stack 
 ### Deploy Sample and Nexus Apps
 
 Sample and Nexus use digest-pinned `0.10.1-preview002` images for amd64 and arm64. Containers run as non-root with read-only root filesystems. Writable data and logs use `emptyDir` volumes and are lost when pods are removed.
+
+Both development listeners use Kestrel `Http2` over cleartext HTTP (h2c only): Sample on `5998` and Nexus on `5988`. Their Service ports declare `appProtocol: kubernetes.io/h2c`, which tells Traefik and Linkerd to use HTTP/2 upstream. Internal application requests already select HTTP/2. Traefik accepts public HTTP/1.1 through its inbound Linkerd proxy and sends h2c to the backends. Linkerd supplies mTLS between meshed pods. This setting applies to Sample and Nexus, not third-party services such as Graylog. See [Kestrel protocol configuration](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints#configure-http-protocols) and [Linkerd Service protocols](https://linkerd.io/docs/features/protocol-detection/#declaring-a-service-ports-protocol).
+
+Sync each Service together with its workload configuration. Sample's generated ConfigMap name changes and triggers a Deployment rollout. During the transition, its old HTTP/1-only pods and new h2c routing can briefly disagree. After rollout, verify public HTTP/1.1 through Traefik and h2c requests between apps. Public h2c prior-knowledge connections must fail, and an `Upgrade: h2c` request must not establish an h2c tunnel. A direct HTTP/1.1 connection to either Kestrel listener must fail. These are runtime checks beyond manifest validation.
 
 Development settings use the shared PostgreSQL service with automatic migrations enabled and prototype mode disabled. App IDs are explicit: Sample `0`, Nexus `126`, and instance ID `0` for both. Logs go to console, file, and Graylog HTTP, with category filters inherited from the images.
 
@@ -436,3 +446,15 @@ linkerd check --proxy
 ```
 
 Exercise `/app`, `/app/` and a known sample endpoint through the gateway address. Check backend paths and forwarded headers.
+
+### Service protection
+
+The baseline requires mTLS for meshed destinations, with one public-listener exception for Traefik. It has no application-specific caller allowlists or additional database NetworkPolicies. Any trusted mesh identity can call Sample, Nexus and Graylog. Application authentication and authorization remain responsible for user access. Graylog's UI/API retain their own authentication and local port-forward administration.
+
+PostgreSQL requires native TLS and database credentials. Its server-side TLS requirement does not establish client-side server-certificate verification. The current development connection helper does not configure `SSL Mode=VerifyFull` or a trusted root certificate. MongoDB and Data Node retain their existing native security and remain outside Linkerd protection. This baseline does not add network isolation for them.
+
+For rollout, publish infrastructure changes to `preview` and PostgreSQL changes to `develop`. Sync Traefik's listener exception before the stricter Linkerd default. Recreate existing meshed pods after changing the injection default. Graylog's new sidecar requires a StatefulSet rollout, which can briefly interrupt logging on its single instance.
+
+After rollout, verify external HTTP through Traefik, Sample-to-Nexus requests, log delivery, and PostgreSQL queries. Unmeshed calls directly to Sample, Nexus and Graylog must fail, while trusted meshed callers remain allowed. PostgreSQL connections with TLS disabled must fail. Manifest rendering and server-side dry runs validate configuration, but do not prove these runtime outcomes.
+
+References: [Linkerd policy](https://linkerd.io/docs/reference/authorization-policy/), [CloudNativePG rule ordering](https://github.com/cloudnative-pg/cloudnative-pg/blob/v1.30.1/docs/src/postgresql_conf.md#the-pg_hba-section), and [Npgsql TLS verification](https://www.npgsql.org/doc/security.html).

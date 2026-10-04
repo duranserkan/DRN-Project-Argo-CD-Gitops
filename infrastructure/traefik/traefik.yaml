@@ -41,6 +41,21 @@ spec:
           websecure:
             expose:
               default: false
+        extraObjects:
+          # External clients have no mesh identity. Keep this exception on the public listener only.
+          - apiVersion: policy.linkerd.io/v1beta3
+            kind: Server
+            metadata:
+              name: traefik-public-web
+            spec:
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: traefik
+                  app.kubernetes.io/instance: traefik-drn-project-develop
+              port: web
+              # Public cleartext traffic is HTTP/1.1. Backend Services select h2c separately.
+              proxyProtocol: HTTP/1
+              accessPolicy: all-unauthenticated
   destination:
     namespace: drn-project-develop
     server: https://kubernetes.default.svc

@@ -125,7 +125,8 @@ spec:
               port: 12201
               protocol: TCP
           podAnnotations:
-            linkerd.io/inject: disabled
+            linkerd.io/inject: enabled
+            config.linkerd.io/default-inbound-policy: all-authenticated
           podDisruptionBudget:
             enabled: false
         datanode:

@@ -14,6 +14,8 @@ spec:
     targetRevision: 2026.7.2
     helm:
       parameters:
+        - name: proxy.defaultInboundPolicy
+          value: all-authenticated
         - name: controllerImage
           value: ghcr.io/linkerd/controller
         - name: controllerImageVersion

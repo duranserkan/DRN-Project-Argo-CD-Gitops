@@ -9,6 +9,10 @@ spec:
   instances: 1
   imageName: ghcr.io/cloudnative-pg/postgresql:16.15-202609281634-system-bookworm@sha256:0247662c3abc95f79adc342bf9f01ff64ffaa45f71f49189943733ffda47fea6
   enableSuperuserAccess: false
+  postgresql:
+    pg_hba:
+      # Preserve the operator's preceding local and certificate replication rules.
+      - hostnossl all all all reject
   # A single development instance must not block node drains.
   enablePDB: false
   inheritedMetadata:
