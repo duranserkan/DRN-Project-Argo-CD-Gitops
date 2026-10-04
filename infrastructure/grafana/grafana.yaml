@@ -1,0 +1,128 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+spec:
+  project: grafana
+  source:
+    chart: grafana
+    repoURL: https://grafana-community.github.io/helm-charts
+    # Chart SHA256 verified 2026-10-04.
+    # 5189a48131311513ef7bf5e22f1ed6424cd1c7cec61bc1995fab04d3cf46f36a
+    targetRevision: 13.2.7
+    helm:
+      skipTests: true
+      valuesObject:
+        fullnameOverride: grafana
+        image:
+          tag: 13.2.3-distroless
+          sha: 202e5d5b3f8499e70ccac7991eea6d7da72d2790eb2e0597e7987acf724e7180
+        downloadDashboardsImage:
+          tag: 8.22.0
+          sha: 58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
+        rbac:
+          create: false
+        serviceAccount:
+          name: grafana
+        testFramework:
+          enabled: false
+        initChownData:
+          enabled: false
+        persistence:
+          enabled: false
+        podAnnotations:
+          linkerd.io/inject: enabled
+        env:
+          GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        grafana.ini:
+          server:
+            root_url: "%(protocol)s://%(domain)s/grafana/"
+          auth:
+            disable_login_form: true
+          auth.anonymous:
+            enabled: true
+            org_role: Viewer
+          auth.basic:
+            enabled: false
+          analytics:
+            check_for_updates: false
+            reporting_enabled: false
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: prometheus
+                type: prometheus
+                access: proxy
+                url: http://prometheus.linkerd-viz.svc.cluster.local:9090
+                isDefault: true
+                editable: false
+                jsonData:
+                  timeInterval: "10s"
+        dashboardProviders:
+          dashboardproviders.yaml:
+            apiVersion: 1
+            providers:
+              - name: default
+                orgId: 1
+                folder: Linkerd
+                type: file
+                disableDeletion: true
+                editable: false
+                options:
+                  path: /var/lib/grafana/dashboards/default
+        # Verify TLS certificates when downloading dashboards.
+        defaultCurlOptions: "-sf"
+        # Dashboard revisions from Linkerd edge-26.7.2/grafana/values.yaml.
+        dashboards:
+          default:
+            top-line: {gnetId: 15474, revision: 4, datasource: prometheus}
+            health: {gnetId: 15486, revision: 3, datasource: prometheus}
+            kubernetes: {gnetId: 15479, revision: 2, datasource: prometheus}
+            namespace: {gnetId: 15478, revision: 3, datasource: prometheus}
+            deployment: {gnetId: 15475, revision: 6, datasource: prometheus}
+            pod: {gnetId: 15477, revision: 3, datasource: prometheus}
+            service: {gnetId: 15480, revision: 3, datasource: prometheus}
+            route: {gnetId: 15481, revision: 3, datasource: prometheus}
+            authority: {gnetId: 15482, revision: 3, datasource: prometheus}
+            cronjob: {gnetId: 15483, revision: 3, datasource: prometheus}
+            job: {gnetId: 15487, revision: 3, datasource: prometheus}
+            daemonset: {gnetId: 15484, revision: 3, datasource: prometheus}
+            replicaset: {gnetId: 15491, revision: 3, datasource: prometheus}
+            statefulset: {gnetId: 15493, revision: 3, datasource: prometheus}
+            replicationcontroller: {gnetId: 15492, revision: 4, datasource: prometheus}
+            prometheus: {gnetId: 15489, revision: 2, datasource: prometheus}
+            prometheus-benchmark: {gnetId: 15490, revision: 2, datasource: prometheus}
+            multicluster: {gnetId: 15488, revision: 3, datasource: prometheus}
+        extraObjects:
+          - apiVersion: policy.linkerd.io/v1alpha1
+            kind: AuthorizationPolicy
+            metadata:
+              name: grafana
+              namespace: linkerd-viz
+            spec:
+              targetRef:
+                group: policy.linkerd.io
+                kind: Server
+                name: prometheus-admin
+              requiredAuthenticationRefs:
+                - kind: ServiceAccount
+                  name: grafana
+                  namespace: grafana
+  destination:
+    namespace: grafana
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true

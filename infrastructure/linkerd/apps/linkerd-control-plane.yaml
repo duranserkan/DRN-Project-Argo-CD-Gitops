@@ -14,6 +14,20 @@ spec:
     targetRevision: 2026.7.2
     helm:
       parameters:
+        - name: controllerImage
+          value: ghcr.io/linkerd/controller
+        - name: controllerImageVersion
+          value: edge-26.7.2@sha256:1f90252981b81537fba17e43a7a3acdad9957a3864a86324cee20217fe96016a
+        - name: proxy.image.name
+          value: ghcr.io/linkerd/proxy
+        - name: proxy.image.version
+          value: edge-26.7.2@sha256:176422083de76ff53438b665651322b4e87844d3eb8aea40ee58b82b773286a0
+        - name: debugContainer.image.name
+          value: ghcr.io/linkerd/debug
+        - name: debugContainer.image.version
+          value: edge-26.7.2@sha256:35e91fd721b69cd41d5482df4a7fe9b90120bad58acf7442765171e7d1c5bc43
+        - name: webhookFailurePolicy
+          value: Fail
         - name: identity.issuer.scheme
           value: kubernetes.io/tls
         - name: identity.externalCA

@@ -7,8 +7,8 @@ namespace: drn-project-develop
 #nameSuffix: -0.2.2-preview002
 images:
   - name: duranserkan/drn-project-sample
-    newTag: 0.10.0
-    digest: sha256:3209452f81dd75cf6ae42bfefc28444d18296b164b5c32c5464bff38c91bafd4
+    newTag: 0.10.1-preview001
+    digest: sha256:10300ff82bd730dc77126c3a71bdea62c34ac32986ad44984b83293655347a41
 replicas:
   - name: sample
     count: 1
