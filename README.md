@@ -254,6 +254,22 @@ linkerd viz check
 linkerd viz dashboard &
 ```
 
+Linkerd and Viz use `ghcr.io/linkerd` directly to avoid the `cr.l5d.io` image-pull failures observed with Docker Desktop's kind registry mirror. The image digests match across both registries. This is configured through Helm values and requires no node configuration changes.
+
+**Sync Grafana (Optional)**
+
+Grafana is installed separately from Viz. The [Grafana Application](infrastructure/grafana/grafana.yaml) provisions Linkerd dashboards and authorizes its meshed service account to query Viz's Prometheus.
+
+```sh
+kubectl apply -f infrastructure/grafana/grafana-project.yaml
+kubectl apply -f infrastructure/grafana/grafana.yaml
+kubectl apply -f infrastructure/linkerd-viz/linkerd-viz.yaml
+argocd app wait grafana linkerd-viz --sync --health --timeout 300
+linkerd viz dashboard
+```
+
+Open `/grafana/` on the dashboard's local URL. Access is anonymous and read-only, with no public ingress or admin account. Dashboards are provisioned from pinned revisions at startup and local changes are not persisted. Configure authentication before exposing Grafana outside the development cluster.
+
 ### Deploy [Traefik Gateway API](https://github.com/traefik/traefik/blob/v3.7.13/docs/content/reference/install-configuration/providers/kubernetes/kubernetes-gateway.md)
 
 The official [Traefik chart `41.6.1`](https://artifacthub.io/packages/helm/traefik/traefik/41.6.1) installs Traefik `v3.7.13` from `https://traefik.github.io/charts`. The Traefik image is pinned by digest for reproducible deployments. `versionOverride: v3.7.13` lets the chart check version compatibility when using that digest. It creates the `traefik` GatewayClass and `drn-project` HTTP Gateway in `drn-project-develop`. Only the Gateway API provider is enabled. Traefik-specific CRDs and Ingress resources are disabled.
@@ -309,11 +325,13 @@ For **fresh development installations only**, using official charts and Graylog 
 
 | Component | Chart | Deployed version | Official repository |
 |---|---|---|---|
-| [Graylog Open and Data Node](https://artifacthub.io/packages/helm/graylog2/graylog/2.1.0) | `2.1.0` | Both `7.1.8` | `https://graylog2.github.io/graylog-helm` |
+| [Graylog Open and Data Node](https://artifacthub.io/packages/helm/graylog2/graylog/2.1.0) | `2.1.0` | Both `7.1.9` | `https://graylog2.github.io/graylog-helm` |
 | [MongoDB Controllers for Kubernetes](https://artifacthub.io/packages/helm/mongodb-helm-charts/mongodb-kubernetes/1.13.0) | `1.13.0` | Operator `1.13.0` | `https://mongodb.github.io/helm-charts` |
 | MongoDB Community Server | Separate `MongoDBCommunity` resource | `8.2.12` | `quay.io/mongodb/mongodb-community-server` |
 
 MongoDB stays within Graylog's [supported `8.2` series](https://go2docs.graylog.org/current/downloading_and_installing_graylog/compatibility_matrix.htm). Images are digest-pinned for amd64 and arm64. Linkerd injection is disabled, and Data Node manages OpenSearch internally.
+
+The database's [readiness role](infrastructure/graylog/mongodb/readiness-rbac.yaml) lets its probe read `mongodb-config` and update the version annotation on `mongodb-0`. Extend its pod-name list when adding members.
 
 **Storage and host prerequisites**
 
@@ -359,14 +377,16 @@ kubectl -n graylog get secret graylog-admin-password \
 kubectl apply -f infrastructure/graylog/graylog.yaml
 argocd app sync graylog
 argocd app wait graylog --sync --timeout 300
-kubectl -n graylog port-forward svc/drn-gelf 9000:9000
+kubectl -n graylog port-forward svc/drn-graylog 9000:9000
 ```
 
 Keep the port-forward running and open [Graylog](http://localhost:9000). Complete Data Node provisioning using the setup credentials in pod logs if prompted, then log in as `admin` with your saved password. Update `graylog.config.network.externalUri` if exposing another URL.
 
-Under System / Inputs, create a **global GELF HTTP input** on `0.0.0.0:12201` with **Enable Bulk Receiving** selected. Helm exposes the TCP port but does not create the input. Set index replicas to `0` for the single Data Node.
+Graylog installs the **DRN GELF HTTP** global input on `0.0.0.0:12201` at startup from the bundled content pack. Bulk receiving supports Sample.Hosted and DRN.Nexus.Hosted batches. Its JSON extractor preserves `Logs` and exposes scoped properties as `scope_TraceId`, `scope_EventName`, and other `scope_` fields. The same pack revision is installed only once. Remove any manually created HTTP input on this port before enabling the pack. Set index replicas to `0` for the single Data Node.
 
-Sync Graylog and create the HTTP input before syncing Sample and Nexus. Both send logs to `http://drn-gelf.graylog:12201/gelf`. After verifying HTTP delivery, remove any previous UDP or Forwarder inputs in Graylog. Graylog is not meshed, so this connection does not use Linkerd mTLS.
+Sync Graylog and confirm the input is running under System / Inputs before syncing Sample and Nexus. Both send logs to `http://drn-graylog.graylog:12201/gelf` with LF separators and compression disabled for bulk decoding. After verifying HTTP delivery, remove any previous UDP or Forwarder inputs in Graylog. Graylog is not meshed, so this connection does not use Linkerd mTLS.
+
+Existing installations using `drn-gelf` need a StatefulSet recreation with pods and PVCs preserved, because its `serviceName` is immutable. Keep the old Service until log clients use `drn-graylog`.
 
 ```sh
 argocd app wait graylog --sync --health --timeout 600

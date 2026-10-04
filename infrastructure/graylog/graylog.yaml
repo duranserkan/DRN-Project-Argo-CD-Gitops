@@ -21,16 +21,80 @@ spec:
         mongodb:
           communityResource:
             enabled: false
+        extraObjects:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: graylog-drn-content-packs
+            data:
+              drn-inputs.json: |
+                {
+                  "v": "1",
+                  "id": "45744736-f5e8-4885-a6a9-5306ac3602e3",
+                  "rev": 1,
+                  "name": "DRN logging",
+                  "summary": "GELF HTTP input for Sample.Hosted and DRN.Nexus.Hosted",
+                  "description": "Accepts newline-separated GELF batches from the hosted apps.",
+                  "vendor": "DRN",
+                  "url": "https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops",
+                  "parameters": [],
+                  "entities": [{
+                    "v": "1",
+                    "id": "1ca5e0eb-44b4-438a-ad96-4a7af7735f0e",
+                    "type": {"name": "input", "version": "1"},
+                    "data": {
+                      "title": {"@type": "string", "@value": "DRN GELF HTTP"},
+                      "type": {"@type": "string", "@value": "org.graylog2.inputs.gelf.http.GELFHttpInput"},
+                      "global": {"@type": "boolean", "@value": true},
+                      "configuration": {
+                        "bind_address": {"@type": "string", "@value": "0.0.0.0"},
+                        "port": {"@type": "integer", "@value": 12201},
+                        "enable_bulk_receiving": {"@type": "boolean", "@value": true},
+                        "enable_cors": {"@type": "boolean", "@value": false}
+                      },
+                      "static_fields": {},
+                      "extractors": [{
+                        "title": {"@type": "string", "@value": "DRN scoped logs"},
+                        "type": {"@type": "string", "@value": "JSON"},
+                        "cursor_strategy": {"@type": "string", "@value": "COPY"},
+                        "source_field": {"@type": "string", "@value": "Logs"},
+                        "target_field": {"@type": "string", "@value": ""},
+                        "configuration": {
+                          "flatten": {"@type": "boolean", "@value": false},
+                          "key_separator": {"@type": "string", "@value": "_"},
+                          "key_prefix": {"@type": "string", "@value": "scope_"}
+                        },
+                        "converters": [],
+                        "condition_type": {"@type": "string", "@value": "NONE"},
+                        "condition_value": {"@type": "string", "@value": ""},
+                        "order": {"@type": "integer", "@value": 0}
+                      }]
+                    },
+                    "constraints": []
+                  }]
+                }
         graylog:
           enterprise: false
           replicas: 1
           config:
+            contentPacksAutoInstall: drn-inputs.json
             network:
               externalUri: "http://localhost:9000/"
+          env:
+            GRAYLOG_CONTENT_PACKS_LOADER_ENABLED: "true"
+            GRAYLOG_CONTENT_PACKS_DIR: /etc/graylog/contentpacks
+          extraVolumes:
+            - name: drn-content-packs
+              configMap:
+                name: graylog-drn-content-packs
+          extraVolumeMounts:
+            - name: drn-content-packs
+              mountPath: /etc/graylog/contentpacks
+              readOnly: true
           image:
-            tag: 7.1.8@sha256:aa2685186060b3a735f072e1e87368b6466728a1aee9c0338c3a407e4d032092
+            tag: 7.1.9@sha256:598bd41fefd5d65d05bb6a14f53d063fd717ea907a0764609413e7b89bae7406
           service:
-            nameOverride: drn-gelf
+            nameOverride: drn-graylog
           # Only GELF HTTP. The chart still declares port 13302, but no
           # Forwarder listener starts unless its input is created in Graylog.
           inputs:
@@ -44,7 +108,7 @@ spec:
         datanode:
           replicas: 1
           image:
-            tag: 7.1.8@sha256:f44b03a0652c92dac1a0a494f6486783ff02879e2e4762f53073e69d4195dd3e
+            tag: 7.1.9@sha256:a6d545b159527b5137db041041aa0f4649119fbba29bb49b0fc8aa2a0712b6f3
           podAnnotations:
             linkerd.io/inject: disabled
           podDisruptionBudget:
@@ -52,10 +116,26 @@ spec:
   destination:
     namespace: graylog
     server: 'https://kubernetes.default.svc'
+  # Chart 2.1.0 always renders this field; Kubernetes drops it when
+  # MaxUnavailableStatefulSet is disabled.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: graylog
+      namespace: graylog
+      jsonPointers:
+        - /spec/updateStrategy/rollingUpdate/maxUnavailable
+    - group: apps
+      kind: StatefulSet
+      name: graylog-datanode
+      namespace: graylog
+      jsonPointers:
+        - /spec/updateStrategy/rollingUpdate/maxUnavailable
   syncPolicy:
     automated:
       selfHeal: true
       prune: false
     syncOptions:
       - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
       - CreateNamespace=true

@@ -14,6 +14,14 @@ spec:
     targetRevision: 2026.7.2
     helm:
       parameters:
+        - name: controllerImage
+          value: ghcr.io/linkerd/controller
+        - name: proxy.image.name
+          value: ghcr.io/linkerd/proxy
+        - name: debugContainer.image.name
+          value: ghcr.io/linkerd/debug
+        - name: webhookFailurePolicy
+          value: Fail
         - name: identity.issuer.scheme
           value: kubernetes.io/tls
         - name: identity.externalCA

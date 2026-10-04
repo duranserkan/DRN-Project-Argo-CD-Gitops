@@ -10,6 +10,12 @@ spec:
     chart: linkerd-viz
     repoURL: https://helm.linkerd.io/edge
     targetRevision: 2026.7.2
+    helm:
+      parameters:
+        - name: defaultRegistry
+          value: ghcr.io/linkerd
+        - name: grafana.url
+          value: grafana.grafana.svc.cluster.local
   destination:
     namespace: linkerd-viz
     server: 'https://kubernetes.default.svc'
