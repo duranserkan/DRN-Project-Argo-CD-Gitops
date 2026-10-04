@@ -283,7 +283,9 @@ argocd app wait traefik --sync --health --timeout 300
 kubectl -n drn-project-develop wait --for=condition=Programmed gateway/drn-project --timeout=120s
 ```
 
-The chart exposes HTTP on LoadBalancer port `80`, forwarding to its `web` listener on port `8000`. Configure HTTPS and certificates before exposing production traffic. The [sample HTTPRoute](services/sample/base/httproute.yaml) is managed by the sample Application alongside its Service and Deployment. The shared Gateway and GatewayClass remain managed by the Traefik infrastructure Application. The route sends `/api` and `/api/` to `/`, and `/api/example` to `/example` on `sample:80`. Prefix matching is case-sensitive and excludes `/apix`. It preserves `X-Forwarded-Prefix: /api`. Incoming `l5d-dst-override`, `X-Forwarded-Ssl`, `X-Original-URI` and `X-Forwarded-Path` headers are stripped. Applications should use standard forwarded headers for request metadata.
+The chart exposes HTTP on LoadBalancer port `80`, forwarding to its `web` listener on port `8000`. Configure HTTPS and certificates before exposing production traffic. The [sample HTTPRoute](services/sample/base/httproute.yaml) is managed by the sample Application alongside its Service and Deployment. The shared Gateway and GatewayClass remain managed by the Traefik infrastructure Application. The route sends `/app` and `/app/` to `/`, and `/app/example` to `/example` on `sample:80`. Prefix matching is case-sensitive and excludes `/appx`. It sets `X-Forwarded-Prefix: /app`. Incoming `Forwarded`, `l5d-dst-override`, `X-Forwarded-Ssl`, `X-Original-URI` and `X-Forwarded-Path` headers are stripped. Applications should use Traefik's `X-Forwarded-*` headers for request metadata and configure trusted proxies accordingly.
+
+The route also strips incoming `l5d-retry-http`, `l5d-retry-grpc`, `l5d-retry-limit`, `l5d-retry-timeout`, `l5d-timeout` and `l5d-response-timeout` headers. This prevents client-supplied retry and timeout overrides from reaching downstream proxies when Linkerd's per-request policies are enabled. Traefik's inbound Linkerd proxy sees requests before route filtering. Keep per-request policies disabled for unfiltered external traffic, as described in [Linkerd's per-request policy guidance](https://linkerd.io/docs/features/retries-and-timeouts/#per-request-policies).
 
 ### Deploy Dev Environment Dependencies
 
@@ -433,4 +435,4 @@ kubectl -n drn-project-develop get gateway drn-project
 linkerd check --proxy
 ```
 
-Exercise `/api`, `/api/` and a known sample endpoint through the gateway address. Check backend paths and forwarded headers.
+Exercise `/app`, `/app/` and a known sample endpoint through the gateway address. Check backend paths and forwarded headers.

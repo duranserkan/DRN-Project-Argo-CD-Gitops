@@ -10,7 +10,7 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /api
+            value: /app
       filters:
         - type: URLRewrite
           urlRewrite:
@@ -21,9 +21,16 @@ spec:
           requestHeaderModifier:
             set:
               - name: X-Forwarded-Prefix
-                value: /api
+                value: /app
             remove:
+              - Forwarded
               - l5d-dst-override
+              - l5d-retry-http
+              - l5d-retry-grpc
+              - l5d-retry-limit
+              - l5d-retry-timeout
+              - l5d-timeout
+              - l5d-response-timeout
               - X-Forwarded-Ssl
               - X-Original-URI
               - X-Forwarded-Path
