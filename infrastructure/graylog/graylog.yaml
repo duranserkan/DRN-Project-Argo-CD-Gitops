@@ -30,11 +30,11 @@ spec:
               drn-inputs.json: |
                 {
                   "v": "1",
-                  "id": "45744736-f5e8-4885-a6a9-5306ac3602e3",
-                  "rev": 2,
-                  "name": "DRN logging",
+                  "id": "6ab9a143-a536-475b-bb99-0534484cc821",
+                  "rev": 1,
+                  "name": "DRN input",
                   "summary": "GELF HTTP input for DRN Apps",
-                  "description": "Accepts newline-separated GELF batches from DRN Apps and routes scoped logs to the DRN stream.",
+                  "description": "Accepts newline-separated GELF batches from DRN Apps and extracts scoped log fields.",
                   "vendor": "DRN",
                   "url": "https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops",
                   "parameters": [],
@@ -57,7 +57,7 @@ spec:
                         "title": {"@type": "string", "@value": "DRN scoped logs"},
                         "type": {"@type": "string", "@value": "JSON"},
                         "cursor_strategy": {"@type": "string", "@value": "COPY"},
-                        "source_field": {"@type": "string", "@value": "Logs"},
+                        "source_field": {"@type": "string", "@value": "full_message"},
                         "target_field": {"@type": "string", "@value": ""},
                         "configuration": {
                           "flatten": {"@type": "boolean", "@value": false},
@@ -71,27 +71,40 @@ spec:
                       }]
                     },
                     "constraints": []
-                  }, {
+                  }]
+                }
+              drn-streams.json: |
+                {
+                  "v": "1",
+                  "id": "e44645b8-26b6-4cc7-a5d9-0d93e39ccc3f",
+                  "rev": 1,
+                  "name": "DRN streams",
+                  "summary": "Scoped log stream for DRN Apps",
+                  "description": "Routes messages carrying scope_ScopedLog=true to the DRN stream.",
+                  "vendor": "DRN",
+                  "url": "https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops",
+                  "parameters": [],
+                  "entities": [{
                     "v": "1",
                     "id": "b72dd514-12a4-4c63-b236-a2e6f31d1efb",
                     "type": {"name": "stream", "version": "1"},
                     "data": {
                       "title": {"@type": "string", "@value": "DRN"},
                       "description": {"@type": "string", "@value": "DRN scoped logs identified by scope_ScopedLog=true."},
-                      "disabled": {"@type": "boolean", "@value": true},
+                      "disabled": {"@type": "boolean", "@value": false},
                       "matching_type": {"@type": "string", "@value": "AND"},
                       "stream_rules": [{
                         "type": {"@type": "string", "@value": "EXACT"},
                         "field": {"@type": "string", "@value": "scope_ScopedLog"},
                         "value": {"@type": "string", "@value": "true"},
                         "inverted": {"@type": "boolean", "@value": false},
-                        "description": {"@type": "string", "@value": "Messages carrying the ScopedLog=true marker extracted from Logs."}
+                        "description": {"@type": "string", "@value": "Messages carrying the ScopedLog=true marker extracted from full_message."}
                       }],
                       "alert_conditions": [],
                       "alarm_callbacks": [],
                       "outputs": [],
                       "default_stream": {"@type": "boolean", "@value": false},
-                      "remove_matches": {"@type": "boolean", "@value": false}
+                      "remove_matches": {"@type": "boolean", "@value": true}
                     },
                     "constraints": []
                   }]
@@ -100,7 +113,7 @@ spec:
           enterprise: false
           replicas: 1
           config:
-            contentPacksAutoInstall: drn-inputs.json
+            contentPacksAutoInstall: "drn-inputs.json,drn-streams.json"
             network:
               externalUri: "http://localhost:9000/"
           env:
