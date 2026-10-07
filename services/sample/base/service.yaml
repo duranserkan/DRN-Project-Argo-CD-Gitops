@@ -9,6 +9,7 @@ spec:
     app: sample
   ports:
     - name: http
+      appProtocol: kubernetes.io/h2c
       protocol: TCP
       port: 80
       targetPort: http
