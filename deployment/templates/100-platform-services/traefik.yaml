@@ -23,6 +23,8 @@ spec:
         deployment:
           podAnnotations:
             linkerd.io/inject: enabled
+            # Port 4143 is public mesh transport. Only the web Server grants access.
+            config.linkerd.io/default-inbound-policy: deny
         ingressClass:
           enabled: false
         providers:

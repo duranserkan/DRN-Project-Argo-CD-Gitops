@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: drn-project
+resources:
+  - network-policy-namespace-isolation.yaml
+  - network-policy-traefik-public-web.yaml
+  - network-policy-postgresql.yaml
+  - network-policy-linkerd-viz.yaml

@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: traefik-public-web
+spec:
+  # Apply the public exception only to this Traefik release's pods.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+      app.kubernetes.io/instance: traefik-drn-project
+  policyTypes: [Ingress]
+  ingress:
+    # No from list means any source may reach these TCP ports.
+    - ports:
+        - port: 8000
+        # Linkerd carries meshed connections on 4143 for multiple original ports.
+        # Traefik's web Server permits its public listener; its mesh default denies
+        # other application ports, subject to automatic health-probe authorization.
+        - port: 4143

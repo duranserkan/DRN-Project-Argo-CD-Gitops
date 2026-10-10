@@ -24,6 +24,46 @@ spec:
           communityResource:
             enabled: false
         extraObjects:
+          - apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: namespace-isolation
+            spec:
+              podSelector: {}
+              policyTypes: [Ingress]
+              ingress:
+                - from:
+                    - podSelector: {}
+                - from:
+                    - namespaceSelector:
+                        matchLabels:
+                          kubernetes.io/metadata.name: drn-project
+                  ports:
+                    - port: 12201
+                    # Linkerd transports meshed connections on its inbound port.
+                    - port: 4143
+                - from:
+                    - namespaceSelector:
+                        matchLabels:
+                          kubernetes.io/metadata.name: linkerd-viz
+                  ports:
+                    - port: 4191
+                    - port: 4190
+          - apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: mongodb-operator-webhook
+            spec:
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: mongodb-kubernetes-operator
+                  app.kubernetes.io/component: controller
+              policyTypes: [Ingress]
+              ingress:
+                # Managed API servers may not originate from namespace-selected pods.
+                # Restrict the source once the cluster's API-server CIDRs are known.
+                - ports:
+                    - port: 1993
           - apiVersion: v1
             kind: ConfigMap
             metadata:
