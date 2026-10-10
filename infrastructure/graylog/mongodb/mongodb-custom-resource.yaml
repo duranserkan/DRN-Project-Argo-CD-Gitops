@@ -9,6 +9,13 @@ spec:
   type: ReplicaSet
   version: "8.2.12"
   security:
+    tls:
+      enabled: true
+      optional: false
+      certificateKeySecretRef:
+        name: mongodb-server-tls
+      caConfigMapRef:
+        name: graylog-database-trust
     authentication:
       modes: ["SCRAM"]
   users:

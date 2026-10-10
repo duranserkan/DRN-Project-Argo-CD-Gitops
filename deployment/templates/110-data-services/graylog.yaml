@@ -115,6 +115,10 @@ spec:
           enterprise: false
           replicas: 1
           config:
+            extraServerJavaOpts:
+              - -Djavax.net.ssl.trustStore=/etc/graylog/database-trust/truststore.p12
+              - -Djavax.net.ssl.trustStoreType=PKCS12
+              - -Djavax.net.ssl.trustStorePassword=changeit
             contentPacksAutoInstall: "drn-inputs.json,drn-streams.json"
             network:
               externalUri: "http://localhost:9000/"
@@ -122,10 +126,16 @@ spec:
             GRAYLOG_CONTENT_PACKS_LOADER_ENABLED: "true"
             GRAYLOG_CONTENT_PACKS_DIR: /etc/graylog/contentpacks
           extraVolumes:
+            - name: database-trust
+              configMap:
+                name: graylog-database-trust
             - name: drn-content-packs
               configMap:
                 name: graylog-drn-content-packs
           extraVolumeMounts:
+            - name: database-trust
+              mountPath: /etc/graylog/database-trust
+              readOnly: true
             - name: drn-content-packs
               mountPath: /etc/graylog/contentpacks
               readOnly: true
@@ -146,6 +156,16 @@ spec:
             enabled: false
         datanode:
           replicas: 1
+          config:
+            javaOpts: "-Xms1g -Xmx1g -Djavax.net.ssl.trustStore=/etc/graylog/database-trust/truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=changeit"
+          extraVolumes:
+            - name: database-trust
+              configMap:
+                name: graylog-database-trust
+          extraVolumeMounts:
+            - name: database-trust
+              mountPath: /etc/graylog/database-trust
+              readOnly: true
           image:
             tag: 7.1.10@sha256:7348c33500f1e7427daa472678dd675243c5532610330ddbdd142e3f48a258fa
           podAnnotations:

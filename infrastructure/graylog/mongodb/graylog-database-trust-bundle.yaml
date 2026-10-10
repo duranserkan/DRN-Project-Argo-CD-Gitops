@@ -1,0 +1,23 @@
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: graylog-database-trust
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  sources:
+    - useDefaultCAs: true
+    - secret:
+        name: linkerd-identity-trust-roots
+        key: ca.crt
+  target:
+    configMap:
+      key: ca.crt
+    additionalFormats:
+      pkcs12:
+        key: truststore.p12
+        # This store contains public CA certificates only.
+        password: changeit
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: graylog
