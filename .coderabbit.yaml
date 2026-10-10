@@ -45,7 +45,7 @@ reviews:
         - Keep shared Gateway API CRDs under one owner and verify compatibility with both Linkerd and Traefik.
         - Check GatewayClass, Gateway listeners, namespaces, route attachment, Service ports and public exposure together.
         - Verify Service-based routing for meshed ingress, forwarded-header trust and removal of client-controlled routing override headers.
-        - Treat HTTP-only development exposure as intentional only when documented. Require explicit TLS configuration for production exposure.
+        - Treat HTTP-only staging exposure as intentional only when documented. Require edge TLS before exposing real beta or production credentials publicly.
 
     - path: "infrastructure/graylog/**"
       instructions: |
@@ -62,7 +62,7 @@ reviews:
         - Verify application settings against the deployed image's contract. A setting supported by newer application source is not proof for an older image.
         - Check resource sizing, health probes, service accounts and Linkerd injection against workload requirements.
         - HTTPRoutes must attach to the intended Gateway listener and preserve documented path rewrites and forwarded-header behavior.
-        - Stateful resources need deliberate retention, credential handling and recovery. Keep development availability limitations explicit.
+        - Stateful resources need deliberate retention, credential handling and recovery. Keep staging availability limitations explicit.
         - Never commit plaintext passwords or private keys. Document restarts required by Secret subPath mounts after rotation.
 
     - path: ".github/workflows/**"

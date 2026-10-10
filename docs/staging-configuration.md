@@ -2,6 +2,8 @@
 
 Use separate staging and production clusters. Both use the `drn-project` workload namespace and the same service names. Staging is the rolling beta environment. Prod overlays are inactive scaffolding. Development is local only and has no GitOps root or overlay here.
 
+The `develop` Git branch remains the integration branch. Preview releases come from `develop`; normal final releases come from `master` after promotion through `develop → master`. Staging can validate either tag type. Production accepts final tags only. Branch names do not add deployment environments.
+
 | Overlay | DRN environment | Startup migration | Database |
 |---|---|---|---|
 | `services/*/stage` | `Staging` | `AutoMigrateStaging=true` | Single-instance CloudNativePG |
@@ -9,7 +11,7 @@ Use separate staging and production clusters. Both use the `drn-project` workloa
 
 Prototype recreation and external dependency launch are disabled in every overlay. Staging applies existing migrations. It does not generate migrations for model changes. Changes must remain compatible with older pods during a rolling update. Reverting a deployment tag does not revert database migrations.
 
-Staging retains the former development manifests' resource limits, pod security settings and single-instance PostgreSQL topology. Its application environment is `Staging`, with `AutoMigrateDevelopment=false` and `AutoMigrateStaging=true`. Development-only database helper settings and the password-only mount are replaced by the explicit connection strings, application Secrets and trusted database CA described below. Renaming the environment alone is insufficient.
+Staging retains the former development manifests' resource limits, pod security settings and single-instance PostgreSQL topology. Its application environment is `Staging`, with `AutoMigrateDevelopment=false` and `AutoMigrateStaging=true`. It uses explicit password-free connection strings and mounts the operator-generated password file and database CA directly. This does not use DRN's development-only connection-string helper.
 
 ## Configuration ownership
 
@@ -17,7 +19,7 @@ Each service base supplies `common-settings.json`. The environment overlay adds 
 
 Stage and prod require separately provisioned `sample-settings` and `nexus-settings` Secrets in `drn-project`. These Secrets are not generated or checked in here. Required projected keys make missing configuration prevent pod startup.
 
-The application reads these settings at startup. Roll out affected pods after changing Secrets. Mounted JSON is loaded after key-per-file settings, so do not add secret-owned keys to either JSON file. Environment names are DRN settings, not image tag channels.
+The application reads these settings at startup. Roll out affected pods after changing Secrets. Mounted JSON is loaded after key-per-file settings, so do not add secret-owned keys to either JSON file. Staging's password-free connection strings belong to its mounted JSON; production connection strings remain Secret-owned. Environment names are DRN settings, not image tag channels.
 
 ## Required stage and prod Secrets
 
@@ -30,7 +32,28 @@ Provision each Secret through the cluster's trusted secret-management process. D
 | `NexusAppSettings__Keys__0__KeyMaterial` | Secret key material decoding to exactly 32 bytes. Never use the checked-in DRN example. |
 | `NexusAppSettings__Keys__0__Format` | `Base64` when using Base64-encoded key material. Other DRN formats require matching encoded material. |
 | `NexusAppSettings__Keys__0__Default` | The string `true`. |
-| `postgresql-root-ca.crt` | PEM CA certificate bundle trusted for the database endpoint. Projected separately at `/appcerts/postgresql/root.crt`. |
+
+## Staging database credentials
+
+CloudNativePG generates `postgresql-app` and `postgresql-ca` in `drn-project`. Both stage Deployments project only `postgresql-app`'s `pgpass` key and `postgresql-ca`'s public `ca.crt` key into `/appcerts/postgresql/pgpass` and `/appcerts/postgresql/root.crt`. The CA private key is never mounted. The volume is read-only with mode `0440`, readable through the existing pod group `1654`. Missing Secrets or keys prevent startup. No application Kubernetes API access or credential-copying Job is needed.
+
+The stage ConfigMaps supply all five named EF context connection strings with this value:
+
+```text
+Host=postgresql-rw;Port=5432;Database=drnDb;Username=drn;Passfile=/appcerts/postgresql/pgpass;SSL Mode=VerifyFull;Root Certificate=/appcerts/postgresql/root.crt
+```
+
+DRN passes each explicit connection string to the context's Npgsql data source. Npgsql reads its password from `Passfile`. Keep the host, port, database and username aligned with the operator's generated `pgpass` entry. The short service hostname also appears in CloudNativePG's generated server certificate. No database password or CA copy is required in stage `sample-settings` or `nexus-settings`.
+
+For an existing staging installation, sync both the updated ConfigMaps and Deployments and verify connectivity for all contexts. Old database connection-string and CA keys in the application Secrets are no longer projected; remove those unused copies through the trusted secret-management process after the rollout succeeds. Keep all application seed/key and host settings.
+
+The projected files can receive Secret updates without `subPath` mounts. This does not establish seamless credential or CA rotation for existing connection pools. Roll out both applications after rotation and verify database connectivity and certificate validation. No automatic rollout controller is configured.
+
+Source contracts: [CloudNativePG 1.30.1 Secret generation](https://github.com/cloudnative-pg/cloudnative-pg/blob/v1.30.1/pkg/specs/secrets.go), [certificate service names](https://github.com/cloudnative-pg/cloudnative-pg/blob/v1.30.1/api/v1/cluster_funcs.go), and [Npgsql password files](https://www.npgsql.org/doc/security.html#password-management).
+
+## Production database Secrets
+
+Production retains external database provisioning. Both production application Secrets additionally require `postgresql-root-ca.crt`, a PEM CA bundle projected at `/appcerts/postgresql/root.crt`, and their connection keys below.
 
 Required connection keys in `sample-settings`:
 
@@ -43,9 +66,9 @@ Required connection key in `nexus-settings`:
 
 - `ConnectionStrings__NexusIdentityContext`
 
-Each value is a complete Npgsql connection string with host, port, database, username, password, and verified TLS settings. For the stage CloudNativePG cluster, the service is `postgresql-rw`, database is `drnDb`, and the bootstrap owner is `drn`. Obtain the current password from the operator-managed credentials through the trusted provisioning process. Contexts can use this database with DRN's context-specific schemas. Staging and production use independent clusters, credentials, and data.
+Each production value is a complete Npgsql connection string with host, port, database, username, password, and verified TLS settings for its separately provisioned database. Staging and production use independent clusters, credentials, and data.
 
-Use `SSL Mode=VerifyFull;Root Certificate=/appcerts/postgresql/root.crt` and a host matching the database certificate. Confirm the issued certificate's subject alternative names cover the selected DNS name, including `postgresql-rw` if using that short name. Provision the matching CA bundle explicitly. The workload manifests do not copy or synchronize the operator's CA into application Secrets. Update these copies when the database CA rotates. `SSL Mode=Require` alone does not authenticate the database endpoint.
+Use `SSL Mode=VerifyFull;Root Certificate=/appcerts/postgresql/root.crt` and a host matching the database certificate. Confirm the issued certificate's subject alternative names cover the selected DNS name. Provision the matching production CA bundle explicitly and update it when the database CA rotates. `SSL Mode=Require` alone does not authenticate the database endpoint.
 
 Stage migration credentials need the DDL privileges required by the application's migrations. Production runtime credentials should have only runtime permissions, with a separate privileged migration procedure. No production database Cluster or migration Job is supplied by these scaffolds.
 
