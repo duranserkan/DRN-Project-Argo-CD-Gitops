@@ -3,18 +3,104 @@ configs:
     # Grant access explicitly through project-scoped roles or SSO group mappings.
     policy.default: role:authenticated
   cm:
-    #https://github.com/argoproj/argo-cd/issues/4577
-    #https://kubito.dev/posts/enable-argocd-sync-wave-between-apps/
+    # Root waves require a completed full sync, including hooks, for the current source.
     resource.customizations.health.argoproj.io_Application: |
-      hs = {}
-      hs.status = "Progressing"
-      hs.message = ""
-      if obj.status ~= nil then
-        if obj.status.health ~= nil then
-          hs.status = obj.status.health.status
-          if obj.status.health.message ~= nil then
-            hs.message = obj.status.health.message
-          end
+      local function equal(a, b)
+        if type(a) ~= type(b) then return false end
+        if type(a) ~= "table" then return a == b end
+        for key, value in pairs(a) do
+          if not equal(value, b[key]) then return false end
+        end
+        for key in pairs(b) do
+          if a[key] == nil then return false end
+        end
+        return true
+      end
+
+      local function normalizeIgnoreDifferences(rules)
+        local normalized = {}
+        for index, rule in ipairs(rules or {}) do
+          local item = {}
+          for key, value in pairs(rule) do item[key] = value end
+          -- Argo CD omits zero-valued optional fields when serializing comparedTo.
+          item.group = item.group or ""
+          item.name = item.name or ""
+          item.namespace = item.namespace or ""
+          item.jsonPointers = item.jsonPointers or {}
+          item.jqPathExpressions = item.jqPathExpressions or {}
+          item.managedFieldsManagers = item.managedFieldsManagers or {}
+          normalized[index] = item
+        end
+        return normalized
+      end
+
+      local function waiting(message)
+        return {status = "Progressing", message = message}
+      end
+
+      local spec = obj.spec or {}
+      local status = obj.status or {}
+      local sync = status.sync or {}
+      local compared = sync.comparedTo or {}
+      local state = status.operationState or {}
+
+      -- Custom health scripts run without the Lua string library by default.
+      local errorConditions = {
+        DeletionError = true, InvalidSpecError = true, ComparisonError = true,
+        SyncError = true, UnknownError = true
+      }
+      for _, condition in ipairs(status.conditions or {}) do
+        if errorConditions[condition.type or ""] then
+          return {status = "Degraded", message = condition.message or condition.type}
         end
       end
-      return hs
+
+      if obj.operation ~= nil then
+        return waiting("Child sync is queued or running")
+      end
+      if state.phase == "Failed" or state.phase == "Error" then
+        return {status = "Degraded", message = state.message or "Child sync failed; retry a full sync"}
+      end
+      if state.phase ~= "Succeeded" or state.finishedAt == nil then
+        return waiting(state.message or "Waiting for a successful child sync, including hooks")
+      end
+
+      -- Status can still describe the previous spec immediately after a root update.
+      local sources = spec.sources or {spec.source}
+      local comparedSources = compared.sources or {compared.source}
+      local result = state.syncResult or {}
+      local resultSources = result.sources or {result.source}
+      if #sources == 0 or not equal(sources, comparedSources)
+          or not equal(spec.destination, compared.destination)
+          or not equal(normalizeIgnoreDifferences(spec.ignoreDifferences),
+              normalizeIgnoreDifferences(compared.ignoreDifferences)) then
+        return waiting("Waiting for comparison of the current child specification")
+      end
+      if sync.status ~= "Synced" then
+        return waiting("Child resources are not synced to the desired configuration")
+      end
+      if not equal(sources, resultSources) then
+        return waiting("Run a full child sync for the current source configuration")
+      end
+      local revisions = sync.revisions or {sync.revision}
+      local syncedRevisions = result.revisions or {result.revision}
+      if #revisions ~= #sources or not equal(revisions, syncedRevisions) then
+        return waiting("Run a full child sync for the currently resolved revision")
+      end
+      for _, revision in ipairs(revisions) do
+        if revision == "" then return waiting("Waiting for a resolved child revision") end
+      end
+
+      -- Selective resource sync and apply strategy skip hooks.
+      -- Local manifests can omit repository hooks while retaining the revision.
+      local operation = state.operation or {}
+      local request = operation.sync or {}
+      local strategy = request.syncStrategy or {}
+      if operation.sync == nil or request.dryRun or strategy.apply ~= nil
+          or (request.manifests ~= nil and #request.manifests > 0)
+          or (request.resources ~= nil and #request.resources > 0) then
+        return waiting("A full, non-dry-run child sync from the configured source with hooks is required")
+      end
+      local health = status.health or {}
+      if health.status == nil then return waiting("Waiting for child resource health") end
+      return {status = health.status, message = health.message or "Child sync completed; reporting resource health"}
