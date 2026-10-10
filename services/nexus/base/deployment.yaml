@@ -52,6 +52,40 @@ spec:
           - containerPort: 5988
             name: http
             protocol: TCP
+          - containerPort: 8081
+            name: health
+            protocol: TCP
+          # Kubelet uses HTTP/1 on the separate listener; service traffic stays h2c.
+          startupProbe:
+            httpGet:
+              path: /Api/WeatherForecast
+              port: health
+              httpHeaders:
+                - name: Host
+                  value: nexus
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /Api/WeatherForecast
+              port: health
+              httpHeaders:
+                - name: Host
+                  value: nexus
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /Api/WeatherForecast
+              port: health
+              httpHeaders:
+                - name: Host
+                  value: nexus
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
           resources:
             limits:
               cpu: 250m

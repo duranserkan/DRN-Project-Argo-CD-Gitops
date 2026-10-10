@@ -14,6 +14,10 @@
     "Endpoints": {
       "All": {
         "Url": "http://*:5998"
+      },
+      "Health": {
+        "Url": "http://*:8081",
+        "Protocols": "Http1"
       }
     }
   },
