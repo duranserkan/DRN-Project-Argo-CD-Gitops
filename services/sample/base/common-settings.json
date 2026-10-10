@@ -1,0 +1,43 @@
+{
+  "NexusAppSettings": {
+    "AppId": 0,
+    "AppInstanceId": 0,
+    "NexusAddress": "nexus"
+  },
+  "DrnAppFeatures": {
+    "InternalRequestHttpVersion": "2.0"
+  },
+  "Kestrel": {
+    "EndpointDefaults": {
+      "Protocols": "Http2"
+    },
+    "Endpoints": {
+      "All": {
+        "Url": "http://*:5998"
+      }
+    }
+  },
+  "HostOptions": {
+    "ShutdownTimeout": "00:00:15",
+    "StartupTimeout": "00:00:15",
+    "ServicesStartConcurrently": true,
+    "ServicesStopConcurrently": true,
+    "BackgroundServiceExceptionBehavior": "StopHost"
+  },
+  "NLog": {
+    "targets": {
+      "graylog-http": {
+        "address": "http://drn-graylog.graylog:12201/gelf",
+        "lineEnding": "LF",
+        "compress": "None"
+      }
+    },
+    "rules": [
+      {
+        "logger": "*",
+        "minLevel": "Info",
+        "writeTo": "console, graylog-http, file"
+      }
+    ]
+  }
+}

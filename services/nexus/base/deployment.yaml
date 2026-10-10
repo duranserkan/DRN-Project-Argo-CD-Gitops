@@ -26,7 +26,7 @@ spec:
       serviceAccountName: nexus
       containers:
         - name: nexus
-          image: duranserkan/drn-project-nexus:0.10.1-preview002@sha256:1c4de89800bb60318749b3d3245ed882eaaf915587e2e3c9865cfba352180f0e
+          image: duranserkan/drn-project-nexus:0.10.1-preview003@sha256:15caaffe7cd83917fd1a8ff7ed3409db4753f06ba32f499c3e2162fff0965c23
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
@@ -54,12 +54,12 @@ spec:
             protocol: TCP
           resources:
             limits:
-              cpu: 500m
-              memory: 100Mi
+              cpu: 250m
+              memory: 512Mi
               ephemeral-storage: 1Gi
             requests:
               cpu: 100m
-              memory: 100Mi
+              memory: 256Mi
               ephemeral-storage: 1Gi
       volumes:
         - name: config

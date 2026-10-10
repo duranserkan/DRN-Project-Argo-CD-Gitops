@@ -1,0 +1,9 @@
+{
+  "Environment": "Production",
+  "DrnDevelopmentSettings": {
+    "AutoMigrateDevelopment": false,
+    "AutoMigrateStaging": false,
+    "LaunchExternalDependencies": false,
+    "Prototype": false
+  }
+}

@@ -26,7 +26,7 @@ spec:
       serviceAccountName: sample
       containers:
         - name: sample
-          image: duranserkan/drn-project-sample:0.10.1-preview002@sha256:3102be614fada35b8d09d3e9d340afd3ce2cef67fae133d066d41e4fe189ae2d
+          image: duranserkan/drn-project-sample:0.10.1-preview003@sha256:896e209a8282179dab11533f919134acdb11996b24819a4b64987d87b951a6ff
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
@@ -54,13 +54,13 @@ spec:
             protocol: TCP
           resources:
             limits:
-              cpu: 500m
-              memory: 100Mi
-              ephemeral-storage: "250M"
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 1Gi
             requests:
               cpu: 100m
-              memory: 100Mi
-              ephemeral-storage: "250M"
+              memory: 256Mi
+              ephemeral-storage: 1Gi
       volumes:
         - name: config
           configMap:

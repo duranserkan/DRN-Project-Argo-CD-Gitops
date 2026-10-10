@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      # Match the base: Trivy scans this partial manifest independently.
+      securityContext:
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: database-credentials
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: postgresql-app
+                  items:
+                    - key: pgpass
+                      path: pgpass
+              - secret:
+                  name: postgresql-ca
+                  items:
+                    - key: ca.crt
+                      path: root.crt
+        - name: settings
+          secret:
+            secretName: nexus-settings
+            optional: false
+            items:
+              - key: AllowedHosts
+                path: AllowedHosts
+              - key: DrnAppFeatures__SeedKey
+                path: DrnAppFeatures__SeedKey
+              - key: NexusAppSettings__Keys__0__KeyMaterial
+                path: NexusAppSettings__Keys__0__KeyMaterial
+              - key: NexusAppSettings__Keys__0__Format
+                path: NexusAppSettings__Keys__0__Format
+              - key: NexusAppSettings__Keys__0__Default
+                path: NexusAppSettings__Keys__0__Default
+      containers:
+        - name: nexus
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: database-credentials
+              mountPath: /appcerts/postgresql
+              readOnly: true
+            - name: settings
+              mountPath: /appconfig/key-per-file-settings
+              readOnly: true
+          resources:
+            limits:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 1Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+              ephemeral-storage: 1Gi
