@@ -5,13 +5,13 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "70"
-# https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-control-plane/2026.7.2
+# https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-control-plane/2026.10.1
 spec:
   project: linkerd
   source:
     chart: linkerd-control-plane
     repoURL: https://helm.linkerd.io/edge
-    targetRevision: 2026.7.2
+    targetRevision: 2026.10.1
     helm:
       parameters:
         - name: proxy.defaultInboundPolicy
@@ -19,15 +19,17 @@ spec:
         - name: controllerImage
           value: ghcr.io/linkerd/controller
         - name: controllerImageVersion
-          value: edge-26.7.2@sha256:1f90252981b81537fba17e43a7a3acdad9957a3864a86324cee20217fe96016a
+          value: edge-26.10.1@sha256:880437e01bbd4bf3d8fa7b56996c4ed5dd6551843363dc851ddd0b298b923e8a
         - name: proxy.image.name
           value: ghcr.io/linkerd/proxy
         - name: proxy.image.version
-          value: edge-26.7.2@sha256:176422083de76ff53438b665651322b4e87844d3eb8aea40ee58b82b773286a0
+          # This standard proxy build prefers X25519MLKEM768 by default; no PQ toggle is needed.
+          # Certificate authentication remains ECDSA. See README's post-quantum support section.
+          value: edge-26.10.1@sha256:f2add36071cfca33754d2930800860785aaed672590bc0207be2f4da9889eb11
         - name: debugContainer.image.name
           value: ghcr.io/linkerd/debug
         - name: debugContainer.image.version
-          value: edge-26.7.2@sha256:35e91fd721b69cd41d5482df4a7fe9b90120bad58acf7442765171e7d1c5bc43
+          value: edge-26.10.1@sha256:5fedca981aeeea65cf9934f1c4e1a347697f6aa4c620dbf213c83ce8b2aac784
         - name: webhookFailurePolicy
           value: Fail
         - name: identity.issuer.scheme
