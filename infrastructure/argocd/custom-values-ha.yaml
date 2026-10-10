@@ -1,4 +1,7 @@
 configs:
+  rbac:
+    # Grant access explicitly through project-scoped roles or SSO group mappings.
+    policy.default: role:authenticated
   cm:
     #https://github.com/argoproj/argo-cd/issues/4577
     #https://kubito.dev/posts/enable-argocd-sync-wave-between-apps/
