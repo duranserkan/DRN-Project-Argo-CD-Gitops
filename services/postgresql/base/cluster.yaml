@@ -7,7 +7,7 @@ metadata:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   instances: 1
-  imageName: ghcr.io/cloudnative-pg/postgresql:16.15-202609281634-system-bookworm@sha256:0247662c3abc95f79adc342bf9f01ff64ffaa45f71f49189943733ffda47fea6
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:79be0d10e78b7ac4520cf6c5db199a8bb7f6de53b3229f47e90cab5865528a0d
   enableSuperuserAccess: false
   postgresql:
     pg_hba:

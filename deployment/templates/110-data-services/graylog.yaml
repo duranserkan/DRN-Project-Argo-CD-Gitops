@@ -130,7 +130,7 @@ spec:
               mountPath: /etc/graylog/contentpacks
               readOnly: true
           image:
-            tag: 7.1.9@sha256:598bd41fefd5d65d05bb6a14f53d063fd717ea907a0764609413e7b89bae7406
+            tag: 7.1.10@sha256:a492084aba603a9a49f81b187d12cafdb03f372a8363034a24d207a11f7ced52
           service:
             nameOverride: drn-graylog
           # Only GELF HTTP. The chart still declares port 13302, but no
@@ -147,7 +147,7 @@ spec:
         datanode:
           replicas: 1
           image:
-            tag: 7.1.9@sha256:a6d545b159527b5137db041041aa0f4649119fbba29bb49b0fc8aa2a0712b6f3
+            tag: 7.1.10@sha256:7348c33500f1e7427daa472678dd675243c5532610330ddbdd142e3f48a258fa
           podAnnotations:
             linkerd.io/inject: disabled
           podDisruptionBudget:

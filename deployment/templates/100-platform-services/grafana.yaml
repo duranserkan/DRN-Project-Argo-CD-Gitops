@@ -10,9 +10,9 @@ spec:
   source:
     chart: grafana
     repoURL: https://grafana-community.github.io/helm-charts
-    # Chart SHA256 verified 2026-10-04.
-    # 5189a48131311513ef7bf5e22f1ed6424cd1c7cec61bc1995fab04d3cf46f36a
-    targetRevision: 13.2.7
+    # Chart SHA256 verified 2026-10-10.
+    # 8085f5d02dd351e2d1de394a5b65e9ebd421227a2a4cd0758f5625fa5559e9ed
+    targetRevision: 13.5.0
     helm:
       skipTests: true
       valuesObject:
