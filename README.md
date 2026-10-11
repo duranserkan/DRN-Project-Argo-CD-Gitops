@@ -106,7 +106,31 @@ Root selections under `apps/` are administrator-applied control configuration. E
 
 ## Bootstrap a cluster
 
-These instructions target fresh installations. No migration from the former local-only layout is provided. Install Helm, Argo CD CLI and kubectl. Provide a NetworkPolicy-enforcing CNI, default persistent StorageClass, and the capacity/host settings described in [platform operations](docs/platform-operations.md).
+These instructions target fresh installations. No migration from the former local-only layout is provided. Provide a NetworkPolicy-enforcing CNI, default persistent StorageClass, and the capacity/host settings described in [platform operations](docs/platform-operations.md).
+
+### Install local tools
+
+On macOS with [Homebrew](https://formulae.brew.sh/), install the command-line tools:
+
+```sh
+brew install kubernetes-cli helm argocd kubeseal linkerd
+```
+
+Homebrew installs its current versions. Use the [Argo CD `v3.5.4` release](https://github.com/argoproj/argo-cd/releases/tag/v3.5.4) and [Linkerd `edge-26.10.1` release](https://github.com/linkerd/linkerd2/releases/tag/edge-26.10.1) for clients matching this deployment. On other platforms, use the corresponding upstream installation instructions. `kubeseal` is needed when preparing Sealed Secrets.
+
+Check the tools and intended cluster before installing Argo CD:
+
+```sh
+kubectl config current-context
+kubectl get nodes
+kubectl get storageclass
+helm version
+argocd version --client
+linkerd version --client
+kubeseal --version
+```
+
+### Install Argo CD and log in
 
 Use the intended cluster's kubectl context. Install Argo CD with the existing pinned chart:
 
@@ -126,15 +150,42 @@ kubectl apply -f apps/bootstrap-project.yaml
 kubectl -n argocd port-forward svc/argocd-server 8080:443
 ```
 
-Log in through [Argo CD](https://localhost:8080) or the matching CLI. Retrieve the initial admin credential from `argocd-initial-admin-secret` privately and change it after login.
+Keep the port-forward running in a separate terminal. In another terminal, use the CLI matching Argo CD `v3.5.4` to retrieve the initial `admin` password from the cluster:
 
-Keep the port-forward running in a separate terminal. Use the CLI matching Argo CD `v3.5.4` and enter the password at its prompt:
+```sh
+argocd admin initial-password -n argocd
+```
+
+This prints a credential. Keep it private. Log in through [Argo CD](https://localhost:8080) as `admin`, or enter that password at the CLI prompt:
 
 ```sh
 argocd login localhost:8080 --username admin
 ```
 
-For mesh checks and dashboard access, install a Linkerd CLI matching `edge-26.10.1`. Install `kubeseal` if using Sealed Secrets. See [operational checks](docs/platform-operations.md#readiness-checks) and [Grafana and secrets](docs/platform-operations.md#grafana-and-secrets) for commands.
+The default server certificate is self-signed. For this local port-forward, verify the cluster context and accept the certificate prompt. Change the password after login:
+
+```sh
+argocd account update-password
+```
+
+The initial password does not track later password changes. If it no longer works or the initial Secret has been deleted, use the current admin password or follow the [official admin password reset procedure](https://argo-cd.readthedocs.io/en/stable/faq/#i-forgot-the-admin-password-how-do-i-reset-it). See [Argo CD's login instructions](https://argo-cd.readthedocs.io/en/stable/getting_started/#4-login-using-the-cli).
+
+### Install platform dependencies and workloads
+
+The environment root now installs the dependencies that the previous layout required you to apply separately. After bootstrap, one full `drn-project` sync creates their Applications in this order:
+
+| Order | Dependencies installed by the root |
+|---|---|
+| 1 | Scoped AppProjects |
+| 2 | Gateway API CRDs, cert-manager, CloudNativePG, MongoDB operator and Sealed Secrets |
+| 3 | trust-manager and certificate bootstrap |
+| 4 | Linkerd CRDs, certificate/trust bootstrap and control plane |
+| 5 | Namespace isolation and Linkerd Viz |
+| 6 | Traefik, Grafana and MongoDB |
+| 7 | Graylog and staging PostgreSQL |
+| 8 | Nexus, then Sample |
+
+Gateway API installation is included through the `gateway-api` Application. Traefik's Gateway API provider is already enabled in its chart values. Later waves wait for earlier Applications to satisfy the deployment completion gate described below and become healthy. Use the root flow below instead of the removed per-component `kubectl apply` paths.
 
 For a fork, update the repository URL in `apps/bootstrap-project.yaml`, each environment root and `deployment/values.yaml` before tagging. Keep Helm repository URLs unchanged. Configure Argo CD credentials for private repositories. Changing only a local Git remote is insufficient.
 
@@ -147,9 +198,20 @@ kubectl apply -f apps/staging/application.yaml
 argocd app sync drn-project
 ```
 
+In another terminal, monitor dependency installation:
+
+```sh
+argocd app get drn-project
+argocd app list
+```
+
+An Application in a later wave may not exist until earlier waves complete. Inspect the blocking child in the root's resource tree. Complete the secret and Graylog setup below before expecting the root to become healthy. After setup, run the [readiness checks](docs/platform-operations.md#readiness-checks). See [Grafana and secrets](docs/platform-operations.md#grafana-and-secrets) for dashboard access and sealing commands.
+
 Follow the required [stage secret configuration](docs/staging-configuration.md). Isolation creates `drn-project`, and PostgreSQL creates credentials before the workload waves. Stage workloads mount the generated PostgreSQL password file and public CA directly; no database credential copying is required. During first stage bootstrap, provision `sample-settings` and `nexus-settings` with the application seed/key material and allowed hosts. Workload pods cannot start without them. If root sync times out waiting for configuration or Graylog setup, finish those prerequisites and sync again.
 
-The root orders projects, operators, certificates, mesh, namespace isolation, ingress/observability, database, Nexus, then Sample. Graylog setup can require operator interaction. The child gate requires a successful full sync for the current source and revision plus healthy resources before releasing later root waves. A new revision with unchanged manifests may require an explicit full child sync. See [installation dependencies](docs/platform-operations.md#installation-dependencies). Waves are not transactions and do not serialize independent child auto-syncs on later updates. Check child sync revisions and health before declaring success.
+Graylog setup can require operator interaction. The child gate requires deployment hooks to complete for the current source and revision plus healthy resources before releasing later root waves. Successful automatic self-heals pass when matching automated deployment history proves that completion. A new revision with unchanged manifests may require an explicit full child sync. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for gate rules and upgrade instructions. Waves are not transactions and do not serialize independent child auto-syncs on later updates. Check child sync revisions and health before declaring success.
+
+If Gateway API shows **Synced / Degraded: CRD is not established**, inspect its Kubernetes conditions before continuing. Synced alone does not mean the API is available. Follow [Gateway API CRD troubleshooting](docs/platform-operations.md#gateway-api-crd-troubleshooting).
 
 Root templates use numbered directories under `deployment/templates/` with matching sync-wave annotations. The annotations control deployment order. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for wave allocation.
 

@@ -3,7 +3,7 @@ configs:
     # Grant access explicitly through project-scoped roles or SSO group mappings.
     policy.default: role:authenticated
   cm:
-    # Root waves require a completed full sync, including hooks, for the current source.
+    # Root waves require deployment completion, including hooks, before accepting self-heals.
     resource.customizations.health.argoproj.io_Application: |
       local function equal(a, b)
         if type(a) ~= type(b) then return false end
@@ -91,15 +91,37 @@ configs:
         if revision == "" then return waiting("Waiting for a resolved child revision") end
       end
 
-      -- Selective resource sync and apply strategy skip hooks.
-      -- Local manifests can omit repository hooks while retaining the revision.
+      -- Apply strategy and local manifests cannot prove repository hooks completed.
       local operation = state.operation or {}
       local request = operation.sync or {}
       local strategy = request.syncStrategy or {}
       if operation.sync == nil or request.dryRun or strategy.apply ~= nil
-          or (request.manifests ~= nil and #request.manifests > 0)
-          or (request.resources ~= nil and #request.resources > 0) then
+          or (request.manifests ~= nil and #request.manifests > 0) then
         return waiting("A full, non-dry-run child sync from the configured source with hooks is required")
+      end
+      if request.resources ~= nil and #request.resources > 0 then
+        local initiatedBy = operation.initiatedBy or {}
+        if initiatedBy.automated ~= true or (request.autoHealAttemptsCount or 0) < 1 then
+          return waiting("Manual selective sync cannot establish deployment completion; run a full child sync")
+        end
+
+        -- Argo CD 3.5.4 records history only for successful, non-dry-run syncs
+        -- without resource filters. Controller-initiated syncs use repository
+        -- manifests and the hook strategy. Manual history lacks that proof.
+        local deployed = false
+        for _, entry in ipairs(status.history or {}) do
+          local author = entry.initiatedBy or {}
+          local historySources = entry.sources or {entry.source}
+          local historyRevisions = entry.revisions or {entry.revision}
+          if author.automated == true and entry.deployedAt ~= nil
+              and equal(sources, historySources) and equal(revisions, historyRevisions) then
+            deployed = true
+            break
+          end
+        end
+        if not deployed then
+          return waiting("Self-heal requires matching successful automated deployment history with hooks; run a full child sync")
+        end
       end
       local health = status.health or {}
       if health.status == nil then return waiting("Waiting for child resource health") end
