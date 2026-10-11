@@ -86,17 +86,17 @@ Initially operate staging as a rolling beta. Production is disabled: its root se
 
 Use `develop` as the integration branch. Merge reviewed topic PRs into `develop`, then promote releases through a `develop → master` PR. Publish preview releases from `develop` and normal final releases from `master`. The integration branch remains even though there is no development deployment environment. Deploy immutable calendar tags:
 
-- `2026.10.1-preview.1`: first candidate from `develop` for October's first release.
-- `2026.10.1-preview.2`: a changed candidate from `develop`, with a new tag.
+- `2026.10.1-preview001`: first candidate from `develop` for October's first release.
+- `2026.10.1-preview002`: a changed candidate from `develop`, with a new tag.
 - `2026.10.1`: final release from `master`.
 
-The format is `YYYY.M.sequence[-preview.N]`, with unpadded month and positive sequence numbers. Deployment roots select immutable tags rather than moving branch heads. Protect tags against updates and deletion. Roots use `refs/tags/...` to avoid branch/tag ambiguity. The chart validates tag shape and rejects previews for prod; it does not create tags or configure repository rulesets.
+The format is `YYYY.M.sequence[-previewNNN]`, with an unpadded month, a positive release sequence and a three-digit preview number from `001` through `999`. Deployment roots select immutable tags rather than moving branch heads. Protect tags against updates and deletion. Roots use `refs/tags/...` to avoid branch/tag ambiguity. The chart validates tag shape and rejects previews for prod; it does not create tags or configure repository rulesets.
 
 ## One snapshot for every application
 
 [deployment/](deployment/) is a native Helm chart containing AppProjects and leaf Applications. Workloads remain Kustomize overlays under `services/`. Platform resources remain under `infrastructure/`.
 
-Keep standalone Kubernetes resources in separate files within their owning component directory. Use descriptive filenames, adding the resource kind when needed to distinguish related resources. The cert-manager, Linkerd and MongoDB resource directories are loaded by their existing Argo CD Applications. Splitting files within these directories preserves resource ownership and sync waves. Chart-owned `extraObjects` remain in their Helm values to preserve chart rendering and ownership.
+Keep standalone resources in their component directories and chart-owned `extraObjects` in Helm values. See [resource organization](docs/platform-operations.md#resource-organization) for file conventions.
 
 The root selects a tag once. Argo CD supplies its resolved commit through `$ARGOCD_APP_REVISION`, and every Git-backed child uses that SHA. `$ARGOCD_APP_SOURCE_TARGET_REVISION` supplies the tag for validation. Linkerd and cert-manager children are flattened into this chart. This uses native [Argo CD Helm build variables](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#build-environment), with no custom plugin or deployment script.
 
@@ -138,7 +138,7 @@ For mesh checks and dashboard access, install a Linkerd CLI matching `edge-26.10
 
 For a fork, update the repository URL in `apps/bootstrap-project.yaml`, each environment root and `deployment/values.yaml` before tagging. Keep Helm repository URLs unchanged. Configure Argo CD credentials for private repositories. Changing only a local Git remote is insufficient.
 
-Publish the selected snapshot before applying its root. The initial `2026.10.1-preview.1` selection is an example, not an assertion that the tag exists. Its commit must contain the chart and overlays. Wait for that commit's CI checks and the tag's Trivy scan before deployment.
+Publish the selected snapshot before applying its root. The initial `2026.10.1-preview001` selection is an example, not an assertion that the tag exists. Its commit must contain the chart and overlays. Wait for that commit's CI checks and the tag's Trivy scan before deployment.
 
 For staging, use its cluster context:
 
@@ -151,7 +151,7 @@ Follow the required [stage secret configuration](docs/staging-configuration.md).
 
 The root orders projects, operators, certificates, mesh, namespace isolation, ingress/observability, database, Nexus, then Sample. Graylog setup can require operator interaction. The child gate requires a successful full sync for the current source and revision plus healthy resources before releasing later root waves. A new revision with unchanged manifests may require an explicit full child sync. See [installation dependencies](docs/platform-operations.md#installation-dependencies). Waves are not transactions and do not serialize independent child auto-syncs on later updates. Check child sync revisions and health before declaring success.
 
-Root templates are grouped in numbered directories under `deployment/templates/`, from `010-projects` through `300-sample`. Each resource has an explicit positive sync-wave annotation matching its directory number. Projects and infrastructure use waves `10` through `110`, Nexus uses `200`, and Sample uses `300`. Independent applications share a wave, with gaps reserved for future dependencies. Directory names expose the order for inspection; annotations control deployment. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for the allocation convention.
+Root templates use numbered directories under `deployment/templates/` with matching sync-wave annotations. The annotations control deployment order. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for wave allocation.
 
 Sample and Nexus use their anonymous WeatherForecast endpoints for startup, readiness and liveness probes on an internal HTTP/1 listener at port `8081`. Their Services continue to use h2c. Stage/prod `AllowedHosts` Secrets must include `sample` and `nexus` for their respective probe Host headers. These checks verify application responsiveness, not database or downstream availability. See [workload health probes](docs/platform-operations.md#workload-health-probes) for paths, timings and rollout requirements.
 
@@ -163,10 +163,10 @@ Do not recursively apply `apps/`, apply `deployment/templates/` as raw YAML, or 
 2. Publish a new preview tag at that `develop` commit. Wait for its tag scan. Update staging's `targetRevision`, record the selection in Git, apply the staging root and sync it.
 3. Validate the snapshot in staging. Verify migrations, routing, authentication, database access and logs.
 4. For another change, publish a new preview sequence. Never move a tag.
-5. When a final release is needed, promote the reviewed candidate through `develop → master`. Wait for CI on the resulting `master` commit. Preserve the tested image digests. If merging creates a new commit, validate that exact snapshot in staging before production promotion.
-6. Publish the final tag from `master` and wait for its tag scan. Staging accepts final tags, so use it to validate a new merge commit. After staging validation and production prerequisites are complete, select that final tag in prod, explicitly enable production in its root and sync against its separate cluster.
+5. When a final release is needed, promote the reviewed candidate through `develop → master`. Preserve the tested image digests and wait for CI on the resulting `master` commit.
+6. Publish the final tag from `master` and wait for its tag scan. If merging created a new commit, select that final tag in staging and validate the exact snapshot. Once the snapshot is validated and production prerequisites are complete, select the same final tag in prod, explicitly enable production in its root and sync against its separate cluster.
 
-During rolling beta, repeat steps 1 through 4. No final tag or prod deployment is required for every beta iteration. Staging can also select a final tag. Production uses the same tagged snapshot with its own overlay.
+During rolling beta, repeat steps 1 through 4. A final tag or prod deployment is not required for each iteration. Production uses its own overlay of the validated snapshot.
 
 Rollback selects a previous immutable tag and syncs the root. It reverts desired manifests and image pins, not database contents. Startup migrations and retained database resources mean a code rollback can require a compatible forward fix or verified database recovery. An older application may not support a newer schema.
 
@@ -263,6 +263,6 @@ Tag triggers are broad GitHub globs. Strict deployment tag validation belongs to
 
 Trivy scans vulnerabilities, secrets and infrastructure misconfigurations; HIGH/CRITICAL findings fail. SARIF uploads when available, including scan failures. SonarCloud requires `SONAR_TOKEN` and waits up to 600 seconds for its quality gate. CodeQL analyzes Actions without an application build. Existing actions remain SHA-pinned, checkouts disable persisted credentials, and jobs retain scoped permissions/timeouts. Dependabot targets `develop`.
 
-Configure required checks, code-scanning gates, CODEOWNERS enforcement and immutable tag rulesets in repository settings. Static source review does not establish those external settings are active. Deployment rendering and runtime checks were not executed during this local standardization.
+Configure required checks, code-scanning gates, CODEOWNERS enforcement and immutable tag rulesets in repository settings. Static source review does not establish those external settings are active.
 
 See [platform operations](docs/platform-operations.md), [staging configuration](docs/staging-configuration.md), and [planned work](todo.md).

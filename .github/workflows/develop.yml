@@ -3,7 +3,7 @@ name: develop
 on:
   push:
     branches: ["develop"]
-    tags: ["[0-9][0-9][0-9][0-9].*-preview.*"]
+    tags: ["[0-9][0-9][0-9][0-9].*-preview[0-9][0-9][0-9]"]
 
 concurrency:
   group: develop-${{ github.ref }}

@@ -10,7 +10,7 @@ spec:
     path: deployment
     # Publish this reviewed immutable snapshot before applying it for staging validation.
     # Change only this field to select a snapshot. Do not move or recreate its tag.
-    targetRevision: refs/tags/2026.10.1-preview.1
+    targetRevision: refs/tags/2026.10.1-preview001
     helm:
       parameters:
         - name: environment

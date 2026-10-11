@@ -29,6 +29,10 @@ Use the latest compatible releases within the selected database lines. PostgreSQ
 
 Chart archives were checked against publisher index checksums. Changed explicit image pins were verified against registry manifests. Argo CD chart archive SHA-256 is `1f2bdb0e23b87fdac5222d99d1acf6964e670db9bf63912c58ab4677e505638b`. Its image digest is `sha256:49dff79439bb38b1b942b19a113fe1fec7e6b6c671ddf9fe6a4a7c46bde0b77b`. Argo CD's ECR dependency mirror was rate-limited during review; Redis and HAProxy versions were inspected through their upstream Docker Hub manifests instead. This is static verification, not a deployment or runtime compatibility test. Separate release notes are not required for this configuration update.
 
+## Resource organization
+
+Keep standalone Kubernetes resources in separate files within their owning component directory. Use descriptive filenames, adding the resource kind when needed to distinguish related resources. Preserve existing Application source paths, resource identities and sync waves when splitting files. Keep chart-owned `extraObjects` in their Helm values to preserve chart rendering and ownership.
+
 ## Installation dependencies
 
 Argo CD root sync waves order projects, operators, certificate bootstrap, Linkerd, namespace isolation and application dependencies. The Argo CD values files supply child Application health assessment. On a fresh install, inspect a blocked child before retrying the root. On updates, waves do not make independently auto-syncing children transactional.
