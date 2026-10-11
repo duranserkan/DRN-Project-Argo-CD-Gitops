@@ -37,11 +37,26 @@ Keep standalone Kubernetes resources in separate files within their owning compo
 
 Argo CD root sync waves order projects, operators, certificate bootstrap, Linkerd, namespace isolation and application dependencies. The Argo CD values files supply child Application health assessment. On a fresh install, inspect a blocked child before retrying the root. On updates, waves do not make independently auto-syncing children transactional.
 
-Both Argo CD installation values files use the same completion gate. A child must have no queued operation, a successful finished full sync, a current source/destination comparison, matching synced source configuration and resolved revisions, and healthy resources before it reports Healthy to the root. Failed operations report Degraded. Pending operations, stale comparisons, dry runs, selective resource syncs, apply-strategy syncs and nonempty local-manifest overrides cannot release later waves. Selective resource syncs and the apply strategy skip hooks. Local-manifest overrides can omit repository hooks while retaining the requested revision. Run a full sync from the configured source to satisfy the gate. This includes waiting for the MongoDB credential hook, which aggregate resource health alone does not assess.
+Both Argo CD installation values files use the same completion gate. A child must have no queued operation, a successful finished sync, a current source/destination comparison, matching synced source configuration and resolved revisions, and healthy resources before it reports Healthy to the root. Failed operations report Degraded. Pending operations, stale comparisons, dry runs, manual selective syncs, apply-strategy syncs and nonempty local-manifest overrides cannot release later waves.
+
+A successful automatic self-heal may replace the latest full-sync result with a selective operation. The gate accepts it only with a positive `autoHealAttemptsCount` and an automated deployment history entry matching all current sources and resolved revisions. Argo CD `v3.5.4` [records history only after successful unfiltered, non-dry-run syncs](https://github.com/argoproj/argo-cd/blob/v3.5.4/controller/sync.go#L373). Its [automatic operations](https://github.com/argoproj/argo-cd/blob/v3.5.4/controller/appcontroller.go#L2316) use repository manifests and the hook strategy. This retains evidence that deployment hooks, including MongoDB credential bootstrap, completed before later self-healing. `ApplyOutOfSyncOnly` [retains hook tasks](https://github.com/argoproj/argo-cd/blob/v3.5.4/gitops-engine/pkg/sync/sync_context.go#L705) in this version.
+
+Manual deployment history omits the strategy and local-manifest inputs, so it cannot prove hooks ran. If matching automated history is absent or evicted, run a full child sync from the configured source. A successful full sync passes directly, but later self-healing still requires retained automated history. Recheck these upstream semantics when upgrading Argo CD. History records deployment completion, not continued availability of a hook's external effects.
 
 The gate normalizes omitted optional `ignoreDifferences` fields so that an empty core API group in the spec matches its omitted representation in comparison status. Actual rule changes still block the gate until compared. Error conditions use explicit Argo CD condition names without requiring Lua standard libraries. Recheck these names against the pinned Argo CD API when upgrading.
 
 If a new source revision or configuration renders identical resources, Argo CD may leave the child Synced without starting another operation. The gate deliberately waits. Run a full sync of that child at its selected revision, then retry the root if its operation has stopped. Do not use selective resource sync to bypass this requirement. A failed operation also needs a successful retry even when its resources appear healthy. Changes to this gate require updating the Argo CD installation with the chosen values file; syncing the DRN root does not update Argo CD itself.
+
+To install the updated gate on an existing standard installation, use the intended cluster context and preserve any additional installation-specific values:
+
+```sh
+helm upgrade argocd argo/argo-cd --version 10.10.2 \
+  -n argocd -f infrastructure/argocd/custom-values.yaml \
+  --wait --timeout 10m
+argocd app get drn-project --hard-refresh
+```
+
+For HA, use `custom-values-ha.yaml` instead. An active root sync can continue once child health is reassessed. Retry `argocd app sync drn-project` only if its previous operation has stopped.
 
 Linkerd Viz syncs at wave `90`, before Grafana at wave `100`. This creates the `linkerd-viz` namespace before Grafana applies its Prometheus authorization policy there.
 
@@ -76,6 +91,33 @@ The [Sample HTTPRoute](../services/sample/base/httproute.yaml) maps `/app` and `
 The route also removes Linkerd retry and timeout override headers before forwarding requests to workloads. Traefik's inbound Linkerd proxy receives public requests before these filters run, so keep per-request retry and timeout policies disabled on that unfiltered ingress path. See [Linkerd's per-request policy guidance](https://linkerd.io/docs/features/retries-and-timeouts/#per-request-policies).
 
 Use a CNI that enforces the [documented ingress policies](../README.md#service-protection). Fresh Traefik pods start with a deny default before serving traffic. When changing policies later, deploy restrictive mesh authorization before widening transport access. Do not assume manifest acceptance proves isolation, probe health or webhook reachability.
+
+## Gateway API CRD troubleshooting
+
+The `gateway-api` Application installs the pinned standard CRDs with server-side apply. A CRD can be Synced in Argo CD while Kubernetes has not established its API. Inspect the failing HTTPRoute CRD and wait briefly for establishment:
+
+```sh
+kubectl describe crd httproutes.gateway.networking.k8s.io
+kubectl get crd httproutes.gateway.networking.k8s.io -o jsonpath='{.status.conditions}'
+kubectl wait --for=condition=Established crd/httproutes.gateway.networking.k8s.io --timeout=120s
+```
+
+If the wait fails, use the condition reasons/messages and events from `describe` to diagnose the failure. Inspect the Application's sync result as well:
+
+```sh
+argocd app get gateway-api --hard-refresh
+```
+
+Do not delete the CRD or bypass the health gate. Deleting a CRD deletes its custom resources. A screenshot showing only "CRD is not established" does not identify the underlying failure. Kubernetes conditions and the sync result are needed before choosing a repair.
+
+Once the CRD is established, refresh the Application and check its health. If no sync is running and the root still waits for a successful full child sync at the current revision, run:
+
+```sh
+argocd app sync gateway-api
+argocd app wait gateway-api --sync --health --timeout 120
+```
+
+The root can then continue. If its operation has already failed or timed out, sync `drn-project` again. See [Kubernetes CRD establishment](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/) and [Gateway API CRD management](https://gateway-api.sigs.k8s.io/guides/crd-management/).
 
 ## Workload health probes
 
