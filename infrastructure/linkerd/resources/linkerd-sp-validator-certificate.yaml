@@ -1,0 +1,20 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: linkerd-sp-validator
+  namespace: linkerd
+spec:
+  secretName: linkerd-sp-validator-k8s-tls
+  duration: 24000h
+  renewBefore: 73h
+  issuerRef:
+    name: linkerd-trust-anchor
+    kind: ClusterIssuer
+  commonName: linkerd-sp-validator.linkerd.svc
+  dnsNames:
+    - linkerd-sp-validator.linkerd.svc
+  isCA: false
+  privateKey:
+    algorithm: ECDSA
+  usages:
+    - server auth

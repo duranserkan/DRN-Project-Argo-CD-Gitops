@@ -1,0 +1,30 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mongodb-server
+  namespace: graylog
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  secretName: mongodb-server-tls
+  duration: 2160h
+  renewBefore: 720h
+  privateKey:
+    rotationPolicy: Always
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+    - client auth
+  dnsNames:
+    - mongodb-svc
+    - mongodb-svc.graylog
+    - mongodb-svc.graylog.svc
+    - mongodb-svc.graylog.svc.cluster.local
+    - '*.mongodb-svc.graylog.svc.cluster.local'
+  issuerRef:
+    name: linkerd-trust-anchor
+    kind: ClusterIssuer
+    group: cert-manager.io

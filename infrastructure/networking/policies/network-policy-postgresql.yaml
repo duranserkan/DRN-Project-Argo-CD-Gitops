@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgresql
+spec:
+  # Select only pods belonging to the postgresql CloudNativePG cluster.
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: postgresql
+  policyTypes: [Ingress]
+  ingress:
+    # Preserve operator access from cnpg-system on the listed TCP ports.
+    # This trusts every pod in cnpg-system, not a specific service account.
+    # The namespace baseline separately allows same-namespace callers on all ports.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cnpg-system
+      ports:
+        - port: 5432
+        - port: 8000

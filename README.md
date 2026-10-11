@@ -1,16 +1,11 @@
 # DRN Project Argo CD GitOps
 
-
-
 [![master](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/master.yml/badge.svg?branch=master)](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/master.yml)
 [![develop](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/develop.yml/badge.svg?branch=develop)](https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops/actions/workflows/develop.yml)
-[![Docker Hub](https://img.shields.io/badge/images-2496ED?logo=docker&label=dockerhub
-)](https://hub.docker.com/u/duranserkan)
-[![Nuget](https://img.shields.io/badge/packages-004880?logo=nuget&label=nuget
-)](https://www.nuget.org/profiles/duranserkan)
+[![Docker Hub](https://img.shields.io/badge/images-2496ED?logo=docker&label=dockerhub)](https://hub.docker.com/u/duranserkan)
+[![Nuget](https://img.shields.io/badge/packages-004880?logo=nuget&label=nuget)](https://www.nuget.org/profiles/duranserkan)
 [![wiki](https://img.shields.io/badge/Doc-Awesome_Kubernetes-326CE5)](https://github.com/tomhuang12/awesome-k8s-resources)
 [![wiki](https://img.shields.io/badge/Doc-Awesome_Argo-orange)](https://github.com/akuity/awesome-argo)
-
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
@@ -19,18 +14,18 @@
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=bugs)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
 
-TL;DR: You can
-* use [DRN.Framework](https://www.nuget.org/packages/DRN.Framework.Testing/#readme-body-tab) nuget packages to easily develop and test distributed reliable dotnet applications.
-* use Argo CD GitOps to easily deploy your apps to a kubernetes cluster with Linkerd service mesh.
-* use [Nexus App](https://hub.docker.com/r/duranserkan/drn-project-nexus) (not functional yet)
-  * for service discovery
-  * to get remote settings
-  * to get unified microservices topology and their self-documentation
-* Sample app is used for demonstration, replace it with actual services.
-* Use this repository structure as boilerplate template for your actual projects
-* Use DRN Project Pulumi GitOps to create an oracle cloud kubernetes cluster (not created yet)
+Deploy [DRN Project](https://github.com/duranserkan/DRN-Project) Sample and Nexus with Argo CD, Linkerd, Traefik, PostgreSQL and Graylog. This repository owns deployment configuration. Application builds and image publishing belong to DRN Project.
 
-[About Project, Kubernetes and Argo CD](#about-project-kubernetes-and-argo-cd) | [GitOps Roadmap](#gitops-roadmap) | [Tools](#tools) | [Deployment](#deployment)
+**TL;DR: You can**
+
+- Develop and test distributed .NET applications with [DRN Framework](https://github.com/duranserkan/DRN-Project).
+- Deploy Sample and Nexus to Kubernetes using Argo CD GitOps and Linkerd service mesh.
+- Use Sample as a reference application and adapt this repository's deployment structure for your own services.
+- Publish preview releases from `develop` and final releases from `master`, using immutable tags.
+- **TODO:** Extend [Nexus App](https://hub.docker.com/r/duranserkan/drn-project-nexus) with service discovery, remote settings, a unified microservices topology view and service self-documentation.
+- **TODO:** Create DRN Project Pulumi GitOps to provision Kubernetes clusters on Oracle Cloud, Azure, AWS and other cloud providers.
+
+[About Project, Kubernetes and Argo CD](#about-project-kubernetes-and-argo-cd) | [GitOps Roadmap](#gitops-roadmap) | [Tools](#tools) | [Deployment](#deployment-model) | [Bootstrap](#bootstrap-a-cluster) | [Continuous Integration](#continuous-integration)
 
 ## About Project, Kubernetes and Argo CD
 
@@ -42,417 +37,232 @@ To be honest, this project initially avoided and resisted Kubernetes due to its 
 
 It was puzzling, like trying to find a generalized solution for [the Navier–Stokes equations.](https://en.wikipedia.org/wiki/Navier–Stokes_equations) Therefore, the solution can also be simplified if certain reasonable assumptions can be made, similar to how all true-hearted, humble engineers solve the Navier–Stokes equations under specific conditions.
 
-* Use managed Kubernetes
-* Use managed databases or services outside of cluster for stateful data.
-* Don't apply manifests and configurations by yourself and version control your changes
+- Use managed Kubernetes
+- Use managed databases or services outside of cluster for stateful data.
+- Don't apply manifests and configurations by yourself and version control your changes
 
 [Argo CD](https://argo-cd.readthedocs.io/en/stable/) handles the final aspect through GitOps, while the first two assumptions aim to simplify the management of complexity and maintenance for small teams or projects.
 
-## Continuous Integration
-
-The workflows follow DRN-Project's branch separation and use composite actions under `.github/actions`.
-This repository contains GitOps configuration, so application build, test, packaging and image publishing actions are not included.
-
-| Workflow | Trigger | Checks |
-|---|---|---|
-| `pull-request` | PRs into `develop` or `master` | Trivy and CodeQL |
-| `develop` | Push to `develop` | Trivy, SonarCloud and CodeQL |
-| `master` | Push to `master`, plus Sunday at 13:29 UTC | Trivy, SonarCloud and CodeQL |
-
-Trivy scans filesystem vulnerabilities, secrets and infrastructure misconfigurations. HIGH or CRITICAL findings fail the job. SARIF reports include those severities and are uploaded even when findings fail the scan, provided a report exists and the job has not been cancelled.
-CodeQL analyzes GitHub Actions workflows using the `actions` language, without an application build.
-SonarCloud uses `sonar-project.properties` and requires the `SONAR_TOKEN` repository secret.
-PR jobs do not receive that secret and invoke pinned upstream scanner actions directly.
-Branch workflows reuse local composite actions. Keep their scanner settings aligned with the PR workflow.
-Checkouts disable persisted credentials, and each scanner has a separate job with scoped permissions and a timeout.
-Dependabot checks GitHub Actions weekly and targets `develop`.
-
-Configure branch rulesets to require the PR `trivy` and `codeql` checks and code-scanning results at the desired severity thresholds.
-SonarCloud branch scans wait up to 600 seconds for the quality gate and fail if it fails or the wait times out.
-Scheduled workflows run on the repository's default branch.
+These remain design preferences. The current staging setup includes in-cluster PostgreSQL and Graylog's data services. Production application databases are provisioned separately. Administrators still install Argo CD and apply the reviewed bootstrap and environment roots. Argo CD manages the resources beneath those roots, as described in the deployment guidance below.
 
 ## Tools
+
 High quality output is not a coincidence. It is natural result of good people's labour that works with right processes and tools.
 
-This project recommends following tools for anyone who doesn't have strong Kubernetes experience as a starter pack. 
+This project recommends following tools for anyone who doesn't have strong Kubernetes experience as a starter pack.
 
-* [kube-ps1](https://github.com/jonmosco/kube-ps1)  - kube-ps1: A script that lets you add the current Kubernetes context and namespace configured on kubectl to your Bash/Zsh prompt strings (i.e. the $PS1).
-* [kubectx + kubens](https://github.com/ahmetb/kubectx)  - `kubectx` helps you switch between clusters back and forth, and `kubens` helps you switch between Kubernetes namespaces smoothly.
-* [Headlamp](https://headlamp.dev) is an open-source Kubernetes UI for inspecting resources, viewing logs, and troubleshooting clusters. Use the desktop app with your existing kubeconfig, and manage persistent configuration changes through Git and Argo CD.
+- [kube-ps1](https://github.com/jonmosco/kube-ps1) - kube-ps1: A script that lets you add the current Kubernetes context and namespace configured on kubectl to your Bash/Zsh prompt strings (i.e. the $PS1).
+- [kubectx + kubens](https://github.com/ahmetb/kubectx) - `kubectx` helps you switch between clusters back and forth, and `kubens` helps you switch between Kubernetes namespaces smoothly.
+- [Headlamp](https://headlamp.dev) is an open-source Kubernetes UI for inspecting resources, viewing logs, and troubleshooting clusters. Use the desktop app with your existing kubeconfig, and manage persistent configuration changes through Git and Argo CD.
 
 ## GitOps Roadmap
-- [X] Minimal working pipeline
+
+Checked items describe repository configuration, not verified production readiness. Development is local. Staging is configured as the beta environment.
+
+- [X] CI checks and GitOps deployment configuration
 - [X] Linkerd support
-- [X] Development environment support
+- [X] Staging environment support
   - [X] PostgreSQL with CloudNativePG
   - [X] Graylog
-  - [ ] RabbitMQ
-- [ ] Pulumi support to create an oracle cloud kubernetes cluster
-- [ ] Kubernetes hardening practices
+- [x] [Namespace ingress isolation](#service-protection) for application, Graylog and Grafana namespaces
+- [ ] RabbitMQ support in staging
+- [ ] Explore CloudNativePG for production, including high availability, backups, recovery and upgrades
+- [ ] Pulumi support to create a Kubernetes cluster on cloud providers such as Oracle Cloud, AWS or Azure
+- [ ] [Additional Kubernetes hardening](todo.md#cluster-level-prerequisites) and [verification in a running cluster](todo.md#runtime-verification-and-operations)
 - [ ] [OpenTelemetry Collector and distributed tracing](todo.md#opentelemetry-collector-and-distributed-tracing)
 
-## Deployment
-The following deployment instructions are adapted from official documentation for DRN Project Argo CD GitOps. All instructions assume a clean installation.
+## Deployment model
 
-**Install helm, argocd, kubeseal and linkerd CLIs**
+This repository deploys staging and production only. Development is reserved for local application work outside this GitOps repository. Each deployment environment has a **separate Kubernetes cluster and its own Argo CD installation**. Apply exactly one environment root per cluster. Each uses the same platform names and `drn-project` workload namespace. These roots cannot coexist in one cluster.
+
+The project uses Kubernetes `1.36.4` for testing. The pinned Linkerd charts require Kubernetes 1.31 or newer, but that component minimum is not a compatibility baseline for the whole stack.
+
+| Environment | Root | DRN environment | Accepted GitOps tags | Database migrations |
+|---|---|---|---|---|
+| stage | [apps/staging/application.yaml](apps/staging/application.yaml) | Staging | Preview or final | `AutoMigrateStaging=true`, no prototype recreation |
+| prod | [apps/production/application.yaml](apps/production/application.yaml) | Production | Final only | Explicit migration process, never startup migration |
+
+Initially operate staging as a rolling beta. Production is disabled: its root sets `enableProduction=false`, and chart rendering fails until explicitly enabled. Do not apply the prod root during beta. Its overlays prepare for later activation and do not establish production readiness.
+
+Use `develop` as the integration branch. Merge reviewed topic PRs into `develop`, then promote releases through a `develop → master` PR. Publish preview releases from `develop` and normal final releases from `master`. The integration branch remains even though there is no development deployment environment. Deploy immutable calendar tags:
+
+- `2026.10.1-preview.1`: first candidate from `develop` for October's first release.
+- `2026.10.1-preview.2`: a changed candidate from `develop`, with a new tag.
+- `2026.10.1`: final release from `master`.
+
+The format is `YYYY.M.sequence[-preview.N]`, with unpadded month and positive sequence numbers. Deployment roots select immutable tags rather than moving branch heads. Protect tags against updates and deletion. Roots use `refs/tags/...` to avoid branch/tag ambiguity. The chart validates tag shape and rejects previews for prod; it does not create tags or configure repository rulesets.
+
+## One snapshot for every application
+
+[deployment/](deployment/) is a native Helm chart containing AppProjects and leaf Applications. Workloads remain Kustomize overlays under `services/`. Platform resources remain under `infrastructure/`.
+
+Keep standalone Kubernetes resources in separate files within their owning component directory. Use descriptive filenames, adding the resource kind when needed to distinguish related resources. The cert-manager, Linkerd and MongoDB resource directories are loaded by their existing Argo CD Applications. Splitting files within these directories preserves resource ownership and sync waves. Chart-owned `extraObjects` remain in their Helm values to preserve chart rendering and ownership.
+
+The root selects a tag once. Argo CD supplies its resolved commit through `$ARGOCD_APP_REVISION`, and every Git-backed child uses that SHA. `$ARGOCD_APP_SOURCE_TARGET_REVISION` supplies the tag for validation. Linkerd and cert-manager children are flattened into this chart. This uses native [Argo CD Helm build variables](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#build-environment), with no custom plugin or deployment script.
+
+Upstream Helm chart versions and container digests remain independent pins. GitOps tags do not trigger DRN Project's image publishing workflow or rename images. Sample and Nexus use `0.10.1-preview003` digest pins. A final GitOps tag alone does not certify those images for production.
+
+Root selections under `apps/` are administrator-applied control configuration. Each root loads only `deployment/` from its selected tag. Updating a selection on a branch therefore does not alter the tagged payload. Record selection changes through the branch review flow, apply the selected root to its cluster, and explicitly sync it. Root auto-sync is absent; children reconcile their selected sources.
+
+## Bootstrap a cluster
+
+These instructions target fresh installations. No migration from the former local-only layout is provided. Install Helm, Argo CD CLI and kubectl. Provide a NetworkPolicy-enforcing CNI, default persistent StorageClass, and the capacity/host settings described in [platform operations](docs/platform-operations.md).
+
+Use the intended cluster's kubectl context. Install Argo CD with the existing pinned chart:
+
 ```sh
-brew install helm
-brew install argocd
-brew install kubeseal
-brew install linkerd
-```
-
-### Deploy [Argo CD](https://argo-cd.readthedocs.io/en/stable/getting_started/)
-
-Both examples pin [Helm chart `10.9.6`](https://artifacthub.io/packages/helm/argo/argo-cd), which installs Argo CD `v3.5.3`. Upstream lists Kubernetes `1.33`–`1.36` as [tested with Argo CD `3.5`](https://argo-cd.readthedocs.io/en/stable/operator-manual/installation/#tested-versions); this includes the repository's `1.36.2` baseline, but does not establish compatibility for the other deployed components.
-
-Run from the repository root with `kubectl` configured for the intended cluster:
-
-```sh
-#https://artifacthub.io/packages/helm/argo/argo-cd
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
-helm install argocd argo/argo-cd --version 10.9.6 -f infrastructure/argocd/custom-values.yaml --create-namespace -n argocd --wait --timeout 10m
-
-# Alternative: use HA values instead of the command above (at least 3 worker nodes).
-# helm install argocd argo/argo-cd --version 10.9.6 -f infrastructure/argocd/custom-values-ha.yaml --create-namespace -n argocd --wait --timeout 10m
+helm install argocd argo/argo-cd --version 10.10.2 \
+  -f infrastructure/argocd/custom-values.yaml \
+  --create-namespace -n argocd --wait --timeout 10m
 ```
 
-Restrict the built-in `default` AppProject after installation. On an existing cluster, first move any Applications using `default` to an appropriate scoped project. All Applications supplied here use named projects.
+For Argo CD HA with at least three workers, use `custom-values-ha.yaml` instead. This chart installs Argo CD `v3.5.4`. Both values files include the child Application health customization needed by root sync waves. Authenticated users receive no default resource grants. Configure explicit administrator/project access and restrict the built-in default project:
 
 ```sh
 kubectl apply -f infrastructure/argocd/default-project.yaml
+kubectl apply -f apps/bootstrap-project.yaml
+kubectl -n argocd port-forward svc/argocd-server 8080:443
 ```
 
-**Login**
+Log in through [Argo CD](https://localhost:8080) or the matching CLI. Retrieve the initial admin credential from `argocd-initial-admin-secret` privately and change it after login.
 
-Keep port forwarding running in a separate terminal. Open the [browser UI](https://localhost:8080).
+Keep the port-forward running in a separate terminal. Use the CLI matching Argo CD `v3.5.4` and enter the password at its prompt:
 
 ```sh
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+argocd login localhost:8080 --username admin
 ```
-**Initial password**
+
+For mesh checks and dashboard access, install a Linkerd CLI matching `edge-26.10.1`. Install `kubeseal` if using Sealed Secrets. See [operational checks](docs/platform-operations.md#readiness-checks) and [Grafana and secrets](docs/platform-operations.md#grafana-and-secrets) for commands.
+
+For a fork, update the repository URL in `apps/bootstrap-project.yaml`, each environment root and `deployment/values.yaml` before tagging. Keep Helm repository URLs unchanged. Configure Argo CD credentials for private repositories. Changing only a local Git remote is insufficient.
+
+Publish the selected snapshot before applying its root. The initial `2026.10.1-preview.1` selection is an example, not an assertion that the tag exists. Its commit must contain the chart and overlays. Wait for that commit's CI checks and the tag's Trivy scan before deployment.
+
+For staging, use its cluster context:
 
 ```sh
-#change this after first login
-argoPassword=`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
-```
-**Argo CD CLI login**
-
-Homebrew installs the current CLI; use the [matching `v3.5.3` release](https://github.com/argoproj/argo-cd/releases/tag/v3.5.3) when an exact client/server version match is required.
-
-```sh
-argocd login 127.0.0.1:8080 \
-  --username=admin \
-  --password="${argoPassword}" \
-  --insecure
+kubectl apply -f apps/staging/application.yaml
+argocd app sync drn-project
 ```
 
-### Git repository sources
+Follow the required [stage secret configuration](docs/staging-configuration.md). Isolation creates `drn-project`, and PostgreSQL creates credentials before the workload waves. Stage workloads mount the generated PostgreSQL password file and public CA directly; no database credential copying is required. During first stage bootstrap, provision `sample-settings` and `nexus-settings` with the application seed/key material and allowed hosts. Workload pods cannot start without them. If root sync times out waiting for configuration or Graylog setup, finish those prerequisites and sync again.
 
-All Git-backed Applications and AppProject allowlists use `https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git`. Workload Applications follow `develop`; infrastructure Git sources follow `preview`. Publish the intended manifests to the corresponding ref before syncing.
+The root orders projects, operators, certificates, mesh, namespace isolation, ingress/observability, database, Nexus, then Sample. Graylog setup can require operator interaction. The child gate requires a successful full sync for the current source and revision plus healthy resources before releasing later root waves. A new revision with unchanged manifests may require an explicit full child sync. See [installation dependencies](docs/platform-operations.md#installation-dependencies). Waves are not transactions and do not serialize independent child auto-syncs on later updates. Check child sync revisions and health before declaring success.
 
-When using a fork or this repository as a template, complete these steps before applying any AppProject or Application manifests:
+Root templates are grouped in numbered directories under `deployment/templates/`, from `010-projects` through `300-sample`. Each resource has an explicit positive sync-wave annotation matching its directory number. Projects and infrastructure use waves `10` through `110`, Nexus uses `200`, and Sample uses `300`. Independent applications share a wave, with gaps reserved for future dependencies. Directory names expose the order for inspection; annotations control deployment. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for the allocation convention.
 
-1. Replace the original Git repository URL in every Application `spec.source.repoURL` and AppProject `spec.sourceRepos` entry under `apps/` and `infrastructure/` with your repository URL. Include child Applications. Keep Helm chart repository URLs unchanged.
-2. Publish the updated manifests to your repository's `develop` branch and `preview` ref. If you use different refs, update the Git-backed Applications' `targetRevision` values and publish to those refs instead.
-3. For a private repository, configure Argo CD repository credentials before syncing.
+Sample and Nexus use their anonymous WeatherForecast endpoints for startup, readiness and liveness probes on an internal HTTP/1 listener at port `8081`. Their Services continue to use h2c. Stage/prod `AllowedHosts` Secrets must include `sample` and `nexus` for their respective probe Host headers. These checks verify application responsiveness, not database or downstream availability. See [workload health probes](docs/platform-operations.md#workload-health-probes) for paths, timings and rollout requirements.
 
-Changing only your local Git remote does not change where Argo CD reads manifests. Unchanged Application URLs continue to deploy from the original repository.
+Do not recursively apply `apps/`, apply `deployment/templates/` as raw YAML, or deploy workload bases directly. The bootstrap project manages AppProjects and Applications in `argocd`, which grants indirect administrative authority. Restrict it and its source files to administrators. Infrastructure children own namespaces. The workload project cannot create namespaces, Secrets, RBAC, NetworkPolicies or Linkerd authorization policies.
 
-### Deploy [Linkerd](https://linkerd.io/2-edge/tasks/gitops/)
-> This page contains best-effort instructions by the open source community. Production users with mission-critical applications should familiarize themselves with [Linkerd production resources](https://docs.buoyant.io/runbook/getting-started/).
+## Promote and roll back
 
-The manifests pin [Linkerd `edge-26.7.2`](https://github.com/linkerd/linkerd2/releases/tag/edge-26.7.2) through the upstream `https://helm.linkerd.io/edge` repository referenced by the [official Helm guide](https://linkerd.io/2-edge/tasks/install-helm/):
+1. Merge reviewed changes into `develop`. Wait for CI on the exact commit.
+2. Publish a new preview tag at that `develop` commit. Wait for its tag scan. Update staging's `targetRevision`, record the selection in Git, apply the staging root and sync it.
+3. Validate the snapshot in staging. Verify migrations, routing, authentication, database access and logs.
+4. For another change, publish a new preview sequence. Never move a tag.
+5. When a final release is needed, promote the reviewed candidate through `develop → master`. Wait for CI on the resulting `master` commit. Preserve the tested image digests. If merging creates a new commit, validate that exact snapshot in staging before production promotion.
+6. Publish the final tag from `master` and wait for its tag scan. Staging accepts final tags, so use it to validate a new merge commit. After staging validation and production prerequisites are complete, select that final tag in prod, explicitly enable production in its root and sync against its separate cluster.
 
-| Component | Chart version | App version |
+During rolling beta, repeat steps 1 through 4. No final tag or prod deployment is required for every beta iteration. Staging can also select a final tag. Production uses the same tagged snapshot with its own overlay.
+
+Rollback selects a previous immutable tag and syncs the root. It reverts desired manifests and image pins, not database contents. Startup migrations and retained database resources mean a code rollback can require a compatible forward fix or verified database recovery. An older application may not support a newer schema.
+
+## Production activation prerequisites
+
+- Select approved image digests and platform settings in a candidate snapshot. Existing preview images and single-instance stateful services are not certified production defaults.
+- Provision production databases separately, with verified backups, restore, availability and migrations. The chart includes the PostgreSQL Cluster only in staging. Supply explicit connections and trusted database CA certificates through required secrets.
+- Configure hostnames, edge TLS and authentication. Current Traefik exposes cleartext HTTP. Linkerd mTLS protects meshed cluster traffic, not the public edge. Complete edge TLS before exposing real beta or production credentials publicly.
+- Review namespace trust, admission and delegated access. Traefik and workloads share `drn-project`; workload creators are trusted with that namespace's identities and secrets.
+- Exercise the production overlay, migration process, recovery and operational checks before changing `enableProduction`.
+
+The enable flag does not perform these readiness tasks.
+
+## Service protection
+
+Ingress policies protect `drn-project`, `graylog` and `grafana` independently in each cluster. Same-namespace traffic is allowed. Egress and other platform namespaces are outside this baseline.
+
+| Destination | Allowed source outside its namespace | TCP ports |
 |---|---|---|
-| [Linkerd CRDs](https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-crds/2026.7.2) | `2026.7.2` | Not specified by the chart |
-| [Linkerd control plane](https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-control-plane/2026.7.2) | `2026.7.2` | `edge-26.7.2` |
-| [Linkerd Viz](https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-viz/2026.7.2) | `2026.7.2` | `edge-26.7.2` |
+| Traefik public listener | Any source | 8000 and 4143 mesh transport |
+| PostgreSQL pods | `cnpg-system` | 5432, 8000 |
+| Meshed workload pods | `linkerd-viz` | 4191 metrics, 4190 tap |
+| Graylog namespace | `drn-project` | 12201 GELF, 4143 mesh transport |
+| Graylog namespace | `linkerd-viz` | 4191, 4190 |
+| MongoDB operator webhook | Any source | 1993 |
+| Grafana namespace | `linkerd-viz` | 3000, 4143, 4191, 4190 |
 
-These charts require Kubernetes `1.31` or later. This minimum does not establish tested compatibility with the repository's `1.36.2` baseline. Use the CLI from the matching release above and check `linkerd version --client`. Homebrew can install a different version.
+Traefik starts with Linkerd's default inbound policy `deny`. Its public web Server grants unauthenticated HTTP/1.1 only on the web listener. TCP4143 does not grant access to its other application ports. Automatic health-probe authorization is separate. Dashboard and public websecure exposure remain disabled.
 
-**Sync cert-manager and trust-manager**
+Other meshed destinations require trusted identities. Graylog's TCP4143 allowance also exposes its authenticated API to trusted workload callers; it is not GELF-only authorization. Native database authentication/TLS remain required. Node traffic and API-authorized port-forwarding need separate controls. The MongoDB webhook exception preserves API-server admission until reliable source CIDRs are known.
 
-The parent `cert-manager` Application manages cert-manager and trust-manager from `https://charts.jetstack.io`, plus the repository's certificate bootstrap resources. Sealed Secrets is a separate Application. The chart pins are:
+Sample and Nexus retain non-root containers, read-only root filesystems, dedicated service accounts, disabled API-token mounting and no application RBAC grants. Writable `emptyDir` data/logs are lost on pod removal. Namespace workload creators can mount its secrets. See [remaining hardening work](todo.md#namespace-isolation).
 
-| Component | Pinned chart / controller | Purpose |
+## Connection encryption and certificates
+
+Linkerd mTLS encrypts traffic between proxies and authenticates both workload identities. Applications can still use internal `http://` URLs. Native TLS is handled by the destination application itself. Namespace policies control reachability but do not provide encryption. Application login and database credentials remain required independently of transport encryption.
+
+| Connection | Current protection |
+|---|---|
+| Public client → Traefik | Plain HTTP. Public HTTPS is not configured yet. |
+| Traefik → Sample; Sample → Nexus | Linkerd mTLS between the meshed pods. Backend application listeners use h2c. |
+| Sample/Nexus → Graylog GELF input (`12201`) | Linkerd mTLS. The internal GELF URL remains `http://`. |
+| Permitted meshed caller → Graylog UI/API (`9000`) | Linkerd mTLS. Graylog login/API authorization still applies. |
+| Browser → Graylog through `kubectl port-forward` | Local HTTP carried through Kubernetes' authenticated port-forward tunnel. This path is not Linkerd mTLS. |
+| Sample/Nexus → PostgreSQL (`5432`) | Native TLS is required. PostgreSQL is unmeshed. Stage/prod must use certificate verification and a trusted CA. |
+| Graylog/Data Node → MongoDB (`27017`) | Native TLS with server certificate verification and SCRAM authentication. MongoDB and Data Node are unmeshed. |
+| Graylog → Data Node API (`8999`) and OpenSearch (`9200`) | Native TLS using Data Node's automatically generated self-signed certificates. The chart enables this startup mode by default; manual CA provisioning is not required. This is distinct from a managed CA trust and renewal policy. |
+| Kubelet → Sample/Nexus health listener (`8081`) | HTTP probes to the Pod IP, not workload-to-workload mTLS. The port is not published by a Service or Gateway. |
+
+Certificate issuance and renewal have separate owners:
+
+| Certificates | Issuance | Renewal in this setup |
 |---|---|---|
-| [cert-manager](https://artifacthub.io/packages/helm/cert-manager/cert-manager) | `v1.21.2` / `v1.21.2` | Issues and renews certificates; CRDs are enabled with `crds.enabled=true`. |
-| [trust-manager](https://artifacthub.io/packages/helm/cert-manager/trust-manager) | `v0.24.0` / `v0.24.0` | Distributes CA trust bundles from the `cert-manager` trust namespace. |
-| [Sealed Secrets](https://artifacthub.io/packages/helm/bitnami-labs/sealed-secrets) | `2.20.0` / `v0.40.0` | Decrypts committed `SealedSecret` resources into Kubernetes Secrets. |
+| Linkerd workload identities | Linkerd issues short-lived certificates to its proxies. | Linkerd automatically rotates them. The default lifetime is 24 hours. |
+| Linkerd issuer and admission webhooks | cert-manager issues them from the repository's trust anchor. | cert-manager renews them automatically: configured lifetime `24000h`, renewal `73h` before expiry. |
+| Shared trust anchor | cert-manager creates the self-signed root used by Linkerd and MongoDB. | Configured lifetime `175200h`, renewal `87600h` before expiry. Root certificate renewal retains its private key (`rotationPolicy: Never`). Replacing the root key requires a coordinated trust rollout. |
+| MongoDB server | cert-manager issues it from the shared trust anchor. trust-manager distributes the CA in PEM and Java PKCS12 formats to Graylog and Data Node. | Automatic renewal: 90-day lifetime, 30 days before expiry, with a new private key on reissuance. Restart the Java clients after CA trust changes. |
+| Staging PostgreSQL | CloudNativePG generates its own CA and database certificates. | CloudNativePG automatically renews its managed certificates. Production database certificates belong to the separately provisioned database. |
+| Data Node API and OpenSearch | Data Node generates self-signed certificates during automatic startup. | No automatic rotation policy is configured. The pinned Graylog version gives these certificates a validity of `99 × 365` days. Managed CA issuance and renewal remain outside the current beta scope. |
 
-cert-manager `1.21` [supports Kubernetes `1.33`–`1.36`](https://cert-manager.io/docs/releases/), including this repository's `1.36.2` baseline. Kubernetes `1.36` compatibility for trust-manager and Sealed Secrets remains unverified; confirm it before deployment.
+trust-manager distributes public trust material; it does not issue certificates. Existing controllers handle automatic renewal where noted, without custom renewal jobs. Staging mounts the operator's public PostgreSQL CA directly. Production CA copies in application Secrets remain administrator-managed. Roll out affected applications after database credential or CA rotation and verify new connections.
 
-cert-manager creates the Linkerd root CA from [the bootstrap resources](infrastructure/cert-manager/resources/linkerd-trust-anchor.yaml). The Linkerd `Bundle` then uses trust-manager to distribute the public CA as `linkerd-identity-trust-roots` ConfigMaps under `ca-bundle.crt`. Root key rotation is disabled by default with `privateKey.rotationPolicy: Never`. The root certificate still renews using the same key. [Coordinated root key rotation](todo.md#linkerd-root-key-rotation) is planned work.
+These are configured behaviors, not evidence of a verified running deployment. See [platform operations](docs/platform-operations.md) for startup, trust changes and runtime checks. Upstream references: [Linkerd mTLS](https://linkerd.io/docs/features/automatic-mtls/), [CloudNativePG certificates](https://cloudnative-pg.io/docs/devel/certificates/), [pinned Graylog chart startup setting](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), and [Data Node self-signed certificate lifetime](https://github.com/Graylog2/graylog2-server/blob/7.1.10/data-node/src/main/java/org/graylog/datanode/configuration/DatanodeKeystore.java).
 
-Promote the intended commit to the `preview` tag before applying the parent Application. Its Git sources follow that tag in this repository, so changes on `develop` are not deployed until promoted. Sync wave `0` installs cert-manager; wave `1` creates trust-manager and the certificate bootstrap Application after cert-manager is healthy. This ordering uses the Application health customization in the Argo CD values above.
+### Post-quantum support in the pinned deployment
 
-```sh
-kubectl apply -f infrastructure/cert-manager/cert-manager-project.yaml
-kubectl apply -f infrastructure/cert-manager/cert-manager.yaml
-argocd app sync cert-manager
-argocd app wait cert-manager --sync --health --timeout 300
-argocd app wait cert-manager-chart trust-manager cert-manager-bootstrap --sync --health --timeout 300
-kubectl -n cert-manager wait --for=condition=Ready certificate/linkerd-trust-anchor --timeout=120s
-```
+Post-quantum key exchange and post-quantum certificate authentication are separate capabilities. Our mesh already enables the former through Linkerd's upstream defaults. The deployment does not provide post-quantum certificates or post-quantum protection for every connection.
 
-**Sync Sealed Secrets (optional)**
+| Component / connection | Finding and action |
+|---|---|
+| Linkerd `edge-26.10.1`, proxy `v2.370.0` | The standard proxy's TLS 1.3 provider prefers hybrid `X25519MLKEM768`. It is already enabled for compatible meshed peers. Preserve this default; no extra Helm value is needed. Classical fallback remains supported. |
+| Linkerd certificate authentication | The pinned proxy uses ECDSA P-256 signatures. Hybrid key exchange does not make these signatures post-quantum. |
+| cert-manager `v1.21.2` | Its Certificate API supports RSA, ECDSA and Ed25519 keys, not post-quantum certificate keys. Keep the supported certificate configuration. |
+| Graylog `7.1.10` native connections to MongoDB and Data Node | The published Graylog image uses Java 21. Upstream JSSE hybrid TLS key exchange arrives in JDK 27, so adding a named-group flag to this runtime is not an enablement path. Leave native TLS unchanged. |
+| MongoDB `8.2.12-ubi8` | No supported end-to-end PQ setting was established for this pinned server and its Java clients. Linux MongoDB relies on OpenSSL; a newer MongoDB version number alone does not establish PQ support. |
+| PostgreSQL `18.6`, `standard-trixie` image | The selected image uses Debian Trixie. Its runtime TLS library and end-to-end hybrid key exchange with the application clients have not been verified. The database version and OS change alone do not establish PQ support. |
+| Public ingress | Traefik currently exposes HTTP, so there is no public TLS key exchange to make post-quantum. |
 
-The chart uses `https://bitnami.github.io/sealed-secrets` and installs in `kube-system`. Sealed Secrets is optional for this certificate bootstrap because cert-manager generates its certificate Secrets. Use it to store encrypted application Secrets in Git; never commit plaintext Secret values.
+No image upgrades, custom cryptographic providers, extra sidecars or certificate algorithm changes were introduced for PQ support. Runtime libraries inside the pinned database images and actual negotiated connections have not been inspected in a running cluster. After deployment, check Linkerd's reported TLS key-exchange metrics for the hybrid group before claiming that a particular connection uses it. A replacement FIPS proxy build needs a separate check: the pinned source's FIPS branch lists classical groups only.
 
-```sh
-kubectl apply -f infrastructure/sealed-secrets/sealed-secrets-project.yaml
-kubectl apply -f infrastructure/sealed-secrets/sealed-secrets.yaml
-argocd app sync sealed-secrets
-argocd app wait sealed-secrets --sync --health --timeout 300
-```
+Evidence: the [pinned Linkerd proxy version](https://github.com/linkerd/linkerd2/blob/edge-26.10.1/.proxy-version) resolves to the [proxy crypto implementation](https://github.com/linkerd/linkerd2-proxy/blob/release/v2.370.0/linkerd/rustls/src/crypto.rs). See also the [cert-manager key API](https://github.com/cert-manager/cert-manager/blob/v1.21.2/pkg/apis/certmanager/v1/types_certificate.go), [Graylog image runtime](https://github.com/Graylog2/graylog-docker), [JDK 27 TLS enhancement](https://inside.java/2026/09/16/jdk27-security-enhancements/), [MongoDB TLS libraries](https://www.mongodb.com/docs/manual/core/security-transport-encryption/), and [OpenSSL 3.5 hybrid groups](https://docs.openssl.org/3.5/man3/SSL_CONF_cmd/).
 
-The Helm release uses controller name `sealed-secrets`, while `kubeseal` defaults to `sealed-secrets-controller`. Specify the controller explicitly when fetching its public certificate or sealing Secrets:
+## Continuous integration
 
-```sh
-kubeseal --controller-name sealed-secrets --controller-namespace kube-system --fetch-cert
-```
+| Workflow | Trigger | Checks |
+|---|---|---|
+| `pull-request` | PRs into `develop` or `master` | Trivy and CodeQL, without repository secrets |
+| `develop` | Push to `develop` | Trivy, SonarCloud and CodeQL |
+| `develop` | Calendar-shaped preview tag push | Trivy |
+| `master` | Push to `master`, Sunday 13:29 UTC | Trivy, SonarCloud and CodeQL |
+| `master` | Calendar-shaped non-preview tag push | Trivy |
 
-**Sync shared Gateway API CRDs**
+Tag triggers are broad GitHub globs. Strict deployment tag validation belongs to the chart. Preview tags must point to commits on `develop`; final tags must point to commits on `master`. Verify branch membership before publishing because tag filters route scans without enforcing ancestry. CI neither creates tags nor deploys clusters. SonarCloud and CodeQL remain branch checks; deployment tags must identify commits whose checks passed. Tag scans cannot cancel branch scans.
 
-[Gateway API Standard `v1.5.1`](https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.1) is managed by a separate Application and is required before Linkerd or Traefik. This pin stays within [Linkerd's documented Gateway API range](https://linkerd.io/2-edge/features/gateway-api/). The Application follows `preview`, uses server-side apply and disables automatic pruning of these shared resources. Promote the intended commit to that ref in the configured Git repository before syncing.
+Trivy scans vulnerabilities, secrets and infrastructure misconfigurations; HIGH/CRITICAL findings fail. SARIF uploads when available, including scan failures. SonarCloud requires `SONAR_TOKEN` and waits up to 600 seconds for its quality gate. CodeQL analyzes Actions without an application build. Existing actions remain SHA-pinned, checkouts disable persisted credentials, and jobs retain scoped permissions/timeouts. Dependabot targets `develop`.
 
-Gateway API and Traefik use the [networking AppProject](infrastructure/networking/networking-project.yaml). It permits the cluster-scoped CRDs, admission policies, RBAC and GatewayClass required by those components. The development AppProject manages workloads and optional PostgreSQL, with only Namespace resources allowed at cluster scope. HTTPRoutes remain owned by their workload Applications.
+Configure required checks, code-scanning gates, CODEOWNERS enforcement and immutable tag rulesets in repository settings. Static source review does not establish those external settings are active. Deployment rendering and runtime checks were not executed during this local standardization.
 
-```sh
-kubectl apply -f infrastructure/networking/networking-project.yaml
-kubectl apply -f infrastructure/gateway-api/gateway-api.yaml
-argocd app sync gateway-api
-argocd app wait gateway-api --sync --health --timeout 300
-```
-
-**Sync Linkerd**
-
-The parent and certificate bootstrap Applications follow `preview`. Linkerd uses the cert-manager CA, issuer Secret and webhook certificates. Sync waves install the bootstrap resources, Linkerd CRDs and control plane in that order.
-
-The control plane sets `proxy.defaultInboundPolicy: all-authenticated`. Meshed workloads require an authenticated Linkerd client unless an explicit policy overrides this default. Authentication uses the peer's mTLS certificate, not a caller-supplied `l5d-client-id` header. Any trusted mesh identity can call Sample, Nexus and Graylog. PostgreSQL, MongoDB and Data Node remain unmeshed. See [Service protection](#service-protection) for the security boundary.
-
-For an existing installation, sync Traefik's public-listener policy before enabling the stricter Linkerd default. Recreate existing meshed workload pods after the control-plane sync so their injected proxy configuration uses the new default. Verify that meshed calls succeed, unmeshed calls to backend application ports fail, and external requests through Traefik still succeed. Kubernetes health probes and explicit chart policies have their own authorization behavior. See [Linkerd authorization policy](https://linkerd.io/docs/reference/authorization-policy/).
-
-cert-manager injects the CA bundles into the proxy injector, service profile validator and policy validator webhook configurations. The control-plane Application excludes those fields from drift comparison and uses [`RespectIgnoreDifferences=true`](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/#respect-ignore-differences-configs) to preserve their live values during subsequent syncs. On initial creation, cert-manager populates the CA bundles after the webhook configurations exist.
-
-```sh
-kubectl apply -f infrastructure/linkerd/linkerd-project.yaml
-kubectl apply -f infrastructure/linkerd/linkerd.yaml
-argocd app sync linkerd
-argocd app wait linkerd --sync --health --timeout 300
-argocd app wait linkerd-bootstrap linkerd-crds linkerd-control-plane --sync --health --timeout 300
-linkerd check
-linkerd version
-```
-
-**Sync Linkerd Viz (Optional)**
-```sh
-kubectl apply -f infrastructure/linkerd-viz/linkerd-viz-project.yaml
-kubectl apply -f infrastructure/linkerd-viz/linkerd-viz.yaml
-argocd app sync linkerd-viz
-argocd app wait linkerd-viz --sync --health --timeout 300
-linkerd viz check
-linkerd viz dashboard &
-```
-
-Linkerd and Viz use `ghcr.io/linkerd` directly to avoid the `cr.l5d.io` image-pull failures observed with Docker Desktop's kind registry mirror. The image digests match across both registries. This is configured through Helm values and requires no node configuration changes.
-
-**Sync Grafana (Optional)**
-
-Grafana is installed separately from Viz. The [Grafana Application](infrastructure/grafana/grafana.yaml) provisions Linkerd dashboards and authorizes its meshed service account to query Viz's Prometheus.
-
-```sh
-kubectl apply -f infrastructure/grafana/grafana-project.yaml
-kubectl apply -f infrastructure/grafana/grafana.yaml
-argocd app wait grafana linkerd-viz --sync --health --timeout 300
-linkerd viz dashboard
-```
-
-Open `/grafana/` on the dashboard's local URL. Access is anonymous and read-only, with no public ingress or admin account. Dashboards are provisioned from pinned revisions at startup and local changes are not persisted. Configure authentication before exposing Grafana outside the development cluster.
-
-### Deploy [Traefik Gateway API](https://github.com/traefik/traefik/blob/v3.7.13/docs/content/reference/install-configuration/providers/kubernetes/kubernetes-gateway.md)
-
-The official [Traefik chart `41.6.1`](https://artifacthub.io/packages/helm/traefik/traefik/41.6.1) installs Traefik `v3.7.13` from `https://traefik.github.io/charts`. The Traefik image is pinned by digest for reproducible deployments. `versionOverride: v3.7.13` lets the chart check version compatibility when using that digest. It creates the `traefik` GatewayClass and `drn-project` HTTP Gateway in `drn-project-develop`. Only the Gateway API provider is enabled. Traefik-specific CRDs and Ingress resources are disabled.
-
-Install it after Gateway API and Linkerd are healthy. Its pods use normal Linkerd injection and `nativeLBByDefault` routes through Service IPs, following Linkerd's [Service-based ingress integration](https://linkerd.io/docs/tasks/using-ingress/#ingress-details). The pinned Traefik `v3.7.13` documentation targets Gateway API `1.6.1`. Its watched resource versions exist in the pinned `1.5.1` bundle, but this exact combination has not been validated on a cluster. Check Gateway and HTTPRoute status and traffic after installation.
-
-The `traefik-public-web` Linkerd Server allows unauthenticated traffic only on Traefik's `web` port. Its `proxyProtocol: HTTP/1` restricts this public cleartext path to HTTP/1.1 at the inbound proxy. Traefik uses h2c separately for Sample and Nexus backends, as declared by their Service ports. Public HTTP/2 requires a future HTTPS listener and certificate configuration. Other Traefik ports inherit the authenticated default unless another policy applies. Keep the Server's pod selector aligned with the Helm release name and namespace when adapting this installation.
-
-```sh
-kubectl apply -f infrastructure/networking/networking-project.yaml
-kubectl apply -f infrastructure/traefik/traefik.yaml
-argocd app sync traefik
-argocd app wait traefik --sync --health --timeout 300
-kubectl -n drn-project-develop wait --for=condition=Programmed gateway/drn-project --timeout=120s
-```
-
-The chart exposes HTTP on LoadBalancer port `80`, forwarding to its `web` listener on port `8000`. Configure HTTPS and certificates before exposing production traffic. The [sample HTTPRoute](services/sample/base/httproute.yaml) is managed by the sample Application alongside its Service and Deployment. The shared Gateway and GatewayClass remain managed by the Traefik infrastructure Application. The route sends `/app` and `/app/` to `/`, and `/app/example` to `/example` on `sample:80`. Prefix matching is case-sensitive and excludes `/appx`. It sets `X-Forwarded-Prefix: /app`. Incoming `Forwarded`, `l5d-dst-override`, `X-Forwarded-Ssl`, `X-Original-URI` and `X-Forwarded-Path` headers are stripped. Applications should use Traefik's `X-Forwarded-*` headers for request metadata and configure trusted proxies accordingly.
-
-The route also strips incoming `l5d-retry-http`, `l5d-retry-grpc`, `l5d-retry-limit`, `l5d-retry-timeout`, `l5d-timeout` and `l5d-response-timeout` headers. This prevents client-supplied retry and timeout overrides from reaching downstream proxies when Linkerd's per-request policies are enabled. Traefik's inbound Linkerd proxy sees requests before route filtering. Keep per-request policies disabled for unfiltered external traffic, as described in [Linkerd's per-request policy guidance](https://linkerd.io/docs/features/retries-and-timeouts/#per-request-policies).
-
-### Deploy Dev Environment Dependencies
-
-**Sync PostgreSQL with CloudNativePG (Optional)**
-
-The supplied Sample and Nexus overlays use this database. To use an external PostgreSQL service instead, configure their connection settings and password Secret before deploying the apps. Managed database services remain the recommended production choice.
-
-The [CloudNativePG operator Application](infrastructure/cloudnative-pg/cloudnative-pg.yaml) pins [chart `0.29.1` on Artifact Hub](https://artifacthub.io/packages/helm/cloudnative-pg/cloudnative-pg/0.29.1) and operator `1.30.1`. The chart is also available from the [official GitHub release](https://github.com/cloudnative-pg/charts/releases/tag/cloudnative-pg-v0.29.1). Its dedicated [AppProject](infrastructure/cloudnative-pg/cloudnative-pg-project.yaml) permits the CRDs, RBAC and admission webhooks required by the operator. The chart installs in `cnpg-system` and manages database clusters across namespaces. CloudNativePG `1.30` [supports Kubernetes `1.34` through `1.36`](https://cloudnative-pg.io/docs/1.30/supported_releases/), including this repository's `1.36.2` baseline.
-
-The [development database Application](apps/postgresql-develop.yaml) belongs to `drn-project-develop` and reads [its namespaced Cluster configuration](services/postgresql/develop/cluster.yaml). It is installed separately from the workload parent so the dependency stays optional. It follows `develop`; publish the intended manifests to that ref before syncing.
-
-The database uses PostgreSQL `16.15`, one instance, and an `8Gi` volume from the default StorageClass. A default storage provisioner is required. Set `spec.storage.storageClass` if your cluster needs an explicit class. The operator and PostgreSQL images are pinned by multi-platform digest for `linux/amd64` and `linux/arm64`. Their digests were verified against GHCR manifests, and the chart checksum was verified against the [official chart index](https://cloudnative-pg.github.io/charts/index.yaml).
-
-Install the operator and wait for its CRD and webhook server before creating the database:
-
-```sh
-kubectl apply -f infrastructure/cloudnative-pg/cloudnative-pg-project.yaml
-kubectl apply -f infrastructure/cloudnative-pg/cloudnative-pg.yaml
-argocd app sync cloudnative-pg
-argocd app wait cloudnative-pg --sync --health --timeout 300
-kubectl wait --for=condition=Established crd/clusters.postgresql.cnpg.io --timeout=120s
-kubectl -n cnpg-system rollout status deployment/cloudnative-pg --timeout=300s
-
-kubectl apply -f apps/develop-project.yaml
-kubectl apply -f apps/postgresql-develop.yaml
-argocd app sync postgresql-develop
-argocd app wait postgresql-develop --sync --timeout 300
-kubectl -n drn-project-develop wait --for=condition=Ready cluster.postgresql.cnpg.io/postgresql --timeout=600s
-```
-
-Bootstrap creates the `drnDb` database owned by the non-superuser role `drn`. CloudNativePG generates the `postgresql-app` Secret with the application's `password` key and exposes the primary through `postgresql-rw:5432`. Both apps mount that key at `/appconfig/key-per-file-settings/postgres-password` and set the framework's `DrnContext_DevHost`, `DrnContext_DevPort`, `DrnContext_DevUsername` and `DrnContext_DevDatabase` settings explicitly. See [CloudNativePG application connections](https://cloudnative-pg.io/docs/1.30/applications/). No database passwords are stored in Git. Restart the app Deployments after rotating credentials because their `subPath` mounts retain the mounted value.
-
-This development configuration has no replicas or scheduled backups. It disables the database PodDisruptionBudget so node drains can proceed, with database downtime expected. Linkerd injection is disabled for the operator and database resources. PostgreSQL rejects non-TLS network connections through `hostnossl all all all reject`. CloudNativePG's preceding local and certificate replication rules remain intact. Superuser network access is disabled. Both Applications enable self-healing and disable automatic pruning; the database Cluster also has `Prune=false,Delete=false` to retain it during Argo CD pruning or Application deletion. Configure and verify backups, recovery and availability before using self-managed PostgreSQL for production.
-
-**Sync Graylog (Optional)**
-
-For **fresh development installations only**, using official charts and Graylog Data Node.
-
-| Component | Chart | Deployed version | Official repository |
-|---|---|---|---|
-| [Graylog Open and Data Node](https://artifacthub.io/packages/helm/graylog2/graylog/2.1.0) | `2.1.0` | Both `7.1.9` | `https://graylog2.github.io/graylog-helm` |
-| [MongoDB Controllers for Kubernetes](https://artifacthub.io/packages/helm/mongodb-helm-charts/mongodb-kubernetes/1.13.0) | `1.13.0` | Operator `1.13.0` | `https://mongodb.github.io/helm-charts` |
-| MongoDB Community Server | Separate `MongoDBCommunity` resource | `8.2.12` | `quay.io/mongodb/mongodb-community-server` |
-
-MongoDB stays within Graylog's [supported `8.2` series](https://go2docs.graylog.org/current/downloading_and_installing_graylog/compatibility_matrix.htm). Images are digest-pinned for amd64 and arm64. Only the Graylog server enables Linkerd injection. MongoDB, its operator and Data Node remain unmeshed, and Data Node manages OpenSearch internally. Install Linkerd and its policy CRDs before the Graylog Application.
-
-The database's [readiness role](infrastructure/graylog/mongodb/readiness-rbac.yaml) lets its probe read `mongodb-config` and update the version annotation on `mongodb-0`. Extend its pod-name list when adding members.
-
-**Storage and host prerequisites**
-
-- Kubernetes `1.32+` and hosts meeting MongoDB's [platform requirements](https://www.mongodb.com/docs/manual/administration/production-notes/).
-- A default StorageClass supporting ReadWriteOnce: MongoDB `8Gi` data + `2Gi` logs, Graylog `8Gi`, Data Node `8Gi`.
-- Host `vm.max_map_count >= 262144`. The chart does not configure it.
-- Memory for Graylog `1Gi`, Data Node `3.5Gi`, MongoDB `1Gi`, plus agent/operator overhead. These are requests, not usage limits.
-
-**Install the operator and database**
-
-Publish the intended manifests to `preview` before syncing the Git-backed database Application. Install the operator and wait for its CRD before creating MongoDB:
-
-```sh
-kubectl apply -f infrastructure/graylog/graylog-project.yaml
-kubectl apply -f infrastructure/graylog/mongodb-operator.yaml
-argocd app sync mongodb-operator
-argocd app wait mongodb-operator --sync --health --timeout 300
-kubectl wait --for=condition=Established crd/mongodbcommunity.mongodbcommunity.mongodb.com --timeout=120s
-kubectl -n graylog rollout status deployment/mongodb-kubernetes-operator --timeout=300s
-```
-
-Sync MongoDB with a **full sync**. Its bootstrap Job generates credentials, waits for the operator's connection URI, and creates the chart's [external Secret](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/docs/graylog-secrets.md). No manual Secret creation is needed. [Selective sync skips hooks](https://argo-cd.readthedocs.io/en/stable/user-guide/resource_hooks/#selective-sync).
-
-```sh
-kubectl apply -f infrastructure/graylog/mongodb.yaml
-argocd app sync mongodb
-argocd app wait mongodb --sync --timeout 1200
-kubectl -n graylog wait --for=jsonpath='{.status.phase}'=Running mongodbcommunity/mongodb --timeout=600s
-```
-
-Later full syncs preserve existing Secrets. Back them up with the database. The Job does not rotate credentials or recover deleted Secrets for existing data.
-
-**Sync Graylog**
-
-Retrieve the generated admin password in a private terminal and save it securely. Never paste it into Git or shared output.
-
-```sh
-kubectl -n graylog get secret graylog-admin-password \
-  -o jsonpath='{.data.password}' | base64 -d
-```
-
-```sh
-kubectl apply -f infrastructure/graylog/graylog.yaml
-argocd app sync graylog
-argocd app wait graylog --sync --timeout 300
-kubectl -n graylog port-forward svc/drn-graylog 9000:9000
-```
-
-Keep the port-forward running and open [Graylog](http://localhost:9000). Complete Data Node provisioning using the setup credentials in pod logs if prompted, then log in as `admin` with your saved password. Update `graylog.config.network.externalUri` if exposing another URL.
-
-Graylog loads `drn-inputs.json` and `drn-streams.json` at startup. The packs have separate identities: **DRN input** and **DRN streams**. The **DRN input** pack installs the **DRN GELF HTTP** global input on `0.0.0.0:12201`. Bulk receiving supports DRN Apps batches. Its JSON extractor reads and preserves `full_message` and exposes scoped properties as `scope_TraceId`, `scope_EventName`, and other `scope_` fields. Set index replicas to `0` for the single Data Node.
-
-To deliver content-pack updates, increment the affected pack's revision, apply the updated Application, sync, and restart Graylog after the updated files are mounted. The startup loader installs each revision only once. A new revision creates a separate installation rather than updating existing entities in place. Preserve customizations and uninstall the previous installation before loading its replacement to avoid duplicate inputs or streams.
-
-The **DRN streams** pack creates the **DRN** stream using the default index set. DRN scoped logs carry `ScopedLog=true` inside the JSON in `full_message`. The JSON extractor exposes this as `scope_ScopedLog`, and the stream matches the exact value `true`. Messages without that marker do not match. Other inputs can feed this stream if they extract the same field. The stream enables **Remove matches from Default Stream**, so matching messages leave the Default Stream while still using the default index set. Graylog `7.1.9` creates content-pack streams paused. Under Streams, start **DRN** after installation and verify that a new scoped message appears there.
-
-The packs have no entity references between them, so stream installation does not depend on input installation order. Verify that exactly one **DRN GELF HTTP** input is running and one **DRN** stream exists.
-
-Sync Graylog and confirm the input is running under System / Inputs before syncing Sample and Nexus. Both send logs to `http://drn-graylog.graylog:12201/gelf` with LF separators and compression disabled for bulk decoding. Linkerd encrypts this connection between proxies and requires a trusted mesh identity. Keep the application URL as HTTP because the proxies provide mesh mTLS.
-
-```sh
-argocd app wait graylog --sync --health --timeout 600
-kubectl -n graylog get pods,pvc
-```
-
-Verify a received Sample or Nexus message in the UI. This single-instance stack has no configured backups and incurs maintenance downtime. Automatic pruning is disabled, and MongoDB is protected from Argo CD deletion. Restart Graylog and Data Node after credential rotation.
-
-### Deploy Sample and Nexus Apps
-
-Sample and Nexus use digest-pinned `0.10.1-preview002` images for amd64 and arm64. Containers run as non-root with read-only root filesystems. Writable data and logs use `emptyDir` volumes and are lost when pods are removed.
-
-Both development listeners use Kestrel `Http2` over cleartext HTTP (h2c only): Sample on `5998` and Nexus on `5988`. Their Service ports declare `appProtocol: kubernetes.io/h2c`, which tells Traefik and Linkerd to use HTTP/2 upstream. Internal application requests already select HTTP/2. Traefik accepts public HTTP/1.1 through its inbound Linkerd proxy and sends h2c to the backends. Linkerd supplies mTLS between meshed pods. This setting applies to Sample and Nexus, not third-party services such as Graylog. See [Kestrel protocol configuration](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints#configure-http-protocols) and [Linkerd Service protocols](https://linkerd.io/docs/features/protocol-detection/#declaring-a-service-ports-protocol).
-
-Sync each Service together with its workload configuration. Sample's generated ConfigMap name changes and triggers a Deployment rollout. During the transition, its old HTTP/1-only pods and new h2c routing can briefly disagree. After rollout, verify public HTTP/1.1 through Traefik and h2c requests between apps. Public h2c prior-knowledge connections must fail, and an `Upgrade: h2c` request must not establish an h2c tunnel. A direct HTTP/1.1 connection to either Kestrel listener must fail. These are runtime checks beyond manifest validation.
-
-Development settings use the shared PostgreSQL service with automatic migrations enabled and prototype mode disabled. App IDs are explicit: Sample `0`, Nexus `126`, and instance ID `0` for both. Logs go to console, file, and Graylog HTTP, with category filters inherited from the images.
-
-Argo CD Application declarations live under `apps/`. App-specific workload manifests and HTTPRoutes live together under `services/`. Service bases do not declare a namespace. Each environment overlay owns that choice, so deploy through an overlay rather than applying a base directly. The [sample Application](apps/develop/services/sample/application.yaml) reads `services/sample/develop`, whose `drn-project-develop` namespace applies to its HTTPRoute as well as its workloads. Nexus uses the same namespace through its own development overlay. These Git sources follow `develop`, so publish the changes to that ref before syncing.
-
-The parent applies Nexus in sync wave `-1` and Sample in wave `0`, using `argocd.argoproj.io/sync-wave` annotations on the child Applications. The Application health customization above makes the parent wait for Nexus to become healthy before advancing to Sample. These waves order a parent sync; they do not serialize independent child Application auto-syncs. Linkerd uses bootstrap, CRD and control-plane waves `0`, `1` and `2`.
-
-Ensure PostgreSQL is ready, then create the parent Application:
-
-```sh
-kubectl apply -f apps/develop-project.yaml
-kubectl apply -f apps/develop.yaml
-```
-
-Sync the Applications:
-
-```sh
-argocd app sync drn-project-develop
-argocd app sync sample
-```
-
-After the sample Service and Gateway are ready, verify that the route reports `Accepted=True` and `ResolvedRefs=True` for the `drn-project` parent:
-
-```sh
-argocd app wait sample --sync --health --timeout 300
-kubectl -n drn-project-develop get httproute sample -o yaml
-kubectl -n drn-project-develop get gateway drn-project
-linkerd check --proxy
-```
-
-Exercise `/app`, `/app/` and a known sample endpoint through the gateway address. Check backend paths and forwarded headers.
-
-### Service protection
-
-The baseline requires mTLS for meshed destinations, with one public-listener exception for Traefik. It has no application-specific caller allowlists or additional database NetworkPolicies. Any trusted mesh identity can call Sample, Nexus and Graylog. Application authentication and authorization remain responsible for user access. Graylog's UI/API retain their own authentication and local port-forward administration.
-
-PostgreSQL requires native TLS and database credentials. Its server-side TLS requirement does not establish client-side server-certificate verification. The current development connection helper does not configure `SSL Mode=VerifyFull` or a trusted root certificate. MongoDB and Data Node retain their existing native security and remain outside Linkerd protection. This baseline does not add network isolation for them.
-
-For rollout, publish infrastructure changes to `preview` and PostgreSQL changes to `develop`. Sync Traefik's listener exception before the stricter Linkerd default. Recreate existing meshed pods after changing the injection default. Graylog's new sidecar requires a StatefulSet rollout, which can briefly interrupt logging on its single instance.
-
-After rollout, verify external HTTP through Traefik, Sample-to-Nexus requests, log delivery, and PostgreSQL queries. Unmeshed calls directly to Sample, Nexus and Graylog must fail, while trusted meshed callers remain allowed. PostgreSQL connections with TLS disabled must fail. Manifest rendering and server-side dry runs validate configuration, but do not prove these runtime outcomes.
-
-References: [Linkerd policy](https://linkerd.io/docs/reference/authorization-policy/), [CloudNativePG rule ordering](https://github.com/cloudnative-pg/cloudnative-pg/blob/v1.30.1/docs/src/postgresql_conf.md#the-pg_hba-section), and [Npgsql TLS verification](https://www.npgsql.org/doc/security.html).
+See [platform operations](docs/platform-operations.md), [staging configuration](docs/staging-configuration.md), and [planned work](todo.md).

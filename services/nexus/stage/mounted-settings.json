@@ -1,0 +1,12 @@
+{
+  "Environment": "Staging",
+  "ConnectionStrings": {
+    "NexusIdentityContext": "Host=postgresql-rw;Port=5432;Database=drnDb;Username=drn;Passfile=/appcerts/postgresql/pgpass;SSL Mode=VerifyFull;Root Certificate=/appcerts/postgresql/root.crt"
+  },
+  "DrnDevelopmentSettings": {
+    "AutoMigrateDevelopment": false,
+    "AutoMigrateStaging": true,
+    "LaunchExternalDependencies": false,
+    "Prototype": false
+  }
+}

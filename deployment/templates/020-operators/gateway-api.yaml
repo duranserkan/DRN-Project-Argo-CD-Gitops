@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-api
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: networking
+  source:
+    path: infrastructure/gateway-api/resources
+    repoURL: {{ .Values.repository | quote }}
+    targetRevision: {{ .Values.gitRevision | quote }}
+  destination:
+    namespace: drn-project
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

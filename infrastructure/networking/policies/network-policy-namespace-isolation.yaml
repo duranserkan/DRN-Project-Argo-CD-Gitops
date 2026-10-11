@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: namespace-isolation
+spec:
+  # Protect every destination pod in the namespace set by kustomization.yaml.
+  podSelector: {}
+  # Restrict incoming connections only. Outgoing traffic is unchanged.
+  policyTypes: [Ingress]
+  # Other policies add allowances to this baseline. They do not override it.
+  ingress:
+    - from:
+        # Allow every source pod in this policy's namespace.
+        # Without a namespaceSelector, this does not include other namespaces.
+        # No ports list means all ports are allowed for these sources.
+        - podSelector: {}

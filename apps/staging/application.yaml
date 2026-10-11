@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: drn-project
+  namespace: argocd
+spec:
+  project: drn-project-bootstrap
+  source:
+    repoURL: https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git
+    path: deployment
+    # Publish this reviewed immutable snapshot before applying it for staging validation.
+    # Change only this field to select a snapshot. Do not move or recreate its tag.
+    targetRevision: refs/tags/2026.10.1-preview.1
+    helm:
+      parameters:
+        - name: environment
+          value: stage
+        - name: gitRevision
+          value: $ARGOCD_APP_REVISION
+          forceString: true
+        - name: releaseTag
+          value: $ARGOCD_APP_SOURCE_TARGET_REVISION
+          forceString: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  # Deliberate root sync promotes a snapshot. Children reconcile their selected sources.
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=false

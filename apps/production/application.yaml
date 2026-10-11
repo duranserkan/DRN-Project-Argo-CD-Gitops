@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: drn-project
+  namespace: argocd
+spec:
+  project: drn-project-bootstrap
+  source:
+    repoURL: https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git
+    path: deployment
+    targetRevision: refs/tags/2026.10.1
+    helm:
+      parameters:
+        - name: environment
+          value: prod
+        - name: gitRevision
+          value: $ARGOCD_APP_REVISION
+          forceString: true
+        - name: releaseTag
+          value: $ARGOCD_APP_SOURCE_TARGET_REVISION
+          forceString: true
+        # Disabled during rolling beta. Rendering fails until explicitly enabled.
+        - name: enableProduction
+          value: "false"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=false

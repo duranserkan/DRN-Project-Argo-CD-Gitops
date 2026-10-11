@@ -1,0 +1,72 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  project: networking
+  source:
+    chart: traefik
+    repoURL: https://traefik.github.io/charts
+    # Verified 2026-10-10 against https://traefik.github.io/charts/index.yaml and chart bytes.
+    # SHA-256: f9edd5ca699ff0f5eab14df6e4feefa15f7597a9b56f0b1c01f6089b1eecbaf1
+    targetRevision: 41.7.1
+    helm:
+      skipCrds: true
+      valuesObject:
+        image:
+          # Verified 2026-10-10 against docker.io/library/traefik:v3.7.14.
+          digest: sha256:575fa15b135078fe5e50aa847987d96dbddd7b093c172429618404df73f3fa7c
+        versionOverride: v3.7.14
+        deployment:
+          podAnnotations:
+            linkerd.io/inject: enabled
+            # Port 4143 is public mesh transport. Only the web Server grants access.
+            config.linkerd.io/default-inbound-policy: deny
+        ingressClass:
+          enabled: false
+        providers:
+          kubernetesCRD:
+            enabled: false
+          kubernetesIngress:
+            enabled: false
+          kubernetesGateway:
+            enabled: true
+            nativeLBByDefault: true
+            namespaces:
+              - drn-project
+        gateway:
+          name: drn-project
+        api:
+          dashboard: false
+        ports:
+          websecure:
+            expose:
+              default: false
+        extraObjects:
+          # External clients have no mesh identity. Keep this exception on the public listener only.
+          - apiVersion: policy.linkerd.io/v1beta3
+            kind: Server
+            metadata:
+              name: traefik-public-web
+            spec:
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: traefik
+                  app.kubernetes.io/instance: traefik-drn-project
+              port: web
+              # Public cleartext traffic is HTTP/1.1. Backend Services select h2c separately.
+              proxyProtocol: HTTP/1
+              accessPolicy: all-unauthenticated
+  destination:
+    namespace: drn-project
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true

@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-bootstrap
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"
+spec:
+  project: cert-manager
+  source:
+    path: infrastructure/cert-manager/resources
+    repoURL: {{ .Values.repository | quote }}
+    targetRevision: {{ .Values.gitRevision | quote }}
+  destination:
+    namespace: cert-manager
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true

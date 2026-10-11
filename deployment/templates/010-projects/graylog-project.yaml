@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: graylog
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
+  sourceRepos:
+    - https://graylog2.github.io/graylog-helm
+    - {{ .Values.repository | quote }}
+    - https://mongodb.github.io/helm-charts
+  destinations:
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+    - namespace: graylog
+      server: https://kubernetes.default.svc
+  # Permit namespace creation, operator CRDs and webhook registration RBAC.
+  clusterResourceWhitelist:
+    - group: trust.cert-manager.io
+      kind: Bundle
+    - group: ""
+      kind: Namespace
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding

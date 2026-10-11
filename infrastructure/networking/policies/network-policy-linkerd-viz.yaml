@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: linkerd-viz
+spec:
+  # Select meshed destination pods associated with the linkerd control plane.
+  podSelector:
+    matchLabels:
+      linkerd.io/control-plane-ns: linkerd
+  policyTypes: [Ingress]
+  ingress:
+    # Allow every pod in linkerd-viz to reach proxy metrics and tap over TCP.
+    # Mesh authorization still applies after network access is allowed.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd-viz
+      ports:
+        # Proxy metrics.
+        - port: 4191
+        # Proxy tap.
+        - port: 4190

@@ -1,0 +1,22 @@
+{{- if eq .Values.environment "stage" }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgresql
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "110"
+spec:
+  project: drn-project
+  source:
+    path: services/postgresql/{{ .Values.environment }}
+    repoURL: {{ .Values.repository | quote }}
+    targetRevision: {{ .Values.gitRevision | quote }}
+  destination:
+    namespace: drn-project
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+{{- end }}

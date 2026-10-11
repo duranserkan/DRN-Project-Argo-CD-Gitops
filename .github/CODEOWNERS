@@ -2,6 +2,7 @@
 /.agent/ @duranserkan
 /apps/ @duranserkan
 /infrastructure/ @duranserkan
-/gateway/ @duranserkan
+/deployment/ @duranserkan
 /services/ @duranserkan
 /README.md @duranserkan
+/docs/ @duranserkan

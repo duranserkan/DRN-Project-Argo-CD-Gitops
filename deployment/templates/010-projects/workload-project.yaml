@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: drn-project
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  # https://argo-cd.readthedocs.io/en/stable/operator-manual/project-specification/
+  sourceRepos:
+    - {{ .Values.repository | quote }}
+  destinations:
+    - namespace: drn-project
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+  # Infrastructure owns namespaces, RBAC, network and mesh policies.
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ServiceAccount
+    - group: apps
+      kind: Deployment
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: postgresql.cnpg.io
+      kind: Cluster
