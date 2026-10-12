@@ -52,6 +52,7 @@ static class Bootstrap
     };
 
     private const string ServiceAccount = "/var/run/secrets/kubernetes.io/serviceaccount";
+    private const string KubernetesApiAddress = "https://kubernetes.default.svc";
     private const string NexusApplication = "nexus";
     private const string SampleApplication = "sample";
     private const string SettingsSuffix = "-settings";
@@ -102,7 +103,7 @@ static class Bootstrap
             CertificateChainPolicy = chainPolicy
         };
         using var client = new HttpClient(handler);
-        client.BaseAddress = new Uri("https://kubernetes.default.svc");
+        client.BaseAddress = new Uri(KubernetesApiAddress);
         client.Timeout = TimeSpan.FromSeconds(30);
 
         await RunAsync(client, namespaceName, () => File.ReadAllText($"{ServiceAccount}/token").Trim());
@@ -123,9 +124,9 @@ static class Bootstrap
         if (nexus is null)
         {
             // Existing workloads may depend on the lost credentials. Their settings must be restored.
-            foreach (var name in new[] { NexusApplication, SampleApplication })
-                if (await RequestAsync(client, readToken, HttpMethod.Get, $"{deployments}/{name}") is not null)
-                    throw new BootstrapException("Application workloads already exist. Restore their settings Secrets from backup.");
+            if (await RequestAsync(client, readToken, HttpMethod.Get, $"{deployments}/{NexusApplication}") is not null ||
+                await RequestAsync(client, readToken, HttpMethod.Get, $"{deployments}/{SampleApplication}") is not null)
+                throw new BootstrapException("Application workloads already exist. Restore their settings Secrets from backup.");
 
             nexus = await CreateAsync(client, readToken, secrets, namespaceName, NexusApplication, new Dictionary<string, string>
             {
@@ -139,9 +140,8 @@ static class Bootstrap
 
         var nexusSettings = Settings(nexus, NexusSettingsSecret);
         var sampleSettings = Settings(sample, SampleSettingsSecret);
-        foreach (var key in new[] { KeyMaterial, KeyFormat, KeyDefault })
-            if (nexusSettings[key] != sampleSettings[key])
-                throw new BootstrapException("Nexus key settings differ between applications. Reconcile them deliberately. Bootstrap will not overwrite them.");
+        if (new[] { KeyMaterial, KeyFormat, KeyDefault }.Any(key => nexusSettings[key] != sampleSettings[key]))
+            throw new BootstrapException("Nexus key settings differ between applications. Reconcile them deliberately. Bootstrap will not overwrite them.");
     }
 
     /// <summary>Sends an authenticated API request, handling absent resources and competing Secret creation safely.</summary>
@@ -265,4 +265,4 @@ sealed class BootstrapMetadata
 }
 
 /// <summary>A bootstrap failure whose message is safe to write to Job logs.</summary>
-sealed class BootstrapException(string message) : Exception(message);
+public sealed class BootstrapException(string message) : Exception(message);

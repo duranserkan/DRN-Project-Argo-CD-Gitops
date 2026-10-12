@@ -51,6 +51,7 @@ static class GraylogBootstrap
     };
 
     private const string ServiceAccount = "/var/run/secrets/kubernetes.io/serviceaccount";
+    private const string KubernetesApiAddress = "https://kubernetes.default.svc";
     private const string CredentialsSecret = "graylog-credentials";
     private const string DatabasePasswordSecret = "mongo-graylog-password";
     private const string AdminPasswordSecret = "graylog-admin-password";
@@ -85,7 +86,7 @@ static class GraylogBootstrap
             handler.UseProxy = false; // Default hostname verification remains enabled.
             handler.SslOptions = new SslClientAuthenticationOptions { CertificateChainPolicy = policy };
             using var client = new HttpClient(handler);
-            client.BaseAddress = new Uri("https://kubernetes.default.svc");
+            client.BaseAddress = new Uri(KubernetesApiAddress);
             client.Timeout = TimeSpan.FromSeconds(30);
             await RunAsync(client, (await File.ReadAllTextAsync($"{ServiceAccount}/namespace")).Trim(),
                 () => File.ReadAllText($"{ServiceAccount}/token").Trim(), TimeProvider.System,
@@ -138,35 +139,7 @@ static class GraylogBootstrap
         {
             var admin = await Ensure(AdminPasswordSecret, new Dictionary<string, string?> { [PasswordKey] = RandomPassword(32) });
             var password = Value(admin, AdminPasswordSecret, PasswordKey);
-            // A monotonic deadline keeps wall-clock adjustments from extending the operator wait.
-            var start = clock.GetTimestamp();
-            string? uri = null;
-            Console.WriteLine("Waiting for the MongoDB operator connection Secret.");
-            while (clock.GetElapsedTime(start) < TimeSpan.FromMinutes(15))
-            {
-                GraylogSecret? connection = null;
-                try
-                {
-                    connection = await Get(OperatorConnectionResourceName);
-                }
-                catch (Exception error) when (
-                    error is OperationCanceledException or TimeoutException ||
-                    error is GraylogBootstrapException apiError && (int?)apiError.StatusCode is >= 500 and <= 599)
-                {
-                    // Retry only this read within the original deadline. Authorization and validation failures stay fatal.
-                }
-                // The operator may publish the Secret before populating its URI.
-                if (connection?.Data is not null &&
-                    connection.Data.TryGetValue(ConnectionStringKey, out var encodedUri) &&
-                    !string.IsNullOrEmpty(encodedUri))
-                {
-                    uri = Value(connection, OperatorConnectionResourceName, ConnectionStringKey);
-                    break;
-                }
-                await delay(TimeSpan.FromSeconds(5));
-            }
-            if (uri is null)
-                throw new GraylogBootstrapException("Timed out waiting for the MongoDB connection URI.");
+            var uri = await WaitForConnectionUriAsync(Get, clock, delay);
             credentials = await Ensure(CredentialsSecret, new Dictionary<string, string?>
             {
                 [RootUsernameKey] = "admin",
@@ -177,6 +150,37 @@ static class GraylogBootstrap
         }
         foreach (var key in new[] { RootUsernameKey, RootPasswordHashKey, PasswordSecretKey, MongoDbUriKey })
             Value(credentials, CredentialsSecret, key);
+    }
+
+    /// <summary>Waits for the operator URI, retrying transient reads within one monotonic deadline.</summary>
+    private static async Task<string> WaitForConnectionUriAsync(Func<string, Task<GraylogSecret?>> get,
+        TimeProvider clock, Func<TimeSpan, Task> delay)
+    {
+        // A monotonic deadline keeps wall-clock adjustments from extending the operator wait.
+        var start = clock.GetTimestamp();
+        Console.WriteLine("Waiting for the MongoDB operator connection Secret.");
+        while (clock.GetElapsedTime(start) < TimeSpan.FromMinutes(15))
+        {
+            GraylogSecret? connection = null;
+            try
+            {
+                connection = await get(OperatorConnectionResourceName);
+            }
+            catch (Exception error) when (
+                error is OperationCanceledException or TimeoutException ||
+                error is GraylogBootstrapException apiError && (int?)apiError.StatusCode is >= 500 and <= 599)
+            {
+                // Retry only this read within the original deadline. Authorization and validation failures stay fatal.
+            }
+            // The operator may publish the Secret before populating its URI.
+            if (connection?.Data is not null &&
+                connection.Data.TryGetValue(ConnectionStringKey, out var encodedUri) &&
+                !string.IsNullOrEmpty(encodedUri))
+                return Value(connection, OperatorConnectionResourceName, ConnectionStringKey);
+
+            await delay(TimeSpan.FromSeconds(5));
+        }
+        throw new GraylogBootstrapException("Timed out waiting for the MongoDB connection URI.");
     }
 
     /// <summary>Encodes cryptographically random bytes using unpadded URL-safe Base64.</summary>
@@ -257,7 +261,7 @@ sealed class GraylogMetadata
 }
 
 /// <summary>A bootstrap failure whose message is safe to write to Job logs.</summary>
-sealed class GraylogBootstrapException(string message, HttpStatusCode? statusCode = null) : Exception(message)
+public sealed class GraylogBootstrapException(string message, HttpStatusCode? statusCode = null) : Exception(message)
 {
     /// <summary>The API status, when available, for retry classification without inspecting log text.</summary>
     public HttpStatusCode? StatusCode { get; } = statusCode;
