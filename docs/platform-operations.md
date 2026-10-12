@@ -20,7 +20,8 @@ Use the latest compatible releases within the selected database lines. PostgreSQ
 | Graylog and Data Node | Chart 2.1.0 remains current, both images updated to 7.1.10 |
 | Sample and Nexus | 0.10.1-preview003, image source revision matches the release tag |
 | PostgreSQL | Updated 2026-10-11 to the current 18.6 standard-trixie image, pinned by digest |
-| MongoDB credential bootstrap | Node 26.11.1-alpine3.24 |
+| MongoDB credential bootstrap | Updated 2026-10-12 to .NET SDK 10.0.401-alpine3.24, pinned by digest |
+| Staging application Secret bootstrap | Updated 2026-10-12 to .NET SDK 10.0.401-alpine3.24, pinned by digest |
 | cert-manager | v1.21.2 remains current |
 | CloudNativePG operator | Chart 0.29.1 and image 1.30.1 remain current |
 | MongoDB operator and server | Chart 1.13.0 and its helper versions remain current; 8.2.12-ubi8 remains the latest published image in the selected server line |
@@ -75,12 +76,21 @@ Group root resource templates in `deployment/templates/NNN-description/` using p
 | `090-linkerd-viz` | `90` | Linkerd Viz |
 | `100-platform-services` | `100` | Grafana, MongoDB, Traefik |
 | `110-data-services` | `110` | Graylog, staging PostgreSQL |
+| `120-application-secrets` | `120` | Staging application Secret bootstrap |
 | `200-nexus` | `200` | Nexus |
 | `300-sample` | `300` | Sample |
 
 Independent applications can share a wave. Allocate a later wave only for a real deployment dependency. Use gaps for intermediate dependencies and normally space new application tiers by `100`. When adding or moving templates, verify every resource has a positive annotation matching its directory. An omitted annotation defaults to wave `0`, before projects. Keep directory names at a consistent width if the allocation grows beyond three digits. These are root Application waves; waves inside each child remain local to that child's sync.
 
 The numbered layout replaces the former negative infrastructure waves and application waves `100`/`200`. It preserves dependency order and same-wave groups. Resource identities and child source paths are unchanged.
+
+Staging's `application-secrets` Job completes before Nexus and Sample. Its dedicated project keeps Secret-creation RBAC outside the workload project. Full syncs preserve existing values. Partial or lost settings require deliberate recovery. See [automatic staging Secret bootstrap](staging-configuration.md#automatic-staging-secret-bootstrap). Production does not install this component.
+
+Both credential bootstrap Jobs run a single C# file from a Kustomize-generated ConfigMap. They use the official `mcr.microsoft.com/dotnet/sdk:10.0.401-alpine3.24` image. Its index digest is `sha256:3cc3bbbbf93d82104892f42aa9106b6be4d120346dea0649643a97c801525256`. On 2026-10-12, the MCR manifest response and its calculated SHA-256 matched this pin. The index includes Linux amd64, arm/v7 and arm64. The [SDK supports file-based apps](https://learn.microsoft.com/en-us/dotnet/core/sdk/file-based-apps), so no custom image is needed.
+
+Both files reference DRN.Framework.Utils 0.10.1-preview003 for its transitive SharedKernel JSON conventions. Each clones the default options with null omission, avoiding JSON model attributes. Kubernetes HTTP still uses built-in .NET. Startup restore requires nuget.org access and downloads Utils with its transitive dependencies into writable `/tmp` storage under a non-root user. The source and root filesystem stay read-only. Existing manifests retain disabled runtime NuGet audit, telemetry and workload update notifications. CI audits the test dependency graph, including Utils. The application Secret Job retains its 300-second deadline. Static review does not establish startup timing or resource sufficiency after adding package restore. Verify these in staging before promotion. Automatic pruning remains disabled, so obsolete source ConfigMaps need deliberate cleanup.
+
+Both bootstrap files declare `#:property PublishAot=false` to support their reflection-based JSON serialization. Direct IDE and file-based builds therefore use the same managed execution mode as the Job and CI commands. Native AOT and trimming are not supported.
 
 Linkerd uses the edge chart repository and externally managed certificates. cert-manager issues the root, identity issuer and webhook certificates. trust-manager distributes the public trust bundle from `cert-manager`. Keep root private keys out of public bundles. Root key rotation is disabled; renewal retains the existing key. Follow the [planned coordinated rotation procedure](../todo.md#linkerd-root-key-rotation) before changing that behavior. Use a Linkerd CLI matching the deployed control plane.
 
@@ -169,6 +179,14 @@ The pinned chart defaults `graylog.config.selfSignedStartup` to `"true"`, enabli
 Provide a default ReadWriteOnce StorageClass. Baseline volumes are MongoDB `8Gi` data plus `2Gi` logs, Graylog `8Gi`, and Data Node `8Gi`. Hosts need `vm.max_map_count >= 262144` and must meet MongoDB's platform requirements. Memory requests include Graylog `1Gi`, Data Node `3.5Gi` and MongoDB `1Gi`, plus agent/operator overhead. They are not usage limits. The stack is single-instance and has no configured backups.
 
 The MongoDB Application must receive a full sync. Its bootstrap Job generates credentials, waits for the operator connection URI, and creates Graylog's external Secret. Selective resource sync skips hooks. Later full syncs preserve existing Secrets; the Job does not rotate credentials or recover deleted Secrets for existing data. Back up those Secrets with the database. MongoDB's readiness RBAC names `mongodb-0`; extend it deliberately when adding members.
+
+The Graylog Job runs [bootstrap.cs](../infrastructure/graylog/mongodb/bootstrap.cs) from a hashed source ConfigMap. Its mounted NuGet configuration enables nuget.org for startup restore. The source and root filesystem stay read-only. Downloaded packages and SDK output use the existing bounded 512 MiB `/tmp` volume. Limits remain one CPU and 512 MiB of memory. The Job keeps its 20-minute deadline and polls for the operator URI every five seconds for up to 15 minutes. Verify startup timing and these resource limits with the transitive dependencies in staging.
+
+The C# bootstrap preserves existing Secrets and rejects partial credential sets. Passwords use cryptographic random bytes. The administrator password is stored separately and hashed with SHA-256 for Graylog. The operator's connection URI is copied unchanged. API calls verify the mounted CA bundle and server hostname. Each request reads the current service account token. Errors do not log credentials or response bodies. RBAC still permits only named Secret reads and Secret creation.
+
+During the operator URI wait, HTTP 5xx responses and request timeouts retry after the existing five-second delay within the original 15-minute deadline. HTTP 401/403, malformed Secret values and failures outside that polling read remain fatal. Retries never regenerate passwords or restart the deadline.
+
+[DRN.Framework.Testing tests](../tests/ApplicationSecretBootstrap.Tests/GraylogBootstrapTests.cs) cover credential lifecycle and polling through a fake API and clock. Develop and master CI build both standalone bootstrap files and run their tests with coverage and SonarCloud analysis. These tests do not establish live TLS behavior. Automatic pruning remains disabled. Remove old source ConfigMaps only after confirming no Job references them. Source ConfigMaps contain code and NuGet configuration, never generated credentials.
 
 The initial root sync can wait while Graylog setup needs human input. Forward its private UI:
 

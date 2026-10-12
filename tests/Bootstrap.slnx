@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Bootstrap.Sources/Bootstrap.Sources.csproj" />
+  <Project Path="ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj" />
+</Solution>

@@ -29,11 +29,11 @@ Deploy [DRN Project](https://github.com/duranserkan/DRN-Project) Sample and Nexu
 
 ## About Project, Kubernetes and Argo CD
 
-The [Distributed Reliable .Net](https://github.com/duranserkan/DRN-Project?tab=readme-ov-file#drn-project) project is committed to following best practices, ensuring that the end result is always satisfying and worth the effort. While not adhering blindly, the project emphasizes the importance of implementing best practices, particularly evident in its Continuous Integration part of the DevSecOps pipeline.
+The [Distributed Reliable .Net](https://github.com/duranserkan/DRN-Project?tab=readme-ov-file#drn-project) project follows best practices without following them blindly. The result should feel satisfying and worth the effort. Its Continuous Integration setup reflects this approach to DevSecOps.
 
-It should do the same with Continuous Deployment and Delivery. However, deciding a good delivery and deployment practice for many cases and being reasonable upfront is challenging task. The solution must be flexible and complexity should be manageable. Therefore, Kubernetes is the obvious answer :)
+It should do the same with Continuous Deployment and Delivery. Finding a practical approach that works across many cases is hard. The solution must stay flexible and manageable. Therefore, Kubernetes is the obvious answer :)
 
-To be honest, this project initially avoided and resisted Kubernetes due to its complexity and maintenance issues, despite admiring its flexibility and sense of control. However, despite these reservations, Kubernetes cannot be ignored. As a de-facto standard for cloud-native development, embracing Kubernetes is crucial to avoid vendor lock-in.
+To be honest, this project initially avoided and resisted Kubernetes. Its complexity and maintenance demands were hard to welcome. Its flexibility and sense of control were appealing, though. Despite these reservations, Kubernetes cannot be ignored. As a cloud-native standard, it helps avoid vendor lock-in.
 
 It was puzzling, like trying to find a generalized solution for [the Navier–Stokes equations.](https://en.wikipedia.org/wiki/Navier–Stokes_equations) Therefore, the solution can also be simplified if certain reasonable assumptions can be made, similar to how all true-hearted, humble engineers solve the Navier–Stokes equations under specific conditions.
 
@@ -41,9 +41,9 @@ It was puzzling, like trying to find a generalized solution for [the Navier–St
 - Use managed databases or services outside of cluster for stateful data.
 - Don't apply manifests and configurations by yourself and version control your changes
 
-[Argo CD](https://argo-cd.readthedocs.io/en/stable/) handles the final aspect through GitOps, while the first two assumptions aim to simplify the management of complexity and maintenance for small teams or projects.
+[Argo CD](https://argo-cd.readthedocs.io/en/stable/) handles the last point through GitOps. The first two choices help small teams keep complexity and maintenance manageable.
 
-These remain design preferences. The current staging setup includes in-cluster PostgreSQL and Graylog's data services. Production application databases are provisioned separately. Administrators still install Argo CD and apply the reviewed bootstrap and environment roots. Argo CD manages the resources beneath those roots, as described in the deployment guidance below.
+These are design preferences. Staging currently runs PostgreSQL and Graylog's data services inside the cluster. Production application databases are provisioned separately. Administrators still install Argo CD and apply the reviewed bootstrap and environment roots. Argo CD then manages the resources beneath those roots. The deployment guidance below explains this setup.
 
 ## Tools
 
@@ -73,24 +73,24 @@ Checked items describe repository configuration, not verified production readine
 
 ## Deployment model
 
-This repository deploys staging and production only. Development is reserved for local application work outside this GitOps repository. Each deployment environment has a **separate Kubernetes cluster and its own Argo CD installation**. Apply exactly one environment root per cluster. Each uses the same platform names and `drn-project` workload namespace. These roots cannot coexist in one cluster.
+This repository deploys staging and production only. Develop applications locally, outside this GitOps repository. Each environment has a **separate Kubernetes cluster and its own Argo CD installation**. Apply exactly one environment root per cluster. Both roots use the same platform names and `drn-project` workload namespace. They cannot coexist in one cluster.
 
-The project uses Kubernetes `1.36.4` for testing. The pinned Linkerd charts require Kubernetes 1.31 or newer, but that component minimum is not a compatibility baseline for the whole stack.
+The project uses Kubernetes `1.36.4` for testing. The pinned Linkerd charts require Kubernetes 1.31 or newer. That minimum applies to Linkerd alone. It does not establish compatibility for the whole stack.
 
 | Environment | Root | DRN environment | Accepted GitOps tags | Database migrations |
 |---|---|---|---|---|
 | stage | [apps/staging/application.yaml](apps/staging/application.yaml) | Staging | Preview or final | `AutoMigrateStaging=true`, no prototype recreation |
 | prod | [apps/production/application.yaml](apps/production/application.yaml) | Production | Final only | Explicit migration process, never startup migration |
 
-Initially operate staging as a rolling beta. Production is disabled: its root sets `enableProduction=false`, and chart rendering fails until explicitly enabled. Do not apply the prod root during beta. Its overlays prepare for later activation and do not establish production readiness.
+Start with staging as a rolling beta. Production is disabled through `enableProduction=false` in its root. The production chart will not render until you enable it. Do not apply the prod root during beta. Its overlays prepare for later activation but do not establish production readiness.
 
-Use `develop` as the integration branch. Merge reviewed topic PRs into `develop`, then promote releases through a `develop → master` PR. Publish preview releases from `develop` and normal final releases from `master`. The integration branch remains even though there is no development deployment environment. Deploy immutable calendar tags:
+Use `develop` as the integration branch. Merge reviewed topic PRs into `develop`. Promote releases through a `develop → master` PR. Publish previews from `develop` and final releases from `master`. The `develop` branch does not represent a deployed environment. Deploy immutable calendar tags:
 
 - `2026.10.1-preview001`: first candidate from `develop` for October's first release.
 - `2026.10.1-preview002`: a changed candidate from `develop`, with a new tag.
 - `2026.10.1`: final release from `master`.
 
-The format is `YYYY.M.sequence[-previewNNN]`, with an unpadded month, a positive release sequence and a three-digit preview number from `001` through `999`. Deployment roots select immutable tags rather than moving branch heads. Protect tags against updates and deletion. Roots use `refs/tags/...` to avoid branch/tag ambiguity. The chart validates tag shape and rejects previews for prod; it does not create tags or configure repository rulesets.
+Use the format `YYYY.M.sequence[-previewNNN]`. Leave the month unpadded and use a positive release sequence. Preview numbers have three digits, from `001` through `999`. Deployment roots select immutable tags. Protect those tags against updates and deletion. Roots use `refs/tags/...` to distinguish tags from branches. The chart checks the tag format and rejects previews for prod. It does not create tags or configure repository rulesets.
 
 ## One snapshot for every application
 
@@ -98,15 +98,15 @@ The format is `YYYY.M.sequence[-previewNNN]`, with an unpadded month, a positive
 
 Keep standalone resources in their component directories and chart-owned `extraObjects` in Helm values. See [resource organization](docs/platform-operations.md#resource-organization) for file conventions.
 
-The root selects a tag once. Argo CD supplies its resolved commit through `$ARGOCD_APP_REVISION`, and every Git-backed child uses that SHA. `$ARGOCD_APP_SOURCE_TARGET_REVISION` supplies the tag for validation. Linkerd and cert-manager children are flattened into this chart. This uses native [Argo CD Helm build variables](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#build-environment), with no custom plugin or deployment script.
+The root selects a tag once. Argo CD passes the resolved commit through `$ARGOCD_APP_REVISION`. Every child with a Git source uses that SHA. `$ARGOCD_APP_SOURCE_TARGET_REVISION` supplies the tag for validation. The chart includes the Linkerd and cert-manager child Applications directly. It uses native [Argo CD Helm build variables](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#build-environment). No custom plugin or deployment script is needed.
 
 Upstream Helm chart versions and container digests remain independent pins. GitOps tags do not trigger DRN Project's image publishing workflow or rename images. Sample and Nexus use `0.10.1-preview003` digest pins. A final GitOps tag alone does not certify those images for production.
 
-Root selections under `apps/` are administrator-applied control configuration. Each root loads only `deployment/` from its selected tag. Updating a selection on a branch therefore does not alter the tagged payload. Record selection changes through the branch review flow, apply the selected root to its cluster, and explicitly sync it. Root auto-sync is absent; children reconcile their selected sources.
+Administrators apply the root configurations under `apps/`. Each root loads only `deployment/` from its selected tag. Changing that selection on a branch does not alter the tagged files. Review selection changes through the branch workflow. Then apply the root to its cluster and sync it explicitly. Roots do not auto-sync. Their children reconcile the selected sources.
 
 ## Bootstrap a cluster
 
-These instructions target fresh installations. No migration from the former local-only layout is provided. Provide a NetworkPolicy-enforcing CNI, default persistent StorageClass, and the capacity/host settings described in [platform operations](docs/platform-operations.md).
+These instructions cover fresh installations. They do not provide a migration from the former local-only layout. Use a CNI that enforces NetworkPolicy and a default StorageClass for persistent storage. Follow [platform operations](docs/platform-operations.md) for capacity and host settings.
 
 ### Install local tools
 
@@ -116,7 +116,7 @@ On macOS with [Homebrew](https://formulae.brew.sh/), install the command-line to
 brew install kubernetes-cli helm argocd kubeseal linkerd
 ```
 
-Homebrew installs its current versions. Use the [Argo CD `v3.5.4` release](https://github.com/argoproj/argo-cd/releases/tag/v3.5.4) and [Linkerd `edge-26.10.1` release](https://github.com/linkerd/linkerd2/releases/tag/edge-26.10.1) for clients matching this deployment. On other platforms, use the corresponding upstream installation instructions. `kubeseal` is needed when preparing Sealed Secrets.
+Homebrew installs its current versions. To match this deployment, use the [Argo CD `v3.5.4` client](https://github.com/argoproj/argo-cd/releases/tag/v3.5.4) and [Linkerd `edge-26.10.1` client](https://github.com/linkerd/linkerd2/releases/tag/edge-26.10.1). On other platforms, follow the upstream installation instructions. Use `kubeseal` to prepare Sealed Secrets.
 
 Check the tools and intended cluster before installing Argo CD:
 
@@ -142,7 +142,7 @@ helm install argocd argo/argo-cd --version 10.10.2 \
   --create-namespace -n argocd --wait --timeout 10m
 ```
 
-For Argo CD HA with at least three workers, use `custom-values-ha.yaml` instead. This chart installs Argo CD `v3.5.4`. Both values files include the child Application health customization needed by root sync waves. Authenticated users receive no default resource grants. Configure explicit administrator/project access and restrict the built-in default project:
+For a highly available Argo CD setup, use `custom-values-ha.yaml` with at least three workers. This chart installs Argo CD `v3.5.4`. Both values files include the child Application health checks needed by root sync waves. Authenticated users have no resource access by default. Grant administrator and project access explicitly. Restrict the built-in default project:
 
 ```sh
 kubectl apply -f infrastructure/argocd/default-project.yaml
@@ -150,7 +150,7 @@ kubectl apply -f apps/bootstrap-project.yaml
 kubectl -n argocd port-forward svc/argocd-server 8080:443
 ```
 
-Keep the port-forward running in a separate terminal. In another terminal, use the CLI matching Argo CD `v3.5.4` to retrieve the initial `admin` password from the cluster:
+Keep the port-forward running in a separate terminal. Open another terminal with the Argo CD `v3.5.4` CLI. Retrieve the initial `admin` password from the cluster:
 
 ```sh
 argocd admin initial-password -n argocd
@@ -168,7 +168,7 @@ The default server certificate is self-signed. For this local port-forward, veri
 argocd account update-password
 ```
 
-The initial password does not track later password changes. If it no longer works or the initial Secret has been deleted, use the current admin password or follow the [official admin password reset procedure](https://argo-cd.readthedocs.io/en/stable/faq/#i-forgot-the-admin-password-how-do-i-reset-it). See [Argo CD's login instructions](https://argo-cd.readthedocs.io/en/stable/getting_started/#4-login-using-the-cli).
+The initial password does not change when you update the admin password. Use the current password if the initial one no longer works or its Secret was deleted. If needed, follow the [official admin password reset procedure](https://argo-cd.readthedocs.io/en/stable/faq/#i-forgot-the-admin-password-how-do-i-reset-it). See [Argo CD's login instructions](https://argo-cd.readthedocs.io/en/stable/getting_started/#4-login-using-the-cli).
 
 ### Install platform dependencies and workloads
 
@@ -183,7 +183,8 @@ The environment root now installs the dependencies that the previous layout requ
 | 5 | Namespace isolation and Linkerd Viz |
 | 6 | Traefik, Grafana and MongoDB |
 | 7 | Graylog and staging PostgreSQL |
-| 8 | Nexus, then Sample |
+| 8 | Staging application Secrets |
+| 9 | Nexus, then Sample |
 
 Gateway API installation is included through the `gateway-api` Application. Traefik's Gateway API provider is already enabled in its chart values. Later waves wait for earlier Applications to satisfy the deployment completion gate described below and become healthy. Use the root flow below instead of the removed per-component `kubectl apply` paths.
 
@@ -207,37 +208,42 @@ argocd app list
 
 An Application in a later wave may not exist until earlier waves complete. Inspect the blocking child in the root's resource tree. Complete the secret and Graylog setup below before expecting the root to become healthy. After setup, run the [readiness checks](docs/platform-operations.md#readiness-checks). See [Grafana and secrets](docs/platform-operations.md#grafana-and-secrets) for dashboard access and sealing commands.
 
-Follow the required [stage secret configuration](docs/staging-configuration.md). Isolation creates `drn-project`, and PostgreSQL creates credentials before the workload waves. Stage workloads mount the generated PostgreSQL password file and public CA directly; no database credential copying is required. During first stage bootstrap, provision `sample-settings` and `nexus-settings` with the application seed/key material and allowed hosts. Workload pods cannot start without them. If root sync times out waiting for configuration or Graylog setup, finish those prerequisites and sync again.
+Follow the [stage secret configuration](docs/staging-configuration.md). Isolation creates `drn-project`. PostgreSQL creates credentials before the workload waves. Stage workloads mount the generated PostgreSQL password file and public CA directly. No database credential copying is required.
 
-Graylog setup can require operator interaction. The child gate requires deployment hooks to complete for the current source and revision plus healthy resources before releasing later root waves. Successful automatic self-heals pass when matching automated deployment history proves that completion. A new revision with unchanged manifests may require an explicit full child sync. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for gate rules and upgrade instructions. Waves are not transactions and do not serialize independent child auto-syncs on later updates. Check child sync revisions and health before declaring success.
+The staging `application-secrets` bootstrap creates `sample-settings` and `nexus-settings` before Nexus starts. It generates random DRN-compatible seeds and a shared Nexus key. Existing values are preserved. Generated allowed hosts cover local access and service DNS names. Configure your ingress hostname before public access. Root sync may time out while waiting for configuration or Graylog setup. Finish those steps and sync again.
+
+Graylog setup may need your input. The child gate requires healthy resources and completed deployment hooks before later root waves can proceed. Those hooks must have completed for the current source and revision. Successful automatic self-heals pass when matching automated deployment history proves this. A new revision may need a full child sync even when its manifests are unchanged. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for gate rules and upgrade instructions.
+
+Waves are not transactions. On later updates, children can auto-sync independently without following the root's wave order. Check each child's sync revision and health before declaring success.
 
 If Gateway API shows **Synced / Degraded: CRD is not established**, inspect its Kubernetes conditions before continuing. Synced alone does not mean the API is available. Follow [Gateway API CRD troubleshooting](docs/platform-operations.md#gateway-api-crd-troubleshooting).
 
 Root templates use numbered directories under `deployment/templates/` with matching sync-wave annotations. The annotations control deployment order. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for wave allocation.
 
-Sample and Nexus use their anonymous WeatherForecast endpoints for startup, readiness and liveness probes on an internal HTTP/1 listener at port `8081`. Their Services continue to use h2c. Stage/prod `AllowedHosts` Secrets must include `sample` and `nexus` for their respective probe Host headers. These checks verify application responsiveness, not database or downstream availability. See [workload health probes](docs/platform-operations.md#workload-health-probes) for paths, timings and rollout requirements.
+Sample and Nexus use their anonymous WeatherForecast endpoints for startup, readiness and liveness probes. These probes use an internal HTTP/1 listener on port `8081`. Their Services continue to use h2c. In stage and prod, each application's `AllowedHosts` Secret must allow its probe Host header. Use `sample` for Sample and `nexus` for Nexus. The probes check application responsiveness. They do not check database or downstream availability. See [workload health probes](docs/platform-operations.md#workload-health-probes) for paths, timings and rollout requirements.
 
 Do not recursively apply `apps/`, apply `deployment/templates/` as raw YAML, or deploy workload bases directly. The bootstrap project manages AppProjects and Applications in `argocd`, which grants indirect administrative authority. Restrict it and its source files to administrators. Infrastructure children own namespaces. The workload project cannot create namespaces, Secrets, RBAC, NetworkPolicies or Linkerd authorization policies.
 
 ## Promote and roll back
 
 1. Merge reviewed changes into `develop`. Wait for CI on the exact commit.
-2. Publish a new preview tag at that `develop` commit. Wait for its tag scan. Update staging's `targetRevision`, record the selection in Git, apply the staging root and sync it.
+2. Publish a new preview tag at that `develop` commit. Wait for its tag scan. Update staging's `targetRevision` and record the selection in Git. Apply the staging root and sync it.
 3. Validate the snapshot in staging. Verify migrations, routing, authentication, database access and logs.
 4. For another change, publish a new preview sequence. Never move a tag.
 5. When a final release is needed, promote the reviewed candidate through `develop → master`. Preserve the tested image digests and wait for CI on the resulting `master` commit.
-6. Publish the final tag from `master` and wait for its tag scan. If merging created a new commit, select that final tag in staging and validate the exact snapshot. Once the snapshot is validated and production prerequisites are complete, select the same final tag in prod, explicitly enable production in its root and sync against its separate cluster.
+6. Publish the final tag from `master` and wait for its tag scan. If merging created a new commit, select the final tag in staging. Validate that exact snapshot.
+7. Complete the production prerequisites. Select the same validated final tag in prod. Explicitly enable production in its root. Sync it against the separate production cluster.
 
 During rolling beta, repeat steps 1 through 4. A final tag or prod deployment is not required for each iteration. Production uses its own overlay of the validated snapshot.
 
-Rollback selects a previous immutable tag and syncs the root. It reverts desired manifests and image pins, not database contents. Startup migrations and retained database resources mean a code rollback can require a compatible forward fix or verified database recovery. An older application may not support a newer schema.
+Rollback selects a previous immutable tag and syncs the root. It reverts desired manifests and image pins. It does not restore database contents. Startup migrations and retained database resources can complicate a code rollback. You may need a compatible forward fix or verified database recovery. An older application may not support a newer schema.
 
 ## Production activation prerequisites
 
 - Select approved image digests and platform settings in a candidate snapshot. Existing preview images and single-instance stateful services are not certified production defaults.
 - Provision production databases separately, with verified backups, restore, availability and migrations. The chart includes the PostgreSQL Cluster only in staging. Supply explicit connections and trusted database CA certificates through required secrets.
 - Configure hostnames, edge TLS and authentication. Current Traefik exposes cleartext HTTP. Linkerd mTLS protects meshed cluster traffic, not the public edge. Complete edge TLS before exposing real beta or production credentials publicly.
-- Review namespace trust, admission and delegated access. Traefik and workloads share `drn-project`; workload creators are trusted with that namespace's identities and secrets.
+- Review namespace trust, admission and delegated access. Traefik and workloads share `drn-project`. Workload creators are trusted with that namespace's identities and secrets.
 - Exercise the production overlay, migration process, recovery and operational checks before changing `enableProduction`.
 
 The enable flag does not perform these readiness tasks.
@@ -258,73 +264,49 @@ Ingress policies protect `drn-project`, `graylog` and `grafana` independently in
 
 Traefik starts with Linkerd's default inbound policy `deny`. Its public web Server grants unauthenticated HTTP/1.1 only on the web listener. TCP4143 does not grant access to its other application ports. Automatic health-probe authorization is separate. Dashboard and public websecure exposure remain disabled.
 
-Other meshed destinations require trusted identities. Graylog's TCP4143 allowance also exposes its authenticated API to trusted workload callers; it is not GELF-only authorization. Native database authentication/TLS remain required. Node traffic and API-authorized port-forwarding need separate controls. The MongoDB webhook exception preserves API-server admission until reliable source CIDRs are known.
+Other meshed destinations require trusted identities. Graylog's allowance for TCP port 4143 covers more than GELF. It also lets trusted workloads reach Graylog's authenticated API. Native database authentication and TLS remain required. Node traffic and API-authorized port-forwarding need separate controls. The MongoDB webhook exception preserves API-server admission until reliable source CIDRs are known.
 
-Sample and Nexus retain non-root containers, read-only root filesystems, dedicated service accounts, disabled API-token mounting and no application RBAC grants. Writable `emptyDir` data/logs are lost on pod removal. Namespace workload creators can mount its secrets. See [remaining hardening work](todo.md#namespace-isolation).
+Sample and Nexus run as non-root users with read-only root filesystems. They use dedicated service accounts. API tokens are not mounted, and applications have no RBAC grants. Data and logs in writable `emptyDir` volumes are lost when a pod is removed. Workload creators can mount secrets in their namespace. See [remaining hardening work](todo.md#namespace-isolation).
 
 ## Connection encryption and certificates
 
 Linkerd mTLS encrypts traffic between proxies and authenticates both workload identities. Applications can still use internal `http://` URLs. Native TLS is handled by the destination application itself. Namespace policies control reachability but do not provide encryption. Application login and database credentials remain required independently of transport encryption.
 
-| Connection | Current protection |
-|---|---|
-| Public client → Traefik | Plain HTTP. Public HTTPS is not configured yet. |
-| Traefik → Sample; Sample → Nexus | Linkerd mTLS between the meshed pods. Backend application listeners use h2c. |
-| Sample/Nexus → Graylog GELF input (`12201`) | Linkerd mTLS. The internal GELF URL remains `http://`. |
-| Permitted meshed caller → Graylog UI/API (`9000`) | Linkerd mTLS. Graylog login/API authorization still applies. |
-| Browser → Graylog through `kubectl port-forward` | Local HTTP carried through Kubernetes' authenticated port-forward tunnel. This path is not Linkerd mTLS. |
-| Sample/Nexus → PostgreSQL (`5432`) | Native TLS is required. PostgreSQL is unmeshed. Stage/prod must use certificate verification and a trusted CA. |
-| Graylog/Data Node → MongoDB (`27017`) | Native TLS with server certificate verification and SCRAM authentication. MongoDB and Data Node are unmeshed. |
-| Graylog → Data Node API (`8999`) and OpenSearch (`9200`) | Native TLS using Data Node's automatically generated self-signed certificates. The chart enables this startup mode by default; manual CA provisioning is not required. This is distinct from a managed CA trust and renewal policy. |
-| Kubelet → Sample/Nexus health listener (`8081`) | HTTP probes to the Pod IP, not workload-to-workload mTLS. The port is not published by a Service or Gateway. |
+| Connection                                               | Current protection                                                                                                                                                                                                                  |
+|----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Public client → Traefik                                  | Plain HTTP. Public HTTPS is not configured yet.                                                                                                                                                                                     |
+| Traefik → Sample. Sample → Nexus                         | Linkerd mTLS between the meshed pods. Backend application listeners use h2c.                                                                                                                                                        |
+| Sample/Nexus → Graylog GELF input (`12201`)              | Linkerd mTLS. The internal GELF URL remains `http://`.                                                                                                                                                                              |
+| Permitted meshed caller → Graylog UI/API (`9000`)        | Linkerd mTLS. Graylog login/API authorization still applies.                                                                                                                                                                        |
+| Browser → Graylog through `kubectl port-forward`         | Local HTTP carried through Kubernetes' authenticated port-forward tunnel. This path is not Linkerd mTLS.                                                                                                                            |
+| Sample/Nexus → PostgreSQL (`5432`)                       | Native TLS is required. PostgreSQL is unmeshed. Stage/prod must use certificate verification and a trusted CA.                                                                                                                      |
+| Graylog/Data Node → MongoDB (`27017`)                    | Native TLS with server certificate verification and SCRAM authentication. MongoDB and Data Node are unmeshed.                                                                                                                       |
+| Graylog → Data Node API (`8999`) and OpenSearch (`9200`) | Native TLS with automatically generated self-signed certificates. The chart enables this startup mode by default. Manual CA provisioning is not required. Managed CA trust and renewal need separate configuration. |
+| Kubelet → Sample/Nexus health listener (`8081`)          | HTTP probes to the Pod IP, not workload-to-workload mTLS. The port is not published by a Service or Gateway.                                                                                                                        |
 
 Certificate issuance and renewal have separate owners:
 
-| Certificates | Issuance | Renewal in this setup |
-|---|---|---|
-| Linkerd workload identities | Linkerd issues short-lived certificates to its proxies. | Linkerd automatically rotates them. The default lifetime is 24 hours. |
-| Linkerd issuer and admission webhooks | cert-manager issues them from the repository's trust anchor. | cert-manager renews them automatically: configured lifetime `24000h`, renewal `73h` before expiry. |
-| Shared trust anchor | cert-manager creates the self-signed root used by Linkerd and MongoDB. | Configured lifetime `175200h`, renewal `87600h` before expiry. Root certificate renewal retains its private key (`rotationPolicy: Never`). Replacing the root key requires a coordinated trust rollout. |
-| MongoDB server | cert-manager issues it from the shared trust anchor. trust-manager distributes the CA in PEM and Java PKCS12 formats to Graylog and Data Node. | Automatic renewal: 90-day lifetime, 30 days before expiry, with a new private key on reissuance. Restart the Java clients after CA trust changes. |
-| Staging PostgreSQL | CloudNativePG generates its own CA and database certificates. | CloudNativePG automatically renews its managed certificates. Production database certificates belong to the separately provisioned database. |
-| Data Node API and OpenSearch | Data Node generates self-signed certificates during automatic startup. | No automatic rotation policy is configured. The pinned Graylog version gives these certificates a validity of `99 × 365` days. Managed CA issuance and renewal remain outside the current beta scope. |
+| Certificates                          | Issuance                                                                                                                                       | Renewal in this setup                                                                                                                                                                                   |
+|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Linkerd workload identities           | Linkerd issues short-lived certificates to its proxies.                                                                                        | Linkerd automatically rotates them. The default lifetime is 24 hours.                                                                                                                                   |
+| Linkerd issuer and admission webhooks | cert-manager issues them from the repository's trust anchor.                                                                                   | cert-manager renews them automatically: configured lifetime `24000h`, renewal `73h` before expiry.                                                                                                      |
+| Shared trust anchor                   | cert-manager creates the self-signed root used by Linkerd and MongoDB.                                                                         | Configured lifetime `175200h`, renewal `87600h` before expiry. Root certificate renewal retains its private key (`rotationPolicy: Never`). Replacing the root key requires a coordinated trust rollout. |
+| MongoDB server                        | cert-manager issues it from the shared trust anchor. trust-manager distributes the CA in PEM and Java PKCS12 formats to Graylog and Data Node. | Automatic renewal: 90-day lifetime, 30 days before expiry, with a new private key on reissuance. Restart the Java clients after CA trust changes.                                                       |
+| Staging PostgreSQL                    | CloudNativePG generates its own CA and database certificates.                                                                                  | CloudNativePG automatically renews its managed certificates. Production database certificates belong to the separately provisioned database.                                                            |
+| Data Node API and OpenSearch          | Data Node generates self-signed certificates during automatic startup.                                                                         | No automatic rotation policy is configured. The pinned Graylog version gives these certificates a validity of `99 × 365` days. Managed CA issuance and renewal remain outside the current beta scope.   |
 
-trust-manager distributes public trust material; it does not issue certificates. Existing controllers handle automatic renewal where noted, without custom renewal jobs. Staging mounts the operator's public PostgreSQL CA directly. Production CA copies in application Secrets remain administrator-managed. Roll out affected applications after database credential or CA rotation and verify new connections.
+trust-manager distributes public trust material. It does not issue certificates. Existing controllers handle automatic renewal where noted. No custom renewal jobs are needed. Staging mounts the operator's public PostgreSQL CA directly. Administrators manage production CA copies in application Secrets. After database credential or CA rotation, roll out affected applications. Verify new connections.
 
 These are configured behaviors, not evidence of a verified running deployment. See [platform operations](docs/platform-operations.md) for startup, trust changes and runtime checks. Upstream references: [Linkerd mTLS](https://linkerd.io/docs/features/automatic-mtls/), [CloudNativePG certificates](https://cloudnative-pg.io/docs/devel/certificates/), [pinned Graylog chart startup setting](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), and [Data Node self-signed certificate lifetime](https://github.com/Graylog2/graylog2-server/blob/7.1.10/data-node/src/main/java/org/graylog/datanode/configuration/DatanodeKeystore.java).
 
 ### Post-quantum support in the pinned deployment
 
-Post-quantum key exchange and post-quantum certificate authentication are separate capabilities. Our mesh already enables the former through Linkerd's upstream defaults. The deployment does not provide post-quantum certificates or post-quantum protection for every connection.
-
-| Component / connection | Finding and action |
-|---|---|
-| Linkerd `edge-26.10.1`, proxy `v2.370.0` | The standard proxy's TLS 1.3 provider prefers hybrid `X25519MLKEM768`. It is already enabled for compatible meshed peers. Preserve this default; no extra Helm value is needed. Classical fallback remains supported. |
-| Linkerd certificate authentication | The pinned proxy uses ECDSA P-256 signatures. Hybrid key exchange does not make these signatures post-quantum. |
-| cert-manager `v1.21.2` | Its Certificate API supports RSA, ECDSA and Ed25519 keys, not post-quantum certificate keys. Keep the supported certificate configuration. |
-| Graylog `7.1.10` native connections to MongoDB and Data Node | The published Graylog image uses Java 21. Upstream JSSE hybrid TLS key exchange arrives in JDK 27, so adding a named-group flag to this runtime is not an enablement path. Leave native TLS unchanged. |
-| MongoDB `8.2.12-ubi8` | No supported end-to-end PQ setting was established for this pinned server and its Java clients. Linux MongoDB relies on OpenSSL; a newer MongoDB version number alone does not establish PQ support. |
-| PostgreSQL `18.6`, `standard-trixie` image | The selected image uses Debian Trixie. Its runtime TLS library and end-to-end hybrid key exchange with the application clients have not been verified. The database version and OS change alone do not establish PQ support. |
-| Public ingress | Traefik currently exposes HTTP, so there is no public TLS key exchange to make post-quantum. |
-
-No image upgrades, custom cryptographic providers, extra sidecars or certificate algorithm changes were introduced for PQ support. Runtime libraries inside the pinned database images and actual negotiated connections have not been inspected in a running cluster. After deployment, check Linkerd's reported TLS key-exchange metrics for the hybrid group before claiming that a particular connection uses it. A replacement FIPS proxy build needs a separate check: the pinned source's FIPS branch lists classical groups only.
-
-Evidence: the [pinned Linkerd proxy version](https://github.com/linkerd/linkerd2/blob/edge-26.10.1/.proxy-version) resolves to the [proxy crypto implementation](https://github.com/linkerd/linkerd2-proxy/blob/release/v2.370.0/linkerd/rustls/src/crypto.rs). See also the [cert-manager key API](https://github.com/cert-manager/cert-manager/blob/v1.21.2/pkg/apis/certmanager/v1/types_certificate.go), [Graylog image runtime](https://github.com/Graylog2/graylog-docker), [JDK 27 TLS enhancement](https://inside.java/2026/09/16/jdk27-security-enhancements/), [MongoDB TLS libraries](https://www.mongodb.com/docs/manual/core/security-transport-encryption/), and [OpenSSL 3.5 hybrid groups](https://docs.openssl.org/3.5/man3/SSL_CONF_cmd/).
+The [pinned standard Linkerd proxy](https://github.com/linkerd/linkerd2-proxy/blob/release/v2.370.0/linkerd/rustls/src/crypto.rs) prefers hybrid `X25519MLKEM768` key exchange by default. No extra configuration is needed. Certificate authentication remains classical. Post-quantum protection for native database and Graylog TLS is unverified. Public ingress currently uses HTTP. Check the negotiated mesh key exchange at runtime before claiming protection for a connection.
 
 ## Continuous integration
 
-| Workflow | Trigger | Checks |
-|---|---|---|
-| `pull-request` | PRs into `develop` or `master` | Trivy and CodeQL, without repository secrets |
-| `develop` | Push to `develop` | Trivy, SonarCloud and CodeQL |
-| `develop` | Calendar-shaped preview tag push | Trivy |
-| `master` | Push to `master`, Sunday 13:29 UTC | Trivy, SonarCloud and CodeQL |
-| `master` | Calendar-shaped non-preview tag push | Trivy |
+[Develop and master workflows](.github/workflows/) call the same CI workflow. Both build the standalone credential bootstraps, run their DRN.Framework.Testing unit tests with coverage, and submit .NET and configuration analysis to SonarCloud. GitHub reporter `2.5.1` displays test and coverage results in the job summary. The coverage XML is retained as an artifact for 14 days. A shared gatekeeper requires tests, the Sonar quality gate, Trivy and CodeQL to pass. Master also runs weekly. See [test and CI configuration](tests/ApplicationSecretBootstrap.Tests/README.md) for coverage scope, `SONAR_TOKEN`, SonarCloud setup and required-check migration.
 
-Tag triggers are broad GitHub globs. Strict deployment tag validation belongs to the chart. Preview tags must point to commits on `develop`; final tags must point to commits on `master`. Verify branch membership before publishing because tag filters route scans without enforcing ancestry. CI neither creates tags nor deploys clusters. SonarCloud and CodeQL remain branch checks; deployment tags must identify commits whose checks passed. Tag scans cannot cancel branch scans.
-
-Trivy scans vulnerabilities, secrets and infrastructure misconfigurations; HIGH/CRITICAL findings fail. SARIF uploads when available, including scan failures. SonarCloud requires `SONAR_TOKEN` and waits up to 600 seconds for its quality gate. CodeQL analyzes Actions without an application build. Existing actions remain SHA-pinned, checkouts disable persisted credentials, and jobs retain scoped permissions/timeouts. Dependabot targets `develop`.
-
-Configure required checks, code-scanning gates, CODEOWNERS enforcement and immutable tag rulesets in repository settings. Static source review does not establish those external settings are active.
+PR workflows run secretless Trivy and CodeQL scans. Release tag pushes run Trivy only. Before tagging, check that the commit passed branch checks. It must belong to `develop` for previews or `master` for final releases. CI does not create tags or deploy clusters. Configure required checks and immutable tag rules in repository settings.
 
 See [platform operations](docs/platform-operations.md), [staging configuration](docs/staging-configuration.md), and [planned work](todo.md).

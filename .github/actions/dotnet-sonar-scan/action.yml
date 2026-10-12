@@ -1,0 +1,96 @@
+name: Dotnet Sonar Scan
+description: Build both standalone bootstraps, then analyze their source and collect unit-test coverage.
+inputs:
+  sonar-token:
+    description: SonarCloud authentication token.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+      with:
+        global-json-file: global.json
+
+    # Validate the deployed entry points before beginning project-based analysis.
+    - name: Build application deployment source
+      shell: bash
+      run: >-
+        dotnet build infrastructure/application-secrets/stage/bootstrap.cs
+        --configuration Release --disable-build-servers
+        -p:PublishAot=false -p:NuGetAudit=false -p:UseSharedCompilation=false
+        -p:RestoreConfigFile="$GITHUB_WORKSPACE/infrastructure/application-secrets/stage/NuGet.Config"
+
+    - name: Build Graylog deployment source
+      shell: bash
+      run: >-
+        dotnet build infrastructure/graylog/mongodb/bootstrap.cs
+        --configuration Release --disable-build-servers
+        -p:PublishAot=false -p:NuGetAudit=false -p:UseSharedCompilation=false
+        -p:RestoreConfigFile="$GITHUB_WORKSPACE/infrastructure/graylog/mongodb/NuGet.Config"
+
+    - name: Restore test dependencies and audit vulnerabilities
+      shell: bash
+      run: >-
+        dotnet restore tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj
+        --configfile tests/NuGet.Config -p:Configuration=Release
+        -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
+
+    - name: Restore pinned SonarScanner
+      shell: bash
+      run: dotnet tool restore --configfile tests/NuGet.Config
+
+    - name: Begin Sonar analysis
+      shell: bash
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
+      run: >-
+        dotnet tool run dotnet-sonarscanner begin
+        /k:"duranserkan_DRN-Project-Argo-CD-Gitops" /o:"duranserkan"
+        /d:sonar.host.url="https://sonarcloud.io"
+        /d:sonar.token="$SONAR_TOKEN"
+        /d:sonar.projectBaseDir="$GITHUB_WORKSPACE"
+        /d:sonar.scanner.scanAll=true
+        /d:sonar.cs.vscoveragexml.reportsPaths="TestResults/coverage.xml"
+        /d:sonar.exclusions="**/bin/**,**/obj/**,TestResults/**,.agent/**"
+        /d:sonar.qualitygate.wait=true /d:sonar.qualitygate.timeout=600
+
+    - name: Build source library and tests
+      shell: bash
+      run: >-
+        dotnet build tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj
+        --no-restore --no-incremental --configuration Release
+        --disable-build-servers -p:UseSharedCompilation=false -p:ContinuousIntegrationBuild=true
+
+    - name: Run unit tests with coverage and GitHub summary
+      shell: bash
+      run: >-
+        dotnet run --project tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj
+        --no-build --configuration Release --
+        --report-gh --report-gh-step-summary-sections test-results coverage
+        --coverage --coverage-settings "$GITHUB_WORKSPACE/tests/bootstrap-coverage.config"
+        --coverage-output-format xml --coverage-output coverage.xml
+        --results-directory "$GITHUB_WORKSPACE/TestResults"
+
+    - name: Verify bootstrap coverage is present
+      shell: pwsh
+      run: |
+        $covered = Select-Xml -Path "$env:GITHUB_WORKSPACE/TestResults/coverage.xml" -XPath '//module[@name="Bootstrap.Sources.dll" and number(@lines_covered) > 0]'
+        if (-not $covered) {
+          throw 'Coverage report contains no covered Bootstrap.Sources.dll module.'
+        }
+
+    - name: Finish Sonar analysis and wait for quality gate
+      shell: bash
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
+      run: dotnet tool run dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+
+    - name: Upload coverage report
+      if: ${{ !cancelled() && hashFiles('TestResults/coverage.xml') != '' }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: bootstrap-coverage
+        path: TestResults/coverage.xml
+        if-no-files-found: error
+        retention-days: 14
