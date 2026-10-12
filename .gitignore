@@ -500,6 +500,7 @@ kubeconfig.*
 
 # Generated vulnerability scan report
 /trivy-results.sarif
+/.sonarqube/
 
 # Keep GitOps source files trackable: manifests, Helm values and lockfiles,
 # sealed secrets, public certificates, and deployment scripts.

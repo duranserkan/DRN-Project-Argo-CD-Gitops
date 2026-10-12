@@ -17,21 +17,41 @@ Staging retains the former development manifests' resource limits, pod security 
 
 Each service base supplies `common-settings.json`. The environment overlay adds `mounted-settings.json` to the same generated ConfigMap. Their configuration keys are disjoint because DRN does not specify mounted JSON file enumeration order. Common settings retain service ports, logging, app IDs, and existing resource limits. Image tags and digests remain pinned in the base Deployments.
 
-Stage and prod require separately provisioned `sample-settings` and `nexus-settings` Secrets in `drn-project`. These Secrets are not generated or checked in here. Required projected keys make missing configuration prevent pod startup.
+Both environments require `sample-settings` and `nexus-settings` Secrets in `drn-project`. Staging generates them on first installation through the `application-secrets` bootstrap described below. Production requires external provisioning. Secret values are never checked into Git. Required projected keys make missing configuration prevent pod startup.
 
 The application reads these settings at startup. Roll out affected pods after changing Secrets. Mounted JSON is loaded after key-per-file settings, so do not add secret-owned keys to either JSON file. Staging's password-free connection strings belong to its mounted JSON; production connection strings remain Secret-owned. Environment names are DRN settings, not image tag channels.
 
 ## Required stage and prod Secrets
 
-Provision each Secret through the cluster's trusted secret-management process. Double underscores in key names map to configuration separators. The following keys are required in **both** `sample-settings` and `nexus-settings`:
+For production or custom staging values, provision both Secrets through the cluster's trusted secret-management process. Double underscores in key names map to configuration separators. The following keys are required in **both** `sample-settings` and `nexus-settings`:
 
 | Secret key | Required value |
 |---|---|
 | `AllowedHosts` | Explicit semicolon-separated hostnames accepted by that service, without schemes or ports. Include `sample` for Sample and `nexus` for Nexus because kubelet probes send those Host headers. Retain the actual ingress hostname for Sample and other internal request hostnames where applicable. Configure these values before rolling out the probes. Do not use `*` for public staging or production. |
-| `DrnAppFeatures__SeedKey` | A secret seed distinct from DRN's built-in default and test sample. Keep it stable for the application's stored data and security configuration. |
+| `DrnAppFeatures__SeedKey` | A secret seed of 58 to 256 characters, distinct from DRN's built-in default and test sample. Include uppercase, lowercase, a digit and a permitted special character (`! * ( ) - _` or space). Use only letters, digits and those permitted characters. Avoid runs longer than four sequential characters or three identical characters. Plain Base64 can contain forbidden characters. Keep the seed stable for the application's stored data and security configuration. |
 | `NexusAppSettings__Keys__0__KeyMaterial` | Secret key material decoding to exactly 32 bytes. Never use the checked-in DRN example. |
 | `NexusAppSettings__Keys__0__Format` | `Base64` when using Base64-encoded key material. Other DRN formats require matching encoded material. |
 | `NexusAppSettings__Keys__0__Default` | The string `true`. |
+
+## Automatic staging Secret bootstrap
+
+The [bootstrap tests](../tests/ApplicationSecretBootstrap.Tests/README.md) use DRN.Framework.Testing and a fake Kubernetes HTTP handler. Both develop and master workflows build the standalone source and run these tests with coverage and SonarCloud analysis. Live TLS behavior and container resources still need staging verification.
+
+The Job runs [bootstrap.cs](../infrastructure/application-secrets/stage/bootstrap.cs) with an official .NET SDK image. [Kustomize](../infrastructure/application-secrets/stage/kustomization.yaml) puts the complete file in a ConfigMap. It mounts the source read-only at `/bootstrap`. No custom image is built. The program uses built-in .NET libraries only. Its NuGet configuration disables package sources.
+
+The SDK compiles the file when the Job starts. The root filesystem stays read-only. A bounded `emptyDir` at `/tmp` holds SDK files and build output. The Job allows 512 MiB of memory, one CPU and 512 MiB of temporary storage. Its deadline is 300 seconds. These limits need runtime verification in staging.
+
+The source ConfigMap uses a content hash in its name. Kustomize updates the Job's reference when the source changes. Wave `-1` creates the ConfigMap and RBAC before the Sync hook. Automatic pruning remains disabled. Old source ConfigMaps can remain after updates. Remove unused versions deliberately after confirming that no Job references them. They contain source code and NuGet configuration only, never generated credentials.
+
+The stage-only `application-secrets` Application runs a Sync-hook Job at root wave `120`, before Nexus (`200`) and Sample (`300`). It creates independent 99-character application seeds with 256 bits of randomness each and one shared random 32-byte Nexus key encoded as Base64. Seed formatting satisfies DRN-Project's `SecureKeyAttribute` length, character-class and sequence rules. Generated `AllowedHosts` includes the service's short and qualified Kubernetes DNS names, `localhost` and `127.0.0.1`. Add your actual ingress hostname through your secret-management process and roll out the affected application before public access.
+
+The Job checks existing Secrets for all five nonempty fields and matching Nexus key settings. It rejects malformed Base64 and invalid UTF-8. It preserves existing values, including custom seeds, hosts and key formats. The applications remain responsible for full DRN value validation. Syncing again does not rotate keys or reset custom hosts. The bootstrap identity has named Secret/Deployment reads and namespace-scoped Secret creation. It has no Secret update or delete access. Workload permissions remain unchanged.
+
+API requests use the mounted service account token and CA bundle. Certificate chain and hostname checks remain enabled. The token is read again for each request. Requests time out after 30 seconds. Redirects and proxy use are disabled. Errors do not log credentials or API response bodies.
+
+If only one Secret exists, bootstrap stops rather than inventing replacement credentials. This also applies when first installation is interrupted between the two Secret writes. Restore the missing Secret from backup, or deliberately complete a genuinely new installation with a new seed and the surviving Secret's Nexus key settings. Never replace an existing application's seed without a planned recovery or rotation.
+
+If both Secrets are missing while either application Deployment exists, bootstrap refuses generation and requires recovery. If both Secrets and Deployments have been removed, it cannot distinguish lost credentials from a fresh installation. Back up both Secrets with application data and restore them before syncing a recovered cluster. The generated Secrets have no workload owner references or Argo CD tracking metadata, so pruning the bootstrap does not delete them. Missing Secrets must be recovered explicitly; this Job is not a background secret controller. After recovery, run a full `application-secrets` sync and retry the root if its operation has stopped.
 
 ## Staging database credentials
 
