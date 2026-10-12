@@ -6,8 +6,11 @@
     <SonarQubeTestProject>false</SonarQubeTestProject>
     <!-- Compile the deployed code without its two standalone entry points. -->
     <DefineConstants>$(DefineConstants);BOOTSTRAP_TESTS</DefineConstants>
+    <!-- Accept the deployed files' package directives; PackageReference supplies their dependency here. -->
+    <Features>$(Features);FileBasedProgram</Features>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="DRN.Framework.Utils" Version="0.10.1-preview003" />
     <Compile Include="../../infrastructure/application-secrets/stage/bootstrap.cs" Link="ApplicationBootstrap.cs" />
     <Compile Include="../../infrastructure/graylog/mongodb/bootstrap.cs" Link="GraylogBootstrap.cs" />
     <InternalsVisibleTo Include="ApplicationSecretBootstrap.Tests" />

@@ -1,18 +1,28 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text;
-using System.Text.Json.Nodes;
 using AwesomeAssertions;
 using DRN.Framework.Testing.DataAttributes;
 using Xunit;
+using static ApplicationSecretBootstrap.Tests.BootstrapFixtures;
 
 namespace ApplicationSecretBootstrap.Tests;
 
+/// <summary>Verifies the deployed application bootstrap against an in-memory Kubernetes API.</summary>
+[SuppressMessage("ReSharper", "AccessToDisposedClosure")]
 public class BootstrapTests
 {
+    private static readonly FixtureJson<BootstrapSecret> Json = new(Bootstrap.JsonOptions);
+
     private const string Seed = "DrnAppFeatures__SeedKey";
     private const string Material = "NexusAppSettings__Keys__0__KeyMaterial";
     private const string Format = "NexusAppSettings__Keys__0__Format";
     private const string Default = "NexusAppSettings__Keys__0__Default";
+    private const string AllowedHosts = "AllowedHosts";
+    private const string NexusApplication = "nexus";
+    private const string SampleApplication = "sample";
+    private const string NexusSettingsSecret = "nexus-settings";
+    private const string SampleSettingsSecret = "sample-settings";
 
     [Fact]
     public async Task Fresh_Installation_Should_Create_Compatible_Secrets_And_Preserve_Them_On_Rerun()
@@ -22,24 +32,24 @@ public class BootstrapTests
 
         await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
-        api.Writes.Select(request => request.Body!["metadata"]!["name"]!.GetValue<string>())
-            .Should().Equal("nexus-settings", "sample-settings");
-        foreach (var app in new[] { "nexus", "sample" })
+        api.Writes.Select(request => request.Body!.Metadata!.Name)
+            .Should().Equal(NexusSettingsSecret, SampleSettingsSecret);
+        foreach (var app in new[] { NexusApplication, SampleApplication })
         {
             var secret = api.Secrets[$"{app}-settings"];
-            secret["type"]!.GetValue<string>().Should().Be("Opaque");
-            secret["metadata"]!["namespace"]!.GetValue<string>().Should().Be("drn-project");
-            secret["metadata"]!["ownerReferences"].Should().BeNull();
-            secret["metadata"]!["annotations"].Should().BeNull();
+            secret.ApiVersion.Should().Be("v1");
+            secret.Kind.Should().Be("Secret");
+            secret.Type.Should().Be("Opaque");
+            secret.Metadata!.Namespace.Should().Be("drn-project");
             Value(secret, Seed).Should().MatchRegex("^Aa0!(?:[0-9a-f]{2}-){31}[0-9a-f]{2}$");
             Convert.FromBase64String(Value(secret, Material)).Should().HaveCount(32);
             Value(secret, Format).Should().Be("Base64");
             Value(secret, Default).Should().Be("true");
-            Value(secret, "AllowedHosts").Should().Be(
+            Value(secret, AllowedHosts).Should().Be(
                 $"{app};{app}.drn-project;{app}.drn-project.svc;{app}.drn-project.svc.cluster.local;localhost;127.0.0.1");
         }
-        Value(api.Secrets["nexus-settings"], Material).Should().Be(Value(api.Secrets["sample-settings"], Material));
-        Value(api.Secrets["nexus-settings"], Seed).Should().NotBe(Value(api.Secrets["sample-settings"], Seed));
+        Value(api.Secrets[NexusSettingsSecret], Material).Should().Be(Value(api.Secrets[SampleSettingsSecret], Material));
+        Value(api.Secrets[NexusSettingsSecret], Seed).Should().NotBe(Value(api.Secrets[SampleSettingsSecret], Seed));
         var before = Snapshot(api);
         api.Requests.Clear();
 
@@ -56,10 +66,10 @@ public class BootstrapTests
         using var client = api.CreateClient();
         foreach (var secret in api.Secrets.Values)
         {
-            SetValue(secret, "AllowedHosts", "custom.example.test");
+            SetValue(secret, AllowedHosts, "custom.example.test");
             SetValue(secret, Format, "Utf8");
             SetValue(secret, Material, "0123456789abcdef0123456789abcdef");
-            secret["data"]!["ExtraSetting"] = Encode("keep-me");
+            secret.Data!["ExtraSetting"] = Encode("keep-me");
         }
         var before = Snapshot(api);
 
@@ -71,29 +81,29 @@ public class BootstrapTests
     }
 
     [Theory]
-    [DataInlineUnit("nexus-settings")]
-    [DataInlineUnit("sample-settings")]
+    [DataInlineUnit(NexusSettingsSecret)]
+    [DataInlineUnit(SampleSettingsSecret)]
     public async Task Partial_Pair_Should_Fail_Without_Writes(string existing)
     {
         using var api = new KubernetesApi();
         api.Secrets[existing] = Secret(existing);
         using var client = api.CreateClient();
 
-        Func<Task> act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
         (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("Only one settings Secret exists");
         api.Writes.Should().BeEmpty();
     }
 
     [Theory]
-    [DataInlineUnit("nexus")]
-    [DataInlineUnit("sample")]
+    [DataInlineUnit(NexusApplication)]
+    [DataInlineUnit(SampleApplication)]
     public async Task Missing_Secrets_With_Existing_Deployment_Should_Fail(string deployment)
     {
         using var api = new KubernetesApi();
         api.Deployments.Add(deployment);
         using var client = api.CreateClient();
-        Func<Task> act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
         (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("workloads already exist");
         api.Writes.Should().BeEmpty();
@@ -105,10 +115,10 @@ public class BootstrapTests
         string name, string field, string? encoded)
     {
         using var api = ExistingPair();
-        api.Secrets[name]["data"]![field] = encoded;
+        api.Secrets[name].Data![field] = encoded;
         var before = Snapshot(api);
         using var client = api.CreateClient();
-        Func<Task> act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
         var error = (await act.Should().ThrowAsync<BootstrapException>()).Which;
 
@@ -119,8 +129,8 @@ public class BootstrapTests
 
     public static IEnumerable<object?[]> InvalidFields()
     {
-        foreach (var name in new[] { "nexus-settings", "sample-settings" })
-        foreach (var field in new[] { "AllowedHosts", Seed, Material, Format, Default })
+        foreach (var name in new[] { NexusSettingsSecret, SampleSettingsSecret })
+        foreach (var field in new[] { AllowedHosts, Seed, Material, Format, Default })
         foreach (var encoded in new[] { null, "", "%%%", "YQ==\n", "/w==", Encode(" \t\n") })
             yield return [name, field, encoded];
     }
@@ -132,9 +142,9 @@ public class BootstrapTests
     public async Task Different_Shared_Key_Settings_Should_Fail_Without_Writes(string field)
     {
         using var api = ExistingPair();
-        SetValue(api.Secrets["sample-settings"], field, "different-synthetic-value");
+        SetValue(api.Secrets[SampleSettingsSecret], field, "different-synthetic-value");
         using var client = api.CreateClient();
-        Func<Task> act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
         (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("key settings differ");
         api.Writes.Should().BeEmpty();
@@ -144,19 +154,19 @@ public class BootstrapTests
     public async Task Nexus_Create_Conflict_Should_Reuse_The_Winning_Key()
     {
         using var api = new KubernetesApi();
-        var winner = Secret("nexus-settings");
+        var winner = Secret(NexusSettingsSecret);
         api.Intercept = request =>
         {
-            if (request.Method != HttpMethod.Post || request.Name != "nexus-settings") return null;
-            api.Secrets["nexus-settings"] = winner;
-            return KubernetesApi.Response(HttpStatusCode.Conflict);
+            if (request.Method != HttpMethod.Post || request.Name != NexusSettingsSecret) return null;
+            api.Secrets[NexusSettingsSecret] = winner;
+            return Response(HttpStatusCode.Conflict);
         };
         using var client = api.CreateClient();
 
         await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
-        api.Secrets["nexus-settings"].Should().BeSameAs(winner);
-        Value(api.Secrets["sample-settings"], Material).Should().Be(Value(winner, Material));
+        api.Secrets[NexusSettingsSecret].Should().BeSameAs(winner);
+        Value(api.Secrets[SampleSettingsSecret], Material).Should().Be(Value(winner, Material));
         api.Writes.Should().HaveCount(2);
     }
 
@@ -168,14 +178,14 @@ public class BootstrapTests
         using var api = new KubernetesApi();
         api.Intercept = request =>
         {
-            if (request.Method != HttpMethod.Post || request.Name != "sample-settings") return null;
-            var winner = Secret("sample-settings");
-            SetValue(winner, Material, mismatch ? "different-synthetic-key" : Value(api.Secrets["nexus-settings"], Material));
-            api.Secrets["sample-settings"] = winner;
-            return KubernetesApi.Response(HttpStatusCode.Conflict);
+            if (request.Method != HttpMethod.Post || request.Name != SampleSettingsSecret) return null;
+            var winner = Secret(SampleSettingsSecret);
+            SetValue(winner, Material, mismatch ? "different-synthetic-key" : Value(api.Secrets[NexusSettingsSecret], Material));
+            api.Secrets[SampleSettingsSecret] = winner;
+            return Response(HttpStatusCode.Conflict);
         };
         using var client = api.CreateClient();
-        Func<Task> act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
         if (mismatch)
             (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("key settings differ");
@@ -189,9 +199,9 @@ public class BootstrapTests
     {
         using var api = new KubernetesApi();
         api.Intercept = request => request.Method == HttpMethod.Post
-            ? KubernetesApi.Response(HttpStatusCode.Conflict) : null;
+            ? Response(HttpStatusCode.Conflict) : null;
         using var client = api.CreateClient();
-        Func<Task> act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
         (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("disappeared");
         api.Writes.Should().ContainSingle();
@@ -202,19 +212,19 @@ public class BootstrapTests
     public async Task Interrupted_Pair_Creation_Should_Require_Repair_On_Retry()
     {
         using var api = new KubernetesApi();
-        api.Intercept = request => request.Method == HttpMethod.Post && request.Name == "sample-settings"
-            ? KubernetesApi.Response(HttpStatusCode.Forbidden) : null;
+        api.Intercept = request => request.Method == HttpMethod.Post && request.Name == SampleSettingsSecret
+            ? Response(HttpStatusCode.Forbidden) : null;
         using var client = api.CreateClient();
-        Func<Task> act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
         await act.Should().ThrowAsync<BootstrapException>();
-        var saved = api.Secrets["nexus-settings"].ToJsonString();
+        var saved = Json.Serialize(api.Secrets[NexusSettingsSecret]);
         api.Requests.Clear();
         api.Intercept = null;
 
         (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("Only one settings Secret exists");
         api.Writes.Should().BeEmpty();
-        api.Secrets["nexus-settings"].ToJsonString().Should().Be(saved);
+        Json.Serialize(api.Secrets[NexusSettingsSecret]).Should().Be(saved);
     }
 
     [Theory]
@@ -224,9 +234,9 @@ public class BootstrapTests
     public async Task Api_Failure_Should_Not_Expose_Response_Body(int status)
     {
         using var api = new KubernetesApi();
-        api.Intercept = _ => KubernetesApi.Response((HttpStatusCode)status, "synthetic-sensitive-response");
+        api.Intercept = _ => Response((HttpStatusCode)status, "synthetic-sensitive-response");
         using var client = api.CreateClient();
-        Func<Task> act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
         var error = (await act.Should().ThrowAsync<BootstrapException>()).Which;
 
@@ -238,14 +248,19 @@ public class BootstrapTests
     [DataInlineUnit("not-json")]
     [DataInlineUnit("null")]
     [DataInlineUnit("[]")]
+    [DataInlineUnit("{\"data\":123,\"private\":\"synthetic-sensitive-response\"}")]
+    [DataInlineUnit("{\"data\":[],\"private\":\"synthetic-sensitive-response\"}")]
+    [DataInlineUnit("{\"metadata\":\"synthetic-sensitive-response\"}")]
+    [DataInlineUnit("{\"data\":{\"AllowedHosts\":123},\"private\":\"synthetic-sensitive-response\"}")]
     public async Task Invalid_Api_Response_Should_Fail_Without_Writes(string response)
     {
         using var api = new KubernetesApi();
-        api.Intercept = _ => KubernetesApi.Response(HttpStatusCode.OK, response);
+        api.Intercept = _ => Response(HttpStatusCode.OK, response);
         using var client = api.CreateClient();
-        Func<Task> act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
-        await act.Should().ThrowAsync<BootstrapException>();
+        (await act.Should().ThrowAsync<BootstrapException>()).Which.Message
+            .Should().NotContain("synthetic-sensitive-response");
         api.Writes.Should().BeEmpty();
     }
 
@@ -266,20 +281,20 @@ public class BootstrapTests
     private static KubernetesApi ExistingPair()
     {
         var api = new KubernetesApi();
-        api.Secrets["nexus-settings"] = Secret("nexus-settings");
-        api.Secrets["sample-settings"] = Secret("sample-settings");
+        api.Secrets[NexusSettingsSecret] = Secret(NexusSettingsSecret);
+        api.Secrets[SampleSettingsSecret] = Secret(SampleSettingsSecret);
         return api;
     }
 
-    private static JsonObject Secret(string name) => new()
+    private static BootstrapSecret Secret(string name) => new()
     {
-        ["apiVersion"] = "v1",
-        ["kind"] = "Secret",
-        ["type"] = "Opaque",
-        ["metadata"] = new JsonObject { ["name"] = name, ["namespace"] = "drn-project" },
-        ["data"] = new JsonObject
+        ApiVersion = "v1",
+        Kind = "Secret",
+        Type = "Opaque",
+        Metadata = new BootstrapMetadata { Name = name, Namespace = "drn-project" },
+        Data = new Dictionary<string, string?>
         {
-            ["AllowedHosts"] = Encode("synthetic.example.test"),
+            [AllowedHosts] = Encode("synthetic.example.test"),
             [Seed] = Encode($"synthetic-{name}-seed"),
             [Material] = Encode(Convert.ToBase64String(Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef"))),
             [Format] = Encode("Base64"),
@@ -287,23 +302,22 @@ public class BootstrapTests
         }
     };
 
-    private static string Encode(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
-    private static string Value(JsonObject secret, string field) =>
-        Encoding.UTF8.GetString(Convert.FromBase64String(secret["data"]![field]!.GetValue<string>()));
-    private static void SetValue(JsonObject secret, string field, string value) => secret["data"]![field] = Encode(value);
+    private static string Value(BootstrapSecret secret, string field) =>
+        Decode(secret.Data![field]!);
+    private static void SetValue(BootstrapSecret secret, string field, string value) => secret.Data![field] = Encode(value);
     private static string[] Snapshot(KubernetesApi api) =>
-        api.Secrets.OrderBy(pair => pair.Key).Select(pair => pair.Value.ToJsonString()).ToArray();
+        Json.Snapshot(api.Secrets);
 
-    private sealed record ApiRequest(HttpMethod Method, string Path, string? Authorization, JsonObject? Body)
+    private sealed record ApiRequest(HttpMethod Method, string Path, string? Authorization, BootstrapSecret? Body)
     {
-        public string? Name => Body?["metadata"]?["name"]?.GetValue<string>();
+        public string? Name => Body?.Metadata?.Name;
     }
 
     private sealed class KubernetesApi : HttpMessageHandler
     {
         private const string SecretsPath = "/api/v1/namespaces/drn-project/secrets";
         private const string DeploymentsPath = "/apis/apps/v1/namespaces/drn-project/deployments/";
-        public Dictionary<string, JsonObject> Secrets { get; } = [];
+        public Dictionary<string, BootstrapSecret> Secrets { get; } = [];
         public HashSet<string> Deployments { get; } = [];
         public List<ApiRequest> Requests { get; } = [];
         public IEnumerable<ApiRequest> Writes => Requests.Where(request => request.Method != HttpMethod.Get);
@@ -316,8 +330,10 @@ public class BootstrapTests
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            var body = request.Content is null ? null
-                : JsonNode.Parse(await request.Content.ReadAsStringAsync(cancellationToken))!.AsObject();
+            var json = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+            var body = json is null ? null : Json.Deserialize(json);
+            if (json is not null)
+                SecretWireContract.Verify(json, body!.Metadata!.Name, "drn-project");
             var captured = new ApiRequest(request.Method, request.RequestUri!.AbsolutePath,
                 request.Headers.Authorization?.ToString(), body);
             Requests.Add(captured);
@@ -326,27 +342,25 @@ public class BootstrapTests
 
             if (request.Method == HttpMethod.Get && captured.Path.StartsWith(SecretsPath + "/", StringComparison.Ordinal))
                 return Secrets.TryGetValue(captured.Path[(SecretsPath.Length + 1)..], out var secret)
-                    ? Response(HttpStatusCode.OK, secret.ToJsonString()) : Response(HttpStatusCode.NotFound);
+                    ? Response(HttpStatusCode.OK, Json.Serialize(secret)) : Response(HttpStatusCode.NotFound);
             if (request.Method == HttpMethod.Get && captured.Path.StartsWith(DeploymentsPath, StringComparison.Ordinal))
                 return Response(Deployments.Contains(captured.Path[DeploymentsPath.Length..]) ? HttpStatusCode.OK : HttpStatusCode.NotFound);
             if (request.Method == HttpMethod.Post && captured.Path == SecretsPath)
             {
                 if (Secrets.ContainsKey(captured.Name!)) return Response(HttpStatusCode.Conflict);
-                var stored = body!.DeepClone().AsObject();
-                var data = new JsonObject();
-                foreach (var pair in stored["stringData"]!.AsObject())
-                    data[pair.Key] = Encode(pair.Value!.GetValue<string>());
-                stored.Remove("stringData");
-                stored["data"] = data;
+                // Kubernetes persists stringData as base64 data and does not return the write-only input.
+                var stored = new BootstrapSecret
+                {
+                    ApiVersion = body!.ApiVersion,
+                    Kind = body.Kind,
+                    Type = body.Type,
+                    Metadata = body.Metadata,
+                    Data = body.StringData!.ToDictionary(pair => pair.Key, pair => (string?)Encode(pair.Value!))
+                };
                 Secrets.Add(captured.Name!, stored);
-                return Response(HttpStatusCode.Created, stored.ToJsonString());
+                return Response(HttpStatusCode.Created, Json.Serialize(stored));
             }
             throw new InvalidOperationException($"Unexpected API request: {request.Method} {captured.Path}");
         }
-
-        public static HttpResponseMessage Response(HttpStatusCode status, string body = "{}") => new(status)
-        {
-            Content = new StringContent(body, Encoding.UTF8, "application/json")
-        };
     }
 }

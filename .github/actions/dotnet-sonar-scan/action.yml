@@ -73,10 +73,12 @@ runs:
         --results-directory "$GITHUB_WORKSPACE/TestResults"
 
     - name: Verify bootstrap coverage is present
-      shell: bash
-      run: >-
-        grep -Eq '<module .*name="Bootstrap[.]Sources[.]dll".*lines_covered="[1-9][0-9]*"'
-        "$GITHUB_WORKSPACE/TestResults/coverage.xml"
+      shell: pwsh
+      run: |
+        $covered = Select-Xml -Path "$env:GITHUB_WORKSPACE/TestResults/coverage.xml" -XPath '//module[@name="Bootstrap.Sources.dll" and number(@lines_covered) > 0]'
+        if (-not $covered) {
+          throw 'Coverage report contains no covered Bootstrap.Sources.dll module.'
+        }
 
     - name: Finish Sonar analysis and wait for quality gate
       shell: bash

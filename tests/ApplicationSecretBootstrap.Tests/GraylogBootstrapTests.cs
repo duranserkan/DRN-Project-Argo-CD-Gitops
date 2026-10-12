@@ -1,19 +1,30 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json.Nodes;
 using AwesomeAssertions;
 using DRN.Framework.Testing.DataAttributes;
 using Xunit;
+using static ApplicationSecretBootstrap.Tests.BootstrapFixtures;
 
 namespace ApplicationSecretBootstrap.Tests;
 
+/// <summary>Verifies the deployed Graylog bootstrap with a simulated Kubernetes API and polling clock.</summary>
+[SuppressMessage("ReSharper", "AccessToDisposedClosure")]
 public class GraylogBootstrapTests
 {
+    private static readonly FixtureJson<GraylogSecret> Json = new(GraylogBootstrap.JsonOptions);
+
     private const string Credentials = "graylog-credentials";
     private const string Database = "mongo-graylog-password";
     private const string Admin = "graylog-admin-password";
     private const string Connection = "mongodb-graylog-graylog";
+    private const string PasswordKey = "password";
+    private const string ConnectionStringKey = "connectionString.standard";
+    private const string RootUsernameKey = "GRAYLOG_ROOT_USERNAME";
+    private const string RootPasswordHashKey = "GRAYLOG_ROOT_PASSWORD_SHA2";
+    private const string PasswordSecretKey = "GRAYLOG_PASSWORD_SECRET";
+    private const string MongoDbUriKey = "GRAYLOG_MONGODB_URI";
     private const string Uri = "mongodb://synthetic:password@mongodb.graylog:27017/graylog?ssl=true";
 
     [Fact]
@@ -23,15 +34,15 @@ public class GraylogBootstrapTests
         await api.Run();
 
         api.Writes.Should().Equal(Database, Admin, Credentials);
-        Read(api.Secrets[Database], "password").Should().MatchRegex("^[A-Za-z0-9_-]{64}$");
-        var password = Read(api.Secrets[Admin], "password");
+        Read(api.Secrets[Database], PasswordKey).Should().MatchRegex("^[A-Za-z0-9_-]{64}$");
+        var password = Read(api.Secrets[Admin], PasswordKey);
         password.Should().MatchRegex("^[A-Za-z0-9_-]{43}$");
         var credentials = api.Secrets[Credentials];
-        Read(credentials, "GRAYLOG_ROOT_USERNAME").Should().Be("admin");
-        Read(credentials, "GRAYLOG_ROOT_PASSWORD_SHA2").Should().Be(
+        Read(credentials, RootUsernameKey).Should().Be("admin");
+        Read(credentials, RootPasswordHashKey).Should().Be(
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(password))).ToLowerInvariant());
-        Read(credentials, "GRAYLOG_PASSWORD_SECRET").Should().MatchRegex("^[A-Za-z0-9_-]{64}$");
-        Read(credentials, "GRAYLOG_MONGODB_URI").Should().Be(Uri);
+        Read(credentials, PasswordSecretKey).Should().MatchRegex("^[A-Za-z0-9_-]{64}$");
+        Read(credentials, MongoDbUriKey).Should().Be(Uri);
         api.Delays.Should().Equal(TimeSpan.FromSeconds(5));
         var before = Snapshot(api);
         api.Writes.Clear();
@@ -49,9 +60,9 @@ public class GraylogBootstrapTests
     public async Task Missing_Credentials_With_Any_Surviving_Secret_Should_Fail_Without_Writes(string survivor)
     {
         using var api = new Api();
-        api.Secrets[survivor] = Secret(survivor, "password", "synthetic");
+        api.Secrets[survivor] = Secret(survivor, PasswordKey, "synthetic");
         var before = Snapshot(api);
-        var act = () => api.Run();
+        var act = api.Run;
 
         (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain("Refusing encryption secret regeneration");
         api.Writes.Should().BeEmpty();
@@ -63,7 +74,7 @@ public class GraylogBootstrapTests
     {
         using var api = Existing();
         api.Secrets.Remove(Database);
-        var act = () => api.Run();
+        var act = api.Run;
         (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain("Refusing password regeneration");
         api.Writes.Should().BeEmpty();
     }
@@ -81,9 +92,9 @@ public class GraylogBootstrapTests
 
     public static IEnumerable<object?[]> InvalidFields()
     {
-        foreach (var key in new[] { "password", "GRAYLOG_ROOT_USERNAME", "GRAYLOG_ROOT_PASSWORD_SHA2", "GRAYLOG_PASSWORD_SECRET", "GRAYLOG_MONGODB_URI" })
-        foreach (var encoded in new string?[] { null, "", "%%%", "YQ==\n", "/w==" })
-            yield return [key == "password" ? Database : Credentials, key, encoded];
+        return new[] { PasswordKey, RootUsernameKey, RootPasswordHashKey, PasswordSecretKey, MongoDbUriKey } .SelectMany(
+                _ => new[] { null, "", "%%%", "YQ==\n", "/w==" }, 
+                (key, encoded) => (object?[])[key == PasswordKey ? Database : Credentials, key, encoded]);
     }
 
     [Theory]
@@ -91,8 +102,8 @@ public class GraylogBootstrapTests
     public async Task Invalid_Existing_Fields_Should_Fail_Without_Writes(string name, string key, string? encoded)
     {
         using var api = Existing();
-        api.Secrets[name]["data"]![key] = encoded;
-        var act = () => api.Run();
+        api.Secrets[name].Data![key] = encoded;
+        var act = api.Run;
         (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain(name).And.Contain(key);
         api.Writes.Should().BeEmpty();
     }
@@ -101,7 +112,7 @@ public class GraylogBootstrapTests
     public async Task Timeout_Should_Leave_Passwords_Intact_And_Reject_A_Partial_Retry()
     {
         using var api = new Api();
-        var act = () => api.Run();
+        var act = api.Run;
         (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain("Timed out");
         api.Delays.Should().HaveCount(180);
         api.Writes.Should().Equal(Database, Admin);
@@ -119,17 +130,17 @@ public class GraylogBootstrapTests
     public async Task Create_Conflict_Should_Reuse_The_Winner(string name)
     {
         using var api = new Api { PublishConnectionAfterDelay = true };
-        var winner = name == Credentials ? ExistingCredentials() : Secret(name, "password", "winning-password");
+        var winner = name == Credentials ? ExistingCredentials() : Secret(name, PasswordKey, "winning-password");
         api.Intercept = (method, target) =>
         {
             if (method != HttpMethod.Post || target != name) return null;
-            api.Secrets[name] = (JsonObject)winner.DeepClone();
+            api.Secrets[name] = Json.Clone(winner);
             return Response(HttpStatusCode.Conflict, "private-conflict-body");
         };
         await api.Run();
-        api.Secrets[name].ToJsonString().Should().Be(winner.ToJsonString());
+        Json.Serialize(api.Secrets[name]).Should().Be(Json.Serialize(winner));
         if (name == Admin)
-            Read(api.Secrets[Credentials], "GRAYLOG_ROOT_PASSWORD_SHA2").Should().Be(
+            Read(api.Secrets[Credentials], RootPasswordHashKey).Should().Be(
                 Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("winning-password"))).ToLowerInvariant());
     }
 
@@ -138,7 +149,7 @@ public class GraylogBootstrapTests
     {
         using var api = new Api();
         api.Intercept = (method, _) => method == HttpMethod.Post ? Response(HttpStatusCode.Conflict, "private") : null;
-        var act = () => api.Run();
+        var act = api.Run;
         (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain("disappeared");
         api.Secrets.Should().BeEmpty();
     }
@@ -151,7 +162,7 @@ public class GraylogBootstrapTests
     {
         using var api = new Api();
         api.Intercept = (_, _) => Response((HttpStatusCode)status, "private-secret-body");
-        var act = () => api.Run();
+        var act = api.Run;
         (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message
             .Should().Contain(status.ToString()).And.NotContain("private-secret-body");
         api.Writes.Should().BeEmpty();
@@ -161,12 +172,16 @@ public class GraylogBootstrapTests
     [DataInlineUnit("not-json")]
     [DataInlineUnit("null")]
     [DataInlineUnit("[]")]
+    [DataInlineUnit("{\"data\":123,\"private\":\"private-secret-body\"}")]
+    [DataInlineUnit("{\"data\":[],\"private\":\"private-secret-body\"}")]
+    [DataInlineUnit("{\"metadata\":\"private-secret-body\"}")]
+    [DataInlineUnit("{\"data\":{\"GRAYLOG_ROOT_USERNAME\":123},\"private\":\"private-secret-body\"}")]
     public async Task Invalid_Api_Object_Should_Fail(string body)
     {
         using var api = new Api();
         api.Intercept = (_, _) => Response(HttpStatusCode.OK, body);
-        var act = () => api.Run();
-        await act.Should().ThrowAsync<GraylogBootstrapException>();
+        var act = api.Run;
+        (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().NotContain("private-secret-body");
         api.Writes.Should().BeEmpty();
     }
 
@@ -179,8 +194,8 @@ public class GraylogBootstrapTests
     }
 
     [Theory]
-    [DataInlineUnit(Admin, "password")]
-    [DataInlineUnit(Connection, "connectionString.standard")]
+    [DataInlineUnit(Admin, PasswordKey)]
+    [DataInlineUnit(Connection, ConnectionStringKey)]
     public async Task Malformed_New_Admin_Or_Operator_Value_Should_Prevent_Credentials_Creation(string name, string key)
     {
         using var api = new Api { PublishConnectionAfterDelay = true };
@@ -188,10 +203,10 @@ public class GraylogBootstrapTests
         {
             if (method != HttpMethod.Get || target != name || !api.Secrets.ContainsKey(Database)) return null;
             var secret = Secret(name, key, "synthetic");
-            secret["data"]![key] = "/w==";
-            return Response(HttpStatusCode.OK, secret.ToJsonString());
+            secret.Data![key] = "/w==";
+            return Response(HttpStatusCode.OK, Json.Serialize(secret));
         };
-        var act = () => api.Run();
+        var act = api.Run;
         (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain("invalid UTF-8");
         api.Secrets.Should().NotContainKey(Credentials);
     }
@@ -204,13 +219,87 @@ public class GraylogBootstrapTests
         api.Intercept = (method, target) =>
         {
             if (method != HttpMethod.Get || target != Connection || !api.Secrets.ContainsKey(Database) || polls++ > 0) return null;
-            var secret = Secret(Connection, "connectionString.standard", "unused");
-            secret["data"]!["connectionString.standard"] = "";
-            return Response(HttpStatusCode.OK, secret.ToJsonString());
+            var secret = Secret(Connection, ConnectionStringKey, "unused");
+            secret.Data![ConnectionStringKey] = "";
+            return Response(HttpStatusCode.OK, Json.Serialize(secret));
         };
         await api.Run();
         api.Delays.Should().HaveCount(1);
-        Read(api.Secrets[Credentials], "GRAYLOG_MONGODB_URI").Should().Be(Uri);
+        Read(api.Secrets[Credentials], MongoDbUriKey).Should().Be(Uri);
+    }
+
+    [Theory]
+    [DataInlineUnit("500", false)]
+    [DataInlineUnit("503", false)]
+    [DataInlineUnit("599", false)]
+    [DataInlineUnit("task-canceled", false)]
+    [DataInlineUnit("timeout", false)]
+    [DataInlineUnit("500", true)]
+    [DataInlineUnit("503", true)]
+    [DataInlineUnit("599", true)]
+    [DataInlineUnit("task-canceled", true)]
+    [DataInlineUnit("timeout", true)]
+    public async Task Transient_Operator_Read_Failures_Should_Retry_Within_The_Original_Deadline(string failure, bool persistent)
+    {
+        using var api = new Api { PublishConnectionAfterDelay = true };
+        var polls = 0;
+        api.Intercept = (method, target) =>
+        {
+            if (method != HttpMethod.Get || target != Connection || !api.Secrets.ContainsKey(Database)) return null;
+            polls++;
+            // Bound a deadline regression so resetting the timer fails this test instead of looping forever.
+            if (polls > 180) throw new InvalidOperationException("Operator polling exceeded its original deadline.");
+            if (!persistent && polls > 1) return null;
+            return failure switch
+            {
+                "task-canceled" => throw new TaskCanceledException("private-timeout-details"),
+                "timeout" => throw new TimeoutException("private-timeout-details"),
+                _ => Response((HttpStatusCode)int.Parse(failure), "private-secret-body")
+            };
+        };
+
+        if (persistent)
+        {
+            var act = api.Run;
+            (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message
+                .Should().Contain("Timed out").And.NotContain("private-timeout-details").And.NotContain("private-secret-body");
+            polls.Should().Be(180);
+            api.Delays.Should().Equal(Enumerable.Repeat(TimeSpan.FromSeconds(5), 180));
+            api.Writes.Should().Equal(Database, Admin);
+            api.Secrets.Should().NotContainKey(Credentials);
+        }
+        else
+        {
+            await api.Run();
+            polls.Should().Be(2);
+            api.Delays.Should().Equal(TimeSpan.FromSeconds(5));
+            api.Writes.Should().Equal(Database, Admin, Credentials);
+            Read(api.Secrets[Credentials], MongoDbUriKey).Should().Be(Uri);
+        }
+    }
+
+    [Theory]
+    [DataInlineUnit(401)]
+    [DataInlineUnit(403)]
+    public async Task Operator_Read_Authorization_Failure_Should_Stop_Without_Retry(int status)
+    {
+        using var api = new Api { PublishConnectionAfterDelay = true };
+        var polls = 0;
+        api.Intercept = (method, target) =>
+        {
+            if (method != HttpMethod.Get || target != Connection || !api.Secrets.ContainsKey(Database)) return null;
+            polls++;
+            return Response((HttpStatusCode)status, "private-secret-body");
+        };
+        var act = api.Run;
+
+        var error = (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which;
+        error.StatusCode.Should().Be((HttpStatusCode)status);
+        error.Message.Should().Contain(status.ToString()).And.NotContain("private-secret-body");
+        polls.Should().Be(1);
+        api.Delays.Should().BeEmpty();
+        api.Writes.Should().Equal(Database, Admin);
+        api.Secrets.Should().NotContainKey(Credentials);
     }
 
     [Fact]
@@ -219,7 +308,7 @@ public class GraylogBootstrapTests
         using var api = new Api { PublishConnectionAfterDelay = true };
         api.Intercept = (method, name) => method == HttpMethod.Post && name == Credentials
             ? Response(HttpStatusCode.Forbidden, "private-response") : null;
-        var act = () => api.Run();
+        var act = api.Run;
         (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain("403");
         var before = Snapshot(api);
         api.Intercept = null;
@@ -232,28 +321,29 @@ public class GraylogBootstrapTests
     private static Api Existing()
     {
         var api = new Api();
-        api.Secrets[Database] = Secret(Database, "password", "existing-password");
+        api.Secrets[Database] = Secret(Database, PasswordKey, "existing-password");
         api.Secrets[Credentials] = ExistingCredentials();
         return api;
     }
 
-    private static JsonObject ExistingCredentials()
+    private static GraylogSecret ExistingCredentials()
     {
-        var secret = Secret(Credentials, "GRAYLOG_ROOT_USERNAME", "custom-admin");
-        foreach (var key in new[] { "GRAYLOG_ROOT_PASSWORD_SHA2", "GRAYLOG_PASSWORD_SECRET", "GRAYLOG_MONGODB_URI", "ExtraSetting" })
-            secret["data"]![key] = Encode($"existing-{key}");
+        var secret = Secret(Credentials, RootUsernameKey, "custom-admin");
+        foreach (var key in new[] { RootPasswordHashKey, PasswordSecretKey, MongoDbUriKey, "ExtraSetting" })
+            secret.Data![key] = Encode($"existing-{key}");
         return secret;
     }
 
-    private static string Encode(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
-    private static string Read(JsonObject secret, string key) => Encoding.UTF8.GetString(Convert.FromBase64String(secret["data"]![key]!.GetValue<string>()));
-    private static string[] Snapshot(Api api) => api.Secrets.OrderBy(pair => pair.Key).Select(pair => pair.Value.ToJsonString()).ToArray();
-    private static JsonObject Secret(string name, string key, string value) => new()
+    private static string Read(GraylogSecret secret, string key) => Decode(secret.Data![key]!);
+    private static string[] Snapshot(Api api) => Json.Snapshot(api.Secrets);
+    private static GraylogSecret Secret(string name, string key, string value) => new()
     {
-        ["metadata"] = new JsonObject { ["name"] = name, ["namespace"] = "graylog" },
-        ["data"] = new JsonObject { [key] = Encode(value) }
+        ApiVersion = "v1",
+        Kind = "Secret",
+        Type = "Opaque",
+        Metadata = new GraylogMetadata { Name = name, Namespace = "graylog" },
+        Data = new Dictionary<string, string?> { [key] = Encode(value) }
     };
-    private static HttpResponseMessage Response(HttpStatusCode status, string body) => new(status) { Content = new StringContent(body) };
 
     private sealed class Clock : TimeProvider
     {
@@ -264,7 +354,7 @@ public class GraylogBootstrapTests
 
     private sealed class Api : HttpMessageHandler
     {
-        public Dictionary<string, JsonObject> Secrets { get; } = new();
+        public Dictionary<string, GraylogSecret> Secrets { get; } = new();
         public List<string> Writes { get; } = [];
         public List<string> Gets { get; } = [];
         public List<string> Tokens { get; } = [];
@@ -276,7 +366,8 @@ public class GraylogBootstrapTests
 
         public async Task Run()
         {
-            using var client = new HttpClient(this, disposeHandler: false) { BaseAddress = new System.Uri("https://kubernetes.invalid") };
+            using var client = new HttpClient(this, disposeHandler: false);
+            client.BaseAddress = new Uri("https://kubernetes.invalid");
             await GraylogBootstrap.RunAsync(client, "graylog", () => $"synthetic-{++_token}", _clock, Delay);
         }
 
@@ -285,7 +376,7 @@ public class GraylogBootstrapTests
             Delays.Add(duration);
             _clock.Timestamp += duration.Ticks;
             if (PublishConnectionAfterDelay)
-                Secrets[Connection] = Secret(Connection, "connectionString.standard", Uri);
+                Secrets[Connection] = Secret(Connection, ConnectionStringKey, Uri);
             return Task.CompletedTask;
         }
 
@@ -294,8 +385,9 @@ public class GraylogBootstrapTests
             request.RequestUri!.AbsolutePath.Should().StartWith("/api/v1/namespaces/graylog/secrets");
             request.Headers.Authorization!.Scheme.Should().Be("Bearer");
             Tokens.Add(request.Headers.Authorization.Parameter!);
-            var body = request.Content is null ? null : JsonNode.Parse(await request.Content.ReadAsStringAsync(cancellationToken))!.AsObject();
-            var name = body?["metadata"]?["name"]?.GetValue<string>() ?? request.RequestUri.Segments.Last();
+            var json = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+            var body = json is null ? null : Json.Deserialize(json);
+            var name = body?.Metadata?.Name ?? request.RequestUri.Segments.Last();
             if (request.Method == HttpMethod.Get) Gets.Add(name);
             else if (request.Method == HttpMethod.Post) Writes.Add(name);
             else throw new InvalidOperationException("Unexpected API method.");
@@ -303,17 +395,24 @@ public class GraylogBootstrapTests
             if (intercepted is not null) return intercepted;
             if (request.Method == HttpMethod.Get)
                 return Secrets.TryGetValue(name, out var secret)
-                    ? Response(HttpStatusCode.OK, secret.ToJsonString()) : Response(HttpStatusCode.NotFound, "{}");
-            body!["type"]!.GetValue<string>().Should().Be("Opaque");
-            body["metadata"]!["namespace"]!.GetValue<string>().Should().Be("graylog");
-            if (Secrets.ContainsKey(name)) return Response(HttpStatusCode.Conflict, "{}");
-            var saved = (JsonObject)body.DeepClone();
-            var data = new JsonObject();
-            foreach (var pair in body["stringData"]!.AsObject()) data[pair.Key] = Encode(pair.Value!.GetValue<string>());
-            saved.Remove("stringData");
-            saved["data"] = data;
+                    ? Response(HttpStatusCode.OK, Json.Serialize(secret)) : Response(HttpStatusCode.NotFound);
+            body!.ApiVersion.Should().Be("v1");
+            body.Kind.Should().Be("Secret");
+            body.Type.Should().Be("Opaque");
+            body.Metadata!.Namespace.Should().Be("graylog");
+            SecretWireContract.Verify(json!, name, "graylog");
+            if (Secrets.ContainsKey(name)) return Response(HttpStatusCode.Conflict);
+            // Kubernetes persists stringData as base64 data and does not return the write-only input.
+            var saved = new GraylogSecret
+            {
+                ApiVersion = body.ApiVersion,
+                Kind = body.Kind,
+                Type = body.Type,
+                Metadata = body.Metadata,
+                Data = body.StringData!.ToDictionary(pair => pair.Key, pair => (string?)Encode(pair.Value!))
+            };
             Secrets.Add(name, saved);
-            return Response(HttpStatusCode.Created, saved.ToJsonString());
+            return Response(HttpStatusCode.Created, Json.Serialize(saved));
         }
     }
 }
