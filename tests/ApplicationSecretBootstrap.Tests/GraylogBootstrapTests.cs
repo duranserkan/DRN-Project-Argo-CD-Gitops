@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using AwesomeAssertions;
 using DRN.Framework.Testing.DataAttributes;
+using DRN.GitOps.Bootstraps.Graylog;
 using Xunit;
 using static ApplicationSecretBootstrap.Tests.BootstrapFixtures;
 

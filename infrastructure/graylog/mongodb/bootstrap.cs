@@ -17,28 +17,33 @@ using System.Threading.Tasks;
 using DRN.Framework.SharedKernel.Json;
 using DRN.Framework.Utils.Data.Encodings;
 
-#if !BOOTSTRAP_TESTS
-try
-{
-    await GraylogBootstrap.RunAsync();
-    Console.WriteLine("Credentials are ready. Existing Secrets were preserved.");
-    return 0;
-}
-catch (GraylogBootstrapException error)
-{
-    Console.Error.WriteLine(error.Message);
-    return 1;
-}
-catch (Exception)
-{
-    Console.Error.WriteLine("Graylog bootstrap failed. Check API access, TLS trust and mounted files.");
-    return 1;
-}
-#endif
+namespace DRN.GitOps.Bootstraps.Graylog;
 
 /// <summary>Bootstraps Graylog credentials and preserves existing database and encryption secrets.</summary>
 static class GraylogBootstrap
 {
+#if !BOOTSTRAP_TESTS
+    public static async Task<int> Main()
+    {
+        try
+        {
+            await RunAsync();
+            Console.WriteLine("Credentials are ready. Existing Secrets were preserved.");
+            return 0;
+        }
+        catch (GraylogBootstrapException error)
+        {
+            Console.Error.WriteLine(error.Message);
+            return 1;
+        }
+        catch (Exception)
+        {
+            Console.Error.WriteLine("Graylog bootstrap failed. Check API access, TLS trust and mounted files.");
+            return 1;
+        }
+    }
+#endif
+
     // Clone DRN conventions so Kubernetes null omission does not change global framework defaults.
     internal static readonly JsonSerializerOptions JsonOptions = new(JsonConventions.DefaultOptions)
     {
@@ -49,7 +54,8 @@ static class GraylogBootstrap
     private const string CredentialsSecret = "graylog-credentials";
     private const string DatabasePasswordSecret = "mongo-graylog-password";
     private const string AdminPasswordSecret = "graylog-admin-password";
-    private const string ConnectionSecret = "mongodb-graylog-graylog";
+    // Public Kubernetes resource name. The operator supplies the credential-bearing URI in its data.
+    private const string OperatorConnectionResourceName = "mongodb-graylog-graylog";
     private const string PasswordKey = "password";
     private const string ConnectionStringKey = "connectionString.standard";
     private const string RootUsernameKey = "GRAYLOG_ROOT_USERNAME";
@@ -63,7 +69,7 @@ static class GraylogBootstrap
         var roots = new X509Certificate2Collection();
         try
         {
-            roots.ImportFromPem(File.ReadAllText($"{ServiceAccount}/ca.crt"));
+            roots.ImportFromPem(await File.ReadAllTextAsync($"{ServiceAccount}/ca.crt"));
             if (roots.Count == 0)
                 throw new GraylogBootstrapException("The mounted Kubernetes CA contains no certificates.");
             var policy = new X509ChainPolicy
@@ -118,7 +124,7 @@ static class GraylogBootstrap
         if (credentials is null)
         {
             var admin = await Get(AdminPasswordSecret);
-            var connection = await Get(ConnectionSecret);
+            var connection = await Get(OperatorConnectionResourceName);
             // An interrupted first bootstrap and lost credentials are indistinguishable.
             if (database is not null || admin is not null || connection is not null)
                 throw new GraylogBootstrapException($"Existing bootstrap Secrets found without {CredentialsSecret}. Restore {CredentialsSecret} from backup. Refusing encryption secret regeneration, including after an interrupted first bootstrap.");
@@ -141,7 +147,7 @@ static class GraylogBootstrap
                 GraylogSecret? connection = null;
                 try
                 {
-                    connection = await Get(ConnectionSecret);
+                    connection = await Get(OperatorConnectionResourceName);
                 }
                 catch (Exception error) when (
                     error is OperationCanceledException or TimeoutException ||
@@ -154,7 +160,7 @@ static class GraylogBootstrap
                     connection.Data.TryGetValue(ConnectionStringKey, out var encodedUri) &&
                     !string.IsNullOrEmpty(encodedUri))
                 {
-                    uri = Value(connection, ConnectionSecret, ConnectionStringKey);
+                    uri = Value(connection, OperatorConnectionResourceName, ConnectionStringKey);
                     break;
                 }
                 await delay(TimeSpan.FromSeconds(5));

@@ -32,6 +32,8 @@ The staging application Secret bootstrap runs one C# file through an official di
 
 Both bootstrap files declare `#:property PublishAot=false`, matching the Job and CI commands. Preserve this source-level setting for direct IDE and file-based builds because the serializers use reflection. Native AOT and trimming are not supported.
 
+Bootstrap types use the `DRN.GitOps.Bootstraps.Application` and `DRN.GitOps.Bootstraps.Graylog` namespaces. Explicit `Main` methods remain guarded by `!BOOTSTRAP_TESTS` so the same files compile as standalone programs and as the test source library.
+
 Bootstrap Linkerd Viz before Grafana. Grafana's Prometheus authorization policy requires the Viz namespace to exist.
 
 Graylog's MongoDB credential bootstrap uses the same official SDK pin and single-file C# pattern. Its Kustomization includes all existing MongoDB resources and a source ConfigMap at wave -1. Preserve named Secret reads and create-only RBAC. Keep existing credentials authoritative and reject partial sets. Preserve the 15-minute operator URI wait and 20-minute Job deadline. The Bootstrap.Sources library links both deployed files without their entry points and grants internals access to the DRN.Framework.Testing test project. Both projects explicitly reference Utils, and tests reuse the deployed models and serializer options. Both branch workflows build each standalone file before project analysis and unit coverage. Existing manifests retain resource limits and NuGetAudit=false. CI audits test dependencies, including Utils and its transitive dependencies. Startup restore requires nuget.org access and resource verification. See docs/platform-operations.md for SDK resource limits and source ConfigMap cleanup.

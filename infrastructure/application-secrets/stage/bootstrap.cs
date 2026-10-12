@@ -17,29 +17,34 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using DRN.Framework.SharedKernel.Json;
 
-#if !BOOTSTRAP_TESTS
-try
-{
-    await Bootstrap.RunAsync();
-    Console.WriteLine("Application settings are ready. Existing Secrets were preserved.");
-    return 0;
-}
-catch (BootstrapException error)
-{
-    Console.Error.WriteLine(error.Message);
-    return 1;
-}
-catch (Exception)
-{
-    // Framework exceptions can contain request or response details.
-    Console.Error.WriteLine("Application Secret bootstrap failed. Check API access, TLS trust and mounted files.");
-    return 1;
-}
-#endif
+namespace DRN.GitOps.Bootstraps.Application;
 
 /// <summary>Creates staging application settings once and validates existing Secrets without rotating credentials.</summary>
 static class Bootstrap
 {
+#if !BOOTSTRAP_TESTS
+    public static async Task<int> Main()
+    {
+        try
+        {
+            await RunAsync();
+            Console.WriteLine("Application settings are ready. Existing Secrets were preserved.");
+            return 0;
+        }
+        catch (BootstrapException error)
+        {
+            Console.Error.WriteLine(error.Message);
+            return 1;
+        }
+        catch (Exception)
+        {
+            // Framework exceptions can contain request or response details.
+            Console.Error.WriteLine("Application Secret bootstrap failed. Check API access, TLS trust and mounted files.");
+            return 1;
+        }
+    }
+#endif
+
     // Clone DRN conventions so Kubernetes null omission does not change global framework defaults.
     internal static readonly JsonSerializerOptions JsonOptions = new(JsonConventions.DefaultOptions)
     {
@@ -64,7 +69,7 @@ static class Bootstrap
         var roots = new X509Certificate2Collection();
         try
         {
-            roots.ImportFromPem(File.ReadAllText($"{ServiceAccount}/ca.crt"));
+            roots.ImportFromPem(await File.ReadAllTextAsync($"{ServiceAccount}/ca.crt"));
             if (roots.Count == 0)
                 throw new BootstrapException("The mounted Kubernetes CA contains no certificates.");
             await RunWithTrustAsync(roots);
@@ -79,7 +84,7 @@ static class Bootstrap
     /// <summary>Connects to the Kubernetes API using only cluster trust and normal hostname verification.</summary>
     private static async Task RunWithTrustAsync(X509Certificate2Collection roots)
     {
-        var namespaceName = File.ReadAllText($"{ServiceAccount}/namespace").Trim();
+        var namespaceName = (await File.ReadAllTextAsync($"{ServiceAccount}/namespace")).Trim();
         var chainPolicy = new X509ChainPolicy
         {
             TrustMode = X509ChainTrustMode.CustomRootTrust,
@@ -211,9 +216,9 @@ static class Bootstrap
         {
             throw new BootstrapException($"Secret {name} has invalid UTF-8 for {key}.");
         }
-        
-        return string.IsNullOrWhiteSpace(value) 
-            ? throw new BootstrapException($"Secret {name} has empty {key}.") 
+
+        return string.IsNullOrWhiteSpace(value)
+            ? throw new BootstrapException($"Secret {name} has empty {key}.")
             : value;
     }
 

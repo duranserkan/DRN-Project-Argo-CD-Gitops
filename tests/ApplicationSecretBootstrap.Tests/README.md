@@ -18,6 +18,8 @@ URI polling tests cover recovery from HTTP 5xx and request timeouts, exhaustion 
 
 The source library's `BOOTSTRAP_TESTS` compilation symbol excludes only the production entry points. Its `FileBasedProgram` feature accepts the source files' package directives, while an explicit Utils package reference supplies the dependency for project compilation. The test project also references Utils explicitly. Tests call the same lifecycle and HTTP request code as the Jobs. CI builds each standalone entry point before starting Sonar analysis. The deployed Jobs restore packages and compile the original files without a project or custom image.
 
+The application and Graylog types live in `DRN.GitOps.Bootstraps.Application` and `DRN.GitOps.Bootstraps.Graylog`. Each file has an explicit `Main` method guarded by `!BOOTSTRAP_TESTS`, preserving standalone execution while allowing both files in the source library.
+
 Both source files declare `#:property PublishAot=false` because their JSON serialization uses reflection. This aligns direct IDE and file-based builds with the existing Job and CI settings. Native AOT and trimming are not supported by these bootstraps.
 
 When local execution is authorized, use:
