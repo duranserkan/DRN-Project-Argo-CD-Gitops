@@ -104,6 +104,8 @@ If the active agent platform does not support slash commands, execute the named 
 | `/answer` | Answer clarification questions and approve documents. |
 | `/develop` | Implement from clarified requirements using repository conventions. |
 | `/sync` | Detect and reconcile scoped drift between exactly two sibling repositories or projects from their physical common parent. |
+| `/sync-execute` | Internal `/sync` sub-workflow for approved apply, recovery, acceptance, and commit verification. |
+| `/sync-evidence` | Internal evidence and approval-subject protocol composed by `/sync` and `/sync-execute`. |
 | `/review` | Review staged changes or branch diff via Priority Stack. |
 | `/commit-polish` | Commit staged changes and polish non-pushed commit messages. |
 | `/test` | Add tests for staged changes or a described task. |

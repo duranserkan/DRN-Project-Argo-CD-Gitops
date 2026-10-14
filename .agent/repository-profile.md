@@ -14,6 +14,27 @@ This repository contains Argo CD GitOps configuration for DRN Framework Sample a
 - `tests/Bootstrap.slnx`: IDE and solution-build entry point for the bootstrap source library and test project. Run tests through `tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj`.
 - `README.md`, `docs/platform-operations.md`, `docs/staging-configuration.md`: source-owned deployment documentation.
 
+## Repository overview
+
+- Type: Kubernetes GitOps configuration with two standalone C# credential bootstraps.
+- Architecture: Argo CD roots, a Helm application chart, Kustomize payloads and workload overlays. `tests/Bootstrap.Sources` links the deployed bootstrap sources into a non-packable library.
+- Frontend: none in this repository. Razor, React and DRN buildwww application sources belong to the sibling DRN-Project repository.
+- Testing: `tests/ApplicationSecretBootstrap.Tests` is a non-packable .NET 10 executable test project using DRN.Framework.Testing, xUnit v3 and Microsoft.Testing.Platform. It references `Bootstrap.Sources` and uses fake Kubernetes HTTP handlers. No local execution is authorized by this inventory.
+
+## Framework Skills
+
+This repository consumes DRN Framework packages for its bootstraps and tests. Select only the skills relevant to the task, in the order below. Package implementation and broader application examples are external context, not local source paths.
+
+| Skill | Local trigger and evidence |
+|---|---|
+| `overview-drn-framework` | Orient bootstrap dependency work. Both project files reference DRN.Framework.Utils. |
+| `overview-drn-testing` | Choose bootstrap test scope. The test project references DRN.Framework.Testing. |
+| `drn-sharedkernel` | Review `JsonConventions.DefaultOptions` used by both deployed bootstrap files through Utils. |
+| `drn-utils` | Review bootstrap encoding helpers and the direct Utils package references. |
+| `drn-testing` | Modify bootstrap tests using `DataInlineUnit` and `DataMemberUnit`. |
+
+Keep the other DRN and frontend skills as a conditional reference catalog. Do not infer local hosting, domain, Entity Framework, Razor or buildwww projects from their presence. Use those skills only when the task explicitly needs their external framework or deployed application context. There are no repository-specific custom workflow routes or custom skill groups.
+
 ## Deployment rules
 
 Format deployment templates with two-space indentation and indented sequence items. Order Application fields as project, source, destination, optional ignoreDifferences, then syncPolicy. Within source, put chart or path before repoURL and targetRevision. Within destination, put namespace before server and use the plain cluster URL. Use a space after comment markers. Preserve component-specific settings and sequence ordering when formatting.
