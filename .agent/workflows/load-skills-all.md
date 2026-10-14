@@ -4,9 +4,9 @@ description: Load all portable skills plus framework-scoped or profile-declared 
 
 // turbo-all
 
-> **Estimated context: ~57.9K tokens** (30 skills plus repository profile)
+> **Estimated context: ~67.3K tokens maximum** (30 unique skills; repository profile is additional)
 
-Read all skills:
+Read the repository profile first. For an explicit full skill audit, read the entire catalog below once per skill. For task-focused loading, use the relevant group loader and profile-selected subset. Catalog presence does not establish local framework or frontend usage.
 
 **Repository Profile:**
    - Read file: `.agent/repository-profile.md` when present.
@@ -25,9 +25,9 @@ Read all skills:
    - Read file: `.agent/skills/overview-github-actions/SKILL.md`
    - Read file: `.agent/skills/overview-skill-index/SKILL.md`
 
-**Framework-scoped/profile-declared skills:**
-   - Read every skill listed in `.agent/repository-profile.md` under `Framework Skills`.
-   - Current DRN framework and buildwww load set:
+**DRN Framework (conditional catalog):**
+   - For focused tasks, select skills through `.agent/repository-profile.md` under `Framework Skills` or explicit task context.
+   - Retained framework and buildwww catalog:
      - Read file: `.agent/skills/overview-drn-framework/SKILL.md`
      - Read file: `.agent/skills/overview-drn-testing/SKILL.md`
      - Read file: `.agent/skills/drn-sharedkernel/SKILL.md`
@@ -49,7 +49,7 @@ Read all skills:
    - Read file: `.agent/skills/test-performance/SKILL.md`
    - Read file: `.agent/skills/test-unit/SKILL.md`
 
-**Frontend (generic Razor):**
+**Frontend (conditional Razor catalog):**
    - Read file: `.agent/skills/frontend-razor-pages-shared/SKILL.md`
    - Read file: `.agent/skills/frontend-razor-pages-navigation/SKILL.md`
    - Read file: `.agent/skills/frontend-razor-accessors/SKILL.md`

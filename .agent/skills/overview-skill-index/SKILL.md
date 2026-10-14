@@ -1,7 +1,7 @@
 ---
 name: overview-skill-index
 description: Use when choosing which repository skills to load for a task, mapping work to skill families, finding related skills, or updating skill routing after skills change.
-last-updated: 2026-08-01
+last-updated: 2026-10-14
 difficulty: basic
 tokens: ~2K
 ---
@@ -40,10 +40,13 @@ tokens: ~2K
 | Pursue a goal through workflow routing | `/goal` workflow -> profile/custom route or skill overlays -> `basic-agentic-development` |
 | Use repository-specific custom behavior | `.agent/repository-profile.md` -> matching `.agent/workflows/<custom>.md` or `.agent/skills/<custom>-*/SKILL.md` |
 | Synchronize two sibling repositories/projects | `/sync` -> `basic-agentic-development` -> `basic-code-review` -> `basic-security-checklist` |
+| Apply or recover an approved sibling sync | `/sync` -> internal `/sync-execute`, using `/sync-evidence` for evidence and approval subjects |
 | Refresh local agent instructions/loaders from the current filesystem | `/update` workflow |
 | Port `.agent` into a new repository | `/update all` -> full new-repository self-sync -> `/update` verification |
 
 ## Framework And Convention-Specific Families
+
+Installed catalog: 30 skills across Basic (6), Overview (6), DRN (10), Testing (5) and Frontend (3). Overview prerequisites also appear in framework loaders. Load each selected skill once. Read the profile's `Framework Skills` section when present to distinguish locally used packages from retained external examples.
 
 The following families are framework- or convention-scoped and should be used only when present and relevant:
 
