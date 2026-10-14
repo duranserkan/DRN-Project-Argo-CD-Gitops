@@ -107,12 +107,13 @@ static class Bootstrap
         client.BaseAddress = new Uri(KubernetesApiAddress);
         client.Timeout = TimeSpan.FromSeconds(30);
 
-        await RunAsync(client, namespaceName, () => File.ReadAllText($"{ServiceAccount}/token").Trim());
+        await RunAsync(client, namespaceName, () => File.ReadAllText($"{ServiceAccount}/token").Trim(),
+            allowCredentialGeneration: Environment.GetEnvironmentVariable("ALLOW_CREDENTIAL_GENERATION") == "true");
     }
 
     /// <summary>Preserves existing settings and copies Nexus credentials into missing application Secrets.</summary>
     internal static async Task RunAsync(HttpClient client, string namespaceName, Func<string> readToken,
-        IReadOnlyList<string>? applications = null)
+        IReadOnlyList<string>? applications = null, bool allowCredentialGeneration = false)
     {
         var secrets = $"/api/v1/namespaces/{namespaceName}/secrets";
         var names = new[] { NexusApplication }.Concat(applications ?? Applications).Distinct(StringComparer.Ordinal).ToArray();
@@ -129,7 +130,11 @@ static class Bootstrap
             ValidateSharedKey(shared, settings);
         }
 
-        // If Nexus is missing, recover from a survivor. Generate credentials only when none survive.
+        // Missing Secrets cannot distinguish a fresh installation from total credential loss.
+        if (shared is null && !allowCredentialGeneration)
+            throw new BootstrapException("No settings Secret survives. Restore the lost settings Secrets. " +
+                "To create new credentials deliberately, set ALLOW_CREDENTIAL_GENERATION=true for this run only.");
+
         shared ??= new Dictionary<string, string>
         {
             // DRN SecureKey: 99 safe characters retaining all 256 random bits.
