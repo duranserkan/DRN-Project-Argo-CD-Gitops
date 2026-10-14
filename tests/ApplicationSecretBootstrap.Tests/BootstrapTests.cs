@@ -31,7 +31,7 @@ public class BootstrapTests
         using var api = new KubernetesApi();
         using var client = api.CreateClient();
 
-        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token", allowCredentialGeneration: true);
 
         api.Writes.Select(request => request.Body!.Metadata!.Name)
             .Should().Equal(NexusSettingsSecret, SampleSettingsSecret);
@@ -58,6 +58,21 @@ public class BootstrapTests
 
         api.Writes.Should().BeEmpty();
         Snapshot(api).Should().Equal(before);
+    }
+
+    [Fact]
+    public async Task Missing_Settings_Should_Fail_Without_Explicit_Credential_Generation()
+    {
+        using var api = new KubernetesApi();
+        using var client = api.CreateClient();
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+
+        (await act.Should().ThrowAsync<BootstrapException>()).Which.Message
+            .Should().Contain("Restore the lost settings Secrets").And.Contain("ALLOW_CREDENTIAL_GENERATION=true");
+
+        api.Requests.Should().HaveCount(2);
+        api.Writes.Should().BeEmpty();
+        api.Secrets.Should().BeEmpty();
     }
 
     [Fact]
@@ -238,7 +253,7 @@ public class BootstrapTests
         };
         using var client = api.CreateClient();
 
-        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token", allowCredentialGeneration: true);
 
         api.Secrets[NexusSettingsSecret].Should().BeSameAs(winner);
         Value(api.Secrets[SampleSettingsSecret], Seed).Should().Be(Value(winner, Seed));
@@ -261,7 +276,7 @@ public class BootstrapTests
             return Response(HttpStatusCode.Conflict);
         };
         using var client = api.CreateClient();
-        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token", allowCredentialGeneration: true);
 
         if (mismatch)
             (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("key settings differ");
@@ -277,7 +292,7 @@ public class BootstrapTests
         api.Intercept = request => request.Method == HttpMethod.Post
             ? Response(HttpStatusCode.Conflict) : null;
         using var client = api.CreateClient();
-        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token", allowCredentialGeneration: true);
 
         (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("disappeared");
         api.Writes.Should().ContainSingle();
@@ -291,14 +306,14 @@ public class BootstrapTests
         api.Intercept = request => request.Method == HttpMethod.Post && request.Name == SampleSettingsSecret
             ? Response(HttpStatusCode.Forbidden) : null;
         using var client = api.CreateClient();
-        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token", allowCredentialGeneration: true);
 
         await act.Should().ThrowAsync<BootstrapException>();
         var saved = Json.Serialize(api.Secrets[NexusSettingsSecret]);
         api.Requests.Clear();
         api.Intercept = null;
 
-        await act.Should().NotThrowAsync();
+        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
         api.Writes.Should().ContainSingle().Which.Name.Should().Be(SampleSettingsSecret);
         Json.Serialize(api.Secrets[NexusSettingsSecret]).Should().Be(saved);
         Value(api.Secrets[SampleSettingsSecret], Seed).Should().Be(Value(api.Secrets[NexusSettingsSecret], Seed));
@@ -349,7 +364,7 @@ public class BootstrapTests
         using var client = api.CreateClient();
         var tokenReads = 0;
 
-        await Bootstrap.RunAsync(client, "drn-project", () => $"synthetic-token-{++tokenReads}");
+        await Bootstrap.RunAsync(client, "drn-project", () => $"synthetic-token-{++tokenReads}", allowCredentialGeneration: true);
 
         tokenReads.Should().Be(4);
         api.Requests.Select(request => request.Authorization)

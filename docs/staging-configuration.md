@@ -49,7 +49,9 @@ The Job reads and validates all configured Secrets before writing. It checks all
 
 API requests use the mounted service account token and CA bundle. Certificate chain and hostname checks remain enabled. The token is read again for each request. Requests time out after 30 seconds. Redirects and proxy use are disabled. Errors do not log credentials or API response bodies.
 
-Missing application Secrets are recreated from Nexus, including its seed, regardless of existing Deployments. If Nexus is missing, the first surviving application in the configured order supplies its credentials. Only when no configured Secret survives does bootstrap generate new credentials. A competing creator's stored Secret remains authoritative and must pass validation. A Nexus create conflict uses the stored winner's seed and key for subsequent creations.
+Missing application Secrets are recreated from Nexus, including its seed, regardless of existing Deployments. If Nexus is missing, the first surviving application in the configured order supplies its credentials. If no configured Secret survives, bootstrap stops without writing. A competing creator's stored Secret remains authoritative and must pass validation. A Nexus create conflict uses the stored winner's seed and key for subsequent creations.
+
+For a fresh install or deliberate credential reset, set `ALLOW_CREDENTIAL_GENERATION=true` in the Job's environment for one run. Do not save this override in GitOps. New credentials cannot recover data protected by lost seeds or keys.
 
 To add an application, add its name to `Applications` in `bootstrap.cs`, add `<name>-settings` to the Role's named reads, and configure the workload's Secret projection. Existing applications are preserved while only the new Secret is created. Duplicate application names are processed once.
 

@@ -8,8 +8,8 @@ Read profile and skills:
    - Read file: `.agent/repository-profile.md` (if present)
 
 *If declared by profile, load framework testing skills first:*
-   - Read file: `.agent/skills/drn-testing/SKILL.md`
    - Read file: `.agent/skills/overview-drn-testing/SKILL.md`
+   - Read file: `.agent/skills/drn-testing/SKILL.md`
 
 *Read portable testing skills:*
    - Read file: `.agent/skills/test-integration/SKILL.md`
