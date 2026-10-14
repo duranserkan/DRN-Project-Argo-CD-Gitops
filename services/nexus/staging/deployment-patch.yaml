@@ -13,7 +13,10 @@ spec:
           type: RuntimeDefault
       volumes:
         - name: database-credentials
+          # Kubelet mounts Secrets from this Pod's namespace (drn-project), without ServiceAccount Secret-read access.
+          # Authorized workload creators can mount them too. API readers can access them across namespaces if RBAC permits.
           projected:
+            # Group-readable by fsGroup 1654 for the non-root Npgsql client.
             defaultMode: 0440
             sources:
               - secret:
@@ -27,6 +30,7 @@ spec:
                     - key: ca.crt
                       path: root.crt
         - name: settings
+          # Kubelet projects the bootstrap-created Secret keys as files in the settings mount.
           secret:
             secretName: nexus-settings
             optional: false
@@ -53,6 +57,7 @@ spec:
               drop: [ALL]
           volumeMounts:
             - name: database-credentials
+              # Npgsql Passfile reads pgpass here. root.crt supplies public CA trust only.
               mountPath: /appcerts/postgresql
               readOnly: true
             - name: settings

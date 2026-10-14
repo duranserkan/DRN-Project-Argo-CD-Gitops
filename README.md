@@ -79,10 +79,10 @@ The project uses Kubernetes `1.36.4` for testing. The pinned Linkerd charts requ
 
 | Environment | Root | DRN environment | Accepted GitOps tags | Database migrations |
 |---|---|---|---|---|
-| stage | [apps/staging/application.yaml](apps/staging/application.yaml) | Staging | Preview or final | `AutoMigrateStaging=true`, no prototype recreation |
-| prod | [apps/production/application.yaml](apps/production/application.yaml) | Production | Final only | Explicit migration process, never startup migration |
+| staging | [apps/staging/application.yaml](apps/staging/application.yaml) | Staging | Preview or final | `AutoMigrateStaging=true`, no prototype recreation |
+| production | [apps/production/application.yaml](apps/production/application.yaml) | Production | Final only | Explicit migration process, never startup migration |
 
-Start with staging as a rolling beta. Production is disabled through `enableProduction=false` in its root. The production chart will not render until you enable it. Do not apply the prod root during beta. Its overlays prepare for later activation but do not establish production readiness.
+Start with staging as a rolling beta. Production is disabled through `enableProduction=false` in its root. The production chart will not render until you enable it. Do not apply the production root during beta. Its overlays prepare for later activation but do not establish production readiness.
 
 Use `develop` as the integration branch. Merge reviewed topic PRs into `develop`. Promote releases through a `develop → master` PR. Publish previews from `develop` and final releases from `master`. The `develop` branch does not represent a deployed environment. Deploy immutable calendar tags:
 
@@ -90,7 +90,7 @@ Use `develop` as the integration branch. Merge reviewed topic PRs into `develop`
 - `2026.10.1-preview002`: a changed candidate from `develop`, with a new tag.
 - `2026.10.1`: final release from `master`.
 
-Use the format `YYYY.M.sequence[-previewNNN]`. Leave the month unpadded and use a positive release sequence. Preview numbers have three digits, from `001` through `999`. Deployment roots select immutable tags. Protect those tags against updates and deletion. Roots use `refs/tags/...` to distinguish tags from branches. The chart checks the tag format and rejects previews for prod. It does not create tags or configure repository rulesets.
+Use the format `YYYY.M.sequence[-previewNNN]`. Leave the month unpadded and use a positive release sequence. Preview numbers have three digits, from `001` through `999`. Deployment roots select immutable tags. Protect those tags against updates and deletion. Roots use `refs/tags/...` to distinguish tags from branches. The chart checks the tag format and rejects previews for production. It does not create tags or configure repository rulesets.
 
 ## One snapshot for every application
 
@@ -208,9 +208,9 @@ argocd app list
 
 An Application in a later wave may not exist until earlier waves complete. Inspect the blocking child in the root's resource tree. Complete the secret and Graylog setup below before expecting the root to become healthy. After setup, run the [readiness checks](docs/platform-operations.md#readiness-checks). See [Grafana and secrets](docs/platform-operations.md#grafana-and-secrets) for dashboard access and sealing commands.
 
-Follow the [stage secret configuration](docs/staging-configuration.md). Isolation creates `drn-project`. PostgreSQL creates credentials before the workload waves. Stage workloads mount the generated PostgreSQL password file and public CA directly. No database credential copying is required.
+Follow the [staging secret configuration](docs/staging-configuration.md). Isolation creates `drn-project`. PostgreSQL creates credentials before the workload waves. Staging workloads mount the generated PostgreSQL password file and public CA directly. No database credential copying is required.
 
-The staging `application-secrets` bootstrap creates `sample-settings` and `nexus-settings` before Nexus starts. It generates random DRN-compatible seeds and a shared Nexus key. Existing values are preserved. Generated allowed hosts cover local access and service DNS names. Configure your ingress hostname before public access. Root sync may time out while waiting for configuration or Graylog setup. Finish those steps and sync again.
+The staging `application-secrets` bootstrap creates `sample-settings` and `nexus-settings` before Nexus starts. It generates a shared random DRN-compatible seed and Nexus key. Existing Secrets are preserved, and missing application Secrets copy Nexus's credentials. Generated allowed hosts cover local access and service DNS names. Configure your ingress hostname before public access. Root sync may time out while waiting for configuration or Graylog setup. Finish those steps and sync again.
 
 Graylog setup may need your input. The child gate requires healthy resources and completed deployment hooks before later root waves can proceed. Those hooks must have completed for the current source and revision. Successful automatic self-heals pass when matching automated deployment history proves this. A new revision may need a full child sync even when its manifests are unchanged. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for gate rules and upgrade instructions.
 
@@ -220,7 +220,7 @@ If Gateway API shows **Synced / Degraded: CRD is not established**, inspect its 
 
 Root templates use numbered directories under `deployment/templates/` with matching sync-wave annotations. The annotations control deployment order. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for wave allocation.
 
-Sample and Nexus use their anonymous WeatherForecast endpoints for startup, readiness and liveness probes. These probes use an internal HTTP/1 listener on port `8081`. Their Services continue to use h2c. In stage and prod, each application's `AllowedHosts` Secret must allow its probe Host header. Use `sample` for Sample and `nexus` for Nexus. The probes check application responsiveness. They do not check database or downstream availability. See [workload health probes](docs/platform-operations.md#workload-health-probes) for paths, timings and rollout requirements.
+Sample and Nexus use their anonymous WeatherForecast endpoints for startup, readiness and liveness probes. These probes use an internal HTTP/1 listener on port `8081`. Their Services continue to use h2c. In staging and production, each application's `AllowedHosts` Secret must allow its probe Host header. Use `sample` for Sample and `nexus` for Nexus. The probes check application responsiveness. They do not check database or downstream availability. See [workload health probes](docs/platform-operations.md#workload-health-probes) for paths, timings and rollout requirements.
 
 Do not recursively apply `apps/`, apply `deployment/templates/` as raw YAML, or deploy workload bases directly. The bootstrap project manages AppProjects and Applications in `argocd`, which grants indirect administrative authority. Restrict it and its source files to administrators. Infrastructure children own namespaces. The workload project cannot create namespaces, Secrets, RBAC, NetworkPolicies or Linkerd authorization policies.
 
@@ -232,9 +232,9 @@ Do not recursively apply `apps/`, apply `deployment/templates/` as raw YAML, or 
 4. For another change, publish a new preview sequence. Never move a tag.
 5. When a final release is needed, promote the reviewed candidate through `develop → master`. Preserve the tested image digests and wait for CI on the resulting `master` commit.
 6. Publish the final tag from `master` and wait for its tag scan. If merging created a new commit, select the final tag in staging. Validate that exact snapshot.
-7. Complete the production prerequisites. Select the same validated final tag in prod. Explicitly enable production in its root. Sync it against the separate production cluster.
+7. Complete the production prerequisites. Select the same validated final tag in production. Explicitly enable production in its root. Sync it against the separate production cluster.
 
-During rolling beta, repeat steps 1 through 4. A final tag or prod deployment is not required for each iteration. Production uses its own overlay of the validated snapshot.
+During rolling beta, repeat steps 1 through 4. A final tag or production deployment is not required for each iteration. Production uses its own overlay of the validated snapshot.
 
 Rollback selects a previous immutable tag and syncs the root. It reverts desired manifests and image pins. It does not restore database contents. Startup migrations and retained database resources can complicate a code rollback. You may need a compatible forward fix or verified database recovery. An older application may not support a newer schema.
 
@@ -279,7 +279,7 @@ Linkerd mTLS encrypts traffic between proxies and authenticates both workload id
 | Sample/Nexus → Graylog GELF input (`12201`)              | Linkerd mTLS. The internal GELF URL remains `http://`.                                                                                                                                                                              |
 | Permitted meshed caller → Graylog UI/API (`9000`)        | Linkerd mTLS. Graylog login/API authorization still applies.                                                                                                                                                                        |
 | Browser → Graylog through `kubectl port-forward`         | Local HTTP carried through Kubernetes' authenticated port-forward tunnel. This path is not Linkerd mTLS.                                                                                                                            |
-| Sample/Nexus → PostgreSQL (`5432`)                       | Native TLS is required. PostgreSQL is unmeshed. Stage/prod must use certificate verification and a trusted CA.                                                                                                                      |
+| Sample/Nexus → PostgreSQL (`5432`)                       | Native TLS is required. PostgreSQL is unmeshed. Staging and production must use certificate verification and a trusted CA. |
 | Graylog/Data Node → MongoDB (`27017`)                    | Native TLS with server certificate verification and SCRAM authentication. MongoDB and Data Node are unmeshed.                                                                                                                       |
 | Graylog → Data Node API (`8999`) and OpenSearch (`9200`) | Native TLS with automatically generated self-signed certificates. The chart enables this startup mode by default. Manual CA provisioning is not required. Managed CA trust and renewal need separate configuration. |
 | Kubelet → Sample/Nexus health listener (`8081`)          | HTTP probes to the Pod IP, not workload-to-workload mTLS. The port is not published by a Service or Gateway.                                                                                                                        |

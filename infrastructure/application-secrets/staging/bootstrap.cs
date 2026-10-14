@@ -51,13 +51,14 @@ static class Bootstrap
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    // Kubernetes projects these authentication files into the Pod, independently of /bootstrap.
     private const string ServiceAccount = "/var/run/secrets/kubernetes.io/serviceaccount";
     private const string KubernetesApiAddress = "https://kubernetes.default.svc";
     private const string NexusApplication = "nexus";
     private const string SampleApplication = "sample";
     private const string SettingsSuffix = "-settings";
-    private const string NexusSettingsSecret = NexusApplication + SettingsSuffix;
-    private const string SampleSettingsSecret = SampleApplication + SettingsSuffix;
+    // Add future applications here and grant named Secret reads in the bootstrap Role.
+    private static readonly string[] Applications = [NexusApplication, SampleApplication];
     private const string AllowedHosts = "AllowedHosts";
     private const string SeedKey = "DrnAppFeatures__SeedKey";
     private const string KeyMaterial = "NexusAppSettings__Keys__0__KeyMaterial";
@@ -109,38 +110,54 @@ static class Bootstrap
         await RunAsync(client, namespaceName, () => File.ReadAllText($"{ServiceAccount}/token").Trim());
     }
 
-    /// <summary>Creates a fresh settings pair or checks that both surviving Secrets contain the same Nexus key.</summary>
-    /// <remarks>Partial pairs and missing settings beside existing Deployments require deliberate recovery.</remarks>
-    internal static async Task RunAsync(HttpClient client, string namespaceName, Func<string> readToken)
+    /// <summary>Preserves existing settings and copies Nexus credentials into missing application Secrets.</summary>
+    internal static async Task RunAsync(HttpClient client, string namespaceName, Func<string> readToken,
+        IReadOnlyList<string>? applications = null)
     {
         var secrets = $"/api/v1/namespaces/{namespaceName}/secrets";
-        var deployments = $"/apis/apps/v1/namespaces/{namespaceName}/deployments";
-        var nexus = await RequestAsync(client, readToken, HttpMethod.Get, $"{secrets}/{NexusSettingsSecret}");
-        var sample = await RequestAsync(client, readToken, HttpMethod.Get, $"{secrets}/{SampleSettingsSecret}");
-        // A surviving Secret may protect existing data. Never infer that its missing peer is disposable.
-        if ((nexus is null) != (sample is null))
-            throw new BootstrapException("Only one settings Secret exists. Restore or deliberately complete the pair. Refusing seed/key regeneration.");
-
-        if (nexus is null)
+        var names = new[] { NexusApplication }.Concat(applications ?? Applications).Distinct(StringComparer.Ordinal).ToArray();
+        var existing = new Dictionary<string, BootstrapSecret?>();
+        Dictionary<string, string>? shared = null;
+        // Read and validate every survivor before writing. Nexus is always the preferred source.
+        foreach (var name in names)
         {
-            // Existing workloads may depend on the lost credentials. Their settings must be restored.
-            if (await RequestAsync(client, readToken, HttpMethod.Get, $"{deployments}/{NexusApplication}") is not null ||
-                await RequestAsync(client, readToken, HttpMethod.Get, $"{deployments}/{SampleApplication}") is not null)
-                throw new BootstrapException("Application workloads already exist. Restore their settings Secrets from backup.");
-
-            nexus = await CreateAsync(client, readToken, secrets, namespaceName, NexusApplication, new Dictionary<string, string>
-            {
-                [KeyMaterial] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
-                [KeyFormat] = "Base64",
-                [KeyDefault] = "true"
-            });
-            // Use the winning Nexus Secret if another bootstrap created it first.
-            sample = await CreateAsync(client, readToken, secrets, namespaceName, SampleApplication, Settings(nexus, NexusSettingsSecret));
+            var secret = await RequestAsync(client, readToken, HttpMethod.Get, $"{secrets}/{name}{SettingsSuffix}");
+            existing.Add(name, secret);
+            if (secret is null) continue;
+            var settings = Settings(secret, name + SettingsSuffix);
+            shared ??= settings;
+            ValidateSharedKey(shared, settings);
         }
 
-        var nexusSettings = Settings(nexus, NexusSettingsSecret);
-        var sampleSettings = Settings(sample, SampleSettingsSecret);
-        if (new[] { KeyMaterial, KeyFormat, KeyDefault }.Any(key => nexusSettings[key] != sampleSettings[key]))
+        // If Nexus is missing, recover from a survivor. Generate credentials only when none survive.
+        shared ??= new Dictionary<string, string>
+        {
+            // DRN SecureKey: 99 safe characters retaining all 256 random bits.
+            [SeedKey] = "Aa0!" + string.Join("-", RandomNumberGenerator.GetBytes(32).Select(value => value.ToString("x2"))),
+            [KeyMaterial] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
+            [KeyFormat] = "Base64",
+            [KeyDefault] = "true"
+        };
+        foreach (var name in names)
+        {
+            if (existing[name] is not null) continue;
+            var created = await CreateAsync(client, readToken, secrets, namespaceName, name, shared);
+            var settings = Settings(created, name + SettingsSuffix);
+            if (name == NexusApplication)
+            {
+                // A competing Nexus creator wins. Check survivors before copying its stored credentials.
+                foreach (var survivor in existing.Where(pair => pair.Value is not null))
+                    ValidateSharedKey(settings, Settings(survivor.Value, survivor.Key + SettingsSuffix));
+                shared = settings;
+            }
+            ValidateSharedKey(shared, settings);
+        }
+    }
+
+    private static void ValidateSharedKey(Dictionary<string, string> expected, Dictionary<string, string> actual)
+    {
+        // Older installations used independent seeds. Preserve them rather than rotating stored credentials.
+        if (new[] { KeyMaterial, KeyFormat, KeyDefault }.Any(key => expected[key] != actual[key]))
             throw new BootstrapException("Nexus key settings differ between applications. Reconcile them deliberately. Bootstrap will not overwrite them.");
     }
 
@@ -222,22 +239,22 @@ static class Bootstrap
             : value;
     }
 
-    /// <summary>Creates an unowned settings Secret with a new application seed and the supplied shared Nexus key.</summary>
+    /// <summary>Creates an unowned settings Secret with shared credentials and application-specific hosts.</summary>
     private static Task<BootstrapSecret?> CreateAsync(
         HttpClient client, Func<string> readToken, string secrets, string namespaceName, string name, Dictionary<string, string> key)
     {
-        // DRN SecureKey: 99 safe characters. Separators retain all 256 random bits.
-        var seed = "Aa0!" + string.Join("-", RandomNumberGenerator.GetBytes(32).Select(value => value.ToString("x2")));
+        // POST JSON over HTTPS to create the API resource. No local Secret files or kubectl are involved.
         return RequestAsync(client, readToken, HttpMethod.Post, secrets, new BootstrapSecret
         {
             ApiVersion = "v1",
             Kind = "Secret",
             Type = "Opaque",
             Metadata = new BootstrapMetadata { Name = name + SettingsSuffix, Namespace = namespaceName },
+            // Send text values as stringData. API responses expose them as base64-encoded data.
             StringData = new Dictionary<string, string?>
             {
                 [AllowedHosts] = $"{name};{name}.{namespaceName};{name}.{namespaceName}.svc;{name}.{namespaceName}.svc.cluster.local;localhost;127.0.0.1",
-                [SeedKey] = seed,
+                [SeedKey] = key[SeedKey],
                 [KeyMaterial] = key[KeyMaterial],
                 [KeyFormat] = key[KeyFormat],
                 [KeyDefault] = key[KeyDefault]

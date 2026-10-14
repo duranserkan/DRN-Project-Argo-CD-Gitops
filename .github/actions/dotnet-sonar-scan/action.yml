@@ -16,10 +16,10 @@ runs:
     - name: Build application deployment source
       shell: bash
       run: >-
-        dotnet build infrastructure/application-secrets/stage/bootstrap.cs
+        dotnet build infrastructure/application-secrets/staging/bootstrap.cs
         --configuration Release --disable-build-servers
         -p:PublishAot=false -p:NuGetAudit=false -p:UseSharedCompilation=false
-        -p:RestoreConfigFile="$GITHUB_WORKSPACE/infrastructure/application-secrets/stage/NuGet.Config"
+        -p:RestoreConfigFile="$GITHUB_WORKSPACE/infrastructure/application-secrets/staging/NuGet.Config"
 
     - name: Build Graylog deployment source
       shell: bash

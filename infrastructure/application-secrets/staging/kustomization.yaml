@@ -6,6 +6,7 @@ resources:
   - credential-bootstrap-role.yaml
   - credential-bootstrap-role-binding.yaml
   - credential-bootstrap-service-account.yaml
+# Kustomize packages these Git files for the Job's /bootstrap mount.
 configMapGenerator:
   - name: application-secret-bootstrap-source
     files:
@@ -13,4 +14,5 @@ configMapGenerator:
       - NuGet.Config
     options:
       annotations:
+        # Argo CD creates the source ConfigMap before the Sync hook Job.
         argocd.argoproj.io/sync-wave: "-1"
