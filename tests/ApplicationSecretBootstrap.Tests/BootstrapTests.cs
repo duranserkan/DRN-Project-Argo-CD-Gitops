@@ -50,7 +50,7 @@ public class BootstrapTests
                 $"{app};{app}.drn-project;{app}.drn-project.svc;{app}.drn-project.svc.cluster.local;localhost;127.0.0.1");
         }
         Value(api.Secrets[NexusSettingsSecret], Material).Should().Be(Value(api.Secrets[SampleSettingsSecret], Material));
-        Value(api.Secrets[NexusSettingsSecret], Seed).Should().NotBe(Value(api.Secrets[SampleSettingsSecret], Seed));
+        Value(api.Secrets[NexusSettingsSecret], Seed).Should().Be(Value(api.Secrets[SampleSettingsSecret], Seed));
         var before = Snapshot(api);
         api.Requests.Clear();
 
@@ -84,30 +84,104 @@ public class BootstrapTests
     [Theory]
     [DataInlineUnit(NexusSettingsSecret)]
     [DataInlineUnit(SampleSettingsSecret)]
-    public async Task Partial_Pair_Should_Fail_Without_Writes(string existing)
+    public async Task Partial_Pair_Should_Preserve_Survivor_And_Copy_Credentials_Into_Missing_Secret(string existing)
     {
         using var api = new KubernetesApi();
         api.Secrets[existing] = Secret(existing);
+        SetValue(api.Secrets[existing], Format, "Utf8");
+        SetValue(api.Secrets[existing], Material, "0123456789abcdef0123456789abcdef");
+        var saved = Json.Serialize(api.Secrets[existing]);
         using var client = api.CreateClient();
 
-        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
-        (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("Only one settings Secret exists");
+        var missing = existing == NexusSettingsSecret ? SampleSettingsSecret : NexusSettingsSecret;
+        api.Writes.Should().ContainSingle().Which.Name.Should().Be(missing);
+        Json.Serialize(api.Secrets[existing]).Should().Be(saved);
+        foreach (var field in new[] { Seed, Material, Format, Default })
+            Value(api.Secrets[missing], field).Should().Be(Value(api.Secrets[existing], field));
+        Value(api.Secrets[missing], AllowedHosts).Should().NotBe(Value(api.Secrets[existing], AllowedHosts));
+        var before = Snapshot(api);
+        api.Requests.Clear();
+
+        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+
+        Snapshot(api).Should().Equal(before);
         api.Writes.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Adding_Application_Should_Copy_Nexus_Credentials_And_Skip_Existing_Secrets()
+    {
+        using var api = ExistingPair();
+        var before = Snapshot(api);
+        using var client = api.CreateClient();
+        string[] applications = [NexusApplication, SampleApplication, "future", "future"];
+
+        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token", applications);
+
+        api.Writes.Should().ContainSingle().Which.Name.Should().Be("future-settings");
+        Json.Snapshot(api.Secrets.Where(pair => pair.Key != "future-settings")
+            .ToDictionary(pair => pair.Key, pair => pair.Value)).Should().Equal(before);
+        foreach (var field in new[] { Seed, Material, Format, Default })
+            Value(api.Secrets["future-settings"], field).Should().Be(Value(api.Secrets[NexusSettingsSecret], field));
+        Value(api.Secrets["future-settings"], AllowedHosts).Should().StartWith("future;future.drn-project;");
+        var completed = Snapshot(api);
+        api.Requests.Clear();
+
+        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token", applications);
+
+        api.Writes.Should().BeEmpty();
+        Snapshot(api).Should().Equal(completed);
+    }
+
     [Theory]
-    [DataInlineUnit(NexusApplication)]
-    [DataInlineUnit(SampleApplication)]
-    public async Task Missing_Secrets_With_Existing_Deployment_Should_Fail(string deployment)
+    [DataMemberUnit(nameof(InvalidFields))]
+    public async Task Invalid_Survivor_Should_Fail_Before_Creating_Missing_Secret(string name, string field, string? encoded)
     {
         using var api = new KubernetesApi();
-        api.Deployments.Add(deployment);
+        api.Secrets[name] = Secret(name);
+        api.Secrets[name].Data![field] = encoded;
+        var before = Snapshot(api);
         using var client = api.CreateClient();
         var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
-        (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("workloads already exist");
+        (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain(name).And.Contain(field);
+
         api.Writes.Should().BeEmpty();
+        Snapshot(api).Should().Equal(before);
+    }
+
+    [Theory]
+    [DataInlineUnit(NexusSettingsSecret, false)]
+    [DataInlineUnit(NexusSettingsSecret, true)]
+    [DataInlineUnit(SampleSettingsSecret, false)]
+    [DataInlineUnit(SampleSettingsSecret, true)]
+    public async Task Partial_Recovery_Create_Conflict_Should_Preserve_And_Validate_Winner(string existing, bool mismatch)
+    {
+        using var api = new KubernetesApi();
+        api.Secrets[existing] = Secret(existing);
+        var saved = Json.Serialize(api.Secrets[existing]);
+        var missing = existing == NexusSettingsSecret ? SampleSettingsSecret : NexusSettingsSecret;
+        var winner = Secret(missing);
+        if (mismatch) SetValue(winner, Material, "different-synthetic-key");
+        api.Intercept = request =>
+        {
+            if (request.Method != HttpMethod.Post || request.Name != missing) return null;
+            api.Secrets[missing] = winner;
+            return Response(HttpStatusCode.Conflict);
+        };
+        using var client = api.CreateClient();
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
+
+        if (mismatch)
+            (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("key settings differ");
+        else
+            await act.Should().NotThrowAsync();
+
+        api.Writes.Should().ContainSingle();
+        api.Secrets[missing].Should().BeSameAs(winner);
+        Json.Serialize(api.Secrets[existing]).Should().Be(saved);
     }
 
     [Theory]
@@ -167,6 +241,7 @@ public class BootstrapTests
         await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
         api.Secrets[NexusSettingsSecret].Should().BeSameAs(winner);
+        Value(api.Secrets[SampleSettingsSecret], Seed).Should().Be(Value(winner, Seed));
         Value(api.Secrets[SampleSettingsSecret], Material).Should().Be(Value(winner, Material));
         api.Writes.Should().HaveCount(2);
     }
@@ -210,7 +285,7 @@ public class BootstrapTests
     }
 
     [Fact]
-    public async Task Interrupted_Pair_Creation_Should_Require_Repair_On_Retry()
+    public async Task Interrupted_Pair_Creation_Should_Complete_On_Retry_Without_Changing_Nexus()
     {
         using var api = new KubernetesApi();
         api.Intercept = request => request.Method == HttpMethod.Post && request.Name == SampleSettingsSecret
@@ -223,9 +298,11 @@ public class BootstrapTests
         api.Requests.Clear();
         api.Intercept = null;
 
-        (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("Only one settings Secret exists");
-        api.Writes.Should().BeEmpty();
+        await act.Should().NotThrowAsync();
+        api.Writes.Should().ContainSingle().Which.Name.Should().Be(SampleSettingsSecret);
         Json.Serialize(api.Secrets[NexusSettingsSecret]).Should().Be(saved);
+        Value(api.Secrets[SampleSettingsSecret], Seed).Should().Be(Value(api.Secrets[NexusSettingsSecret], Seed));
+        Value(api.Secrets[SampleSettingsSecret], Material).Should().Be(Value(api.Secrets[NexusSettingsSecret], Material));
     }
 
     [Theory]
@@ -274,9 +351,9 @@ public class BootstrapTests
 
         await Bootstrap.RunAsync(client, "drn-project", () => $"synthetic-token-{++tokenReads}");
 
-        tokenReads.Should().Be(6);
+        tokenReads.Should().Be(4);
         api.Requests.Select(request => request.Authorization)
-            .Should().Equal(Enumerable.Range(1, 6).Select(index => $"Bearer synthetic-token-{index}"));
+            .Should().Equal(Enumerable.Range(1, 4).Select(index => $"Bearer synthetic-token-{index}"));
     }
 
     private static KubernetesApi ExistingPair()
@@ -317,9 +394,7 @@ public class BootstrapTests
     private sealed class KubernetesApi : HttpMessageHandler
     {
         private const string SecretsPath = "/api/v1/namespaces/drn-project/secrets";
-        private const string DeploymentsPath = "/apis/apps/v1/namespaces/drn-project/deployments/";
         public Dictionary<string, BootstrapSecret> Secrets { get; } = [];
-        public HashSet<string> Deployments { get; } = [];
         public List<ApiRequest> Requests { get; } = [];
         public IEnumerable<ApiRequest> Writes => Requests.Where(request => request.Method != HttpMethod.Get);
         public Func<ApiRequest, HttpResponseMessage?>? Intercept { get; set; }
@@ -344,8 +419,6 @@ public class BootstrapTests
             if (request.Method == HttpMethod.Get && captured.Path.StartsWith(SecretsPath + "/", StringComparison.Ordinal))
                 return Secrets.TryGetValue(captured.Path[(SecretsPath.Length + 1)..], out var secret)
                     ? Response(HttpStatusCode.OK, Json.Serialize(secret)) : Response(HttpStatusCode.NotFound);
-            if (request.Method == HttpMethod.Get && captured.Path.StartsWith(DeploymentsPath, StringComparison.Ordinal))
-                return Response(Deployments.Contains(captured.Path[DeploymentsPath.Length..]) ? HttpStatusCode.OK : HttpStatusCode.NotFound);
             if (request.Method == HttpMethod.Post && captured.Path == SecretsPath)
             {
                 if (Secrets.ContainsKey(captured.Name!)) return Response(HttpStatusCode.Conflict);

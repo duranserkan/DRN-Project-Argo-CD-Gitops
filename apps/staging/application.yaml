@@ -8,13 +8,13 @@ spec:
   source:
     repoURL: https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git
     path: deployment
-    # Publish this reviewed immutable snapshot before applying it for staging validation.
-    # Change only this field to select a snapshot. Do not move or recreate its tag.
-    targetRevision: refs/tags/2026.10.1-preview001
+    # Publish preview002 with the staging chart and overlay paths before applying this root.
+    # Do not move or recreate an existing tag.
+    targetRevision: refs/tags/2026.10.1-preview002
     helm:
       parameters:
         - name: environment
-          value: stage
+          value: staging
         - name: gitRevision
           value: $ARGOCD_APP_REVISION
           forceString: true

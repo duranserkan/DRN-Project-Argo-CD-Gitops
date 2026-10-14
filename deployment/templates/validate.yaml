@@ -1,5 +1,5 @@
-{{- if not (has .Values.environment (list "stage" "prod")) -}}
-{{- fail "environment must be stage or prod; development is local only" -}}
+{{- if not (has .Values.environment (list "staging" "production")) -}}
+{{- fail "environment must be staging or production; development is local only" -}}
 {{- end -}}
 {{- if not (regexMatch "^[0-9a-f]{40}$" .Values.gitRevision) -}}
 {{- fail "gitRevision must be the root Application's resolved Git commit SHA" -}}
@@ -10,7 +10,7 @@
 {{- if not (kindIs "bool" .Values.enableProduction) -}}
 {{- fail "enableProduction must be a boolean" -}}
 {{- end -}}
-{{- if eq .Values.environment "prod" -}}
+{{- if eq .Values.environment "production" -}}
 {{- if not .Values.enableProduction -}}
 {{- fail "production is disabled; complete the production prerequisites before enabling it" -}}
 {{- end -}}

@@ -1,4 +1,4 @@
-{{- if eq .Values.environment "stage" }}
+{{- if eq .Values.environment "staging" }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

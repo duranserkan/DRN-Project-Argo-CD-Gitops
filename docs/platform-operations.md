@@ -20,8 +20,8 @@ Use the latest compatible releases within the selected database lines. PostgreSQ
 | Graylog and Data Node | Chart 2.1.0 remains current, both images updated to 7.1.10 |
 | Sample and Nexus | 0.10.1-preview003, image source revision matches the release tag |
 | PostgreSQL | Updated 2026-10-11 to the current 18.6 standard-trixie image, pinned by digest |
-| MongoDB credential bootstrap | Updated 2026-10-12 to .NET SDK 10.0.401-alpine3.24, pinned by digest |
-| Staging application Secret bootstrap | Updated 2026-10-12 to .NET SDK 10.0.401-alpine3.24, pinned by digest |
+| MongoDB credential bootstrap | Updated 2026-10-14 to .NET SDK 10.0.402-alpine3.24, pinned by digest |
+| Staging application Secret bootstrap | Updated 2026-10-14 to .NET SDK 10.0.402-alpine3.24, pinned by digest |
 | cert-manager | v1.21.2 remains current |
 | CloudNativePG operator | Chart 0.29.1 and image 1.30.1 remain current |
 | MongoDB operator and server | Chart 1.13.0 and its helper versions remain current; 8.2.12-ubi8 remains the latest published image in the selected server line |
@@ -31,6 +31,8 @@ Use the latest compatible releases within the selected database lines. PostgreSQ
 Chart archives were checked against publisher index checksums. Changed explicit image pins were verified against registry manifests. Argo CD chart archive SHA-256 is `1f2bdb0e23b87fdac5222d99d1acf6964e670db9bf63912c58ab4677e505638b`. Its image digest is `sha256:49dff79439bb38b1b942b19a113fe1fec7e6b6c671ddf9fe6a4a7c46bde0b77b`. Argo CD's ECR dependency mirror was rate-limited during review; Redis and HAProxy versions were inspected through their upstream Docker Hub manifests instead. This is static verification, not a deployment or runtime compatibility test. Separate release notes are not required for this configuration update.
 
 ## Resource organization
+
+Environment values and overlay directories use the full names `staging` and `production`. When adopting this rename, update the root Application's environment parameter and target revision together to a tag containing these paths. Older tags expect the previous abbreviated values. For rollback, restore the matching root manifest from the selected tag. Namespaces and Kubernetes resource names remain unchanged.
 
 Keep standalone Kubernetes resources in separate files within their owning component directory. Use descriptive filenames, adding the resource kind when needed to distinguish related resources. Preserve existing Application source paths, resource identities and sync waves when splitting files. Keep chart-owned `extraObjects` in their Helm values to preserve chart rendering and ownership.
 
@@ -84,9 +86,9 @@ Independent applications can share a wave. Allocate a later wave only for a real
 
 The numbered layout replaces the former negative infrastructure waves and application waves `100`/`200`. It preserves dependency order and same-wave groups. Resource identities and child source paths are unchanged.
 
-Staging's `application-secrets` Job completes before Nexus and Sample. Its dedicated project keeps Secret-creation RBAC outside the workload project. Full syncs preserve existing values. Partial or lost settings require deliberate recovery. See [automatic staging Secret bootstrap](staging-configuration.md#automatic-staging-secret-bootstrap). Production does not install this component.
+Staging's `application-secrets` Job completes before Nexus and Sample. Its dedicated project keeps Secret-creation RBAC outside the workload project. Full syncs preserve existing Secrets and create only missing ones, copying Nexus's seed and key with application-specific hosts. If Nexus is missing, a surviving application supplies its credentials. Total credential loss and lost legacy custom values require operator recovery. See [automatic staging Secret bootstrap](staging-configuration.md#automatic-staging-secret-bootstrap). Production does not install this component.
 
-Both credential bootstrap Jobs run a single C# file from a Kustomize-generated ConfigMap. They use the official `mcr.microsoft.com/dotnet/sdk:10.0.401-alpine3.24` image. Its index digest is `sha256:3cc3bbbbf93d82104892f42aa9106b6be4d120346dea0649643a97c801525256`. On 2026-10-12, the MCR manifest response and its calculated SHA-256 matched this pin. The index includes Linux amd64, arm/v7 and arm64. The [SDK supports file-based apps](https://learn.microsoft.com/en-us/dotnet/core/sdk/file-based-apps), so no custom image is needed.
+Both credential bootstrap Jobs run a single C# file from a Kustomize-generated ConfigMap. They use the official `mcr.microsoft.com/dotnet/sdk:10.0.402-alpine3.24` image. Its index digest is `sha256:230c3fbae0ceedc70bca04eed2bfb5694e8b248cadbb81010f41b7a993601f55`. On 2026-10-14, the MCR manifest response and its calculated SHA-256 matched this pin. The index includes Linux amd64, arm/v7 and arm64. The [SDK supports file-based apps](https://learn.microsoft.com/en-us/dotnet/core/sdk/file-based-apps), so no custom image is needed.
 
 Both files reference DRN.Framework.Utils 0.10.1-preview003 for its transitive SharedKernel JSON conventions. Each clones the default options with null omission, avoiding JSON model attributes. Kubernetes HTTP still uses built-in .NET. Startup restore requires nuget.org access and downloads Utils with its transitive dependencies into writable `/tmp` storage under a non-root user. The source and root filesystem stay read-only. Existing manifests retain disabled runtime NuGet audit, telemetry and workload update notifications. CI audits the test dependency graph, including Utils. The application Secret Job retains its 300-second deadline. Static review does not establish startup timing or resource sufficiency after adding package restore. Verify these in staging before promotion. Automatic pruning remains disabled, so obsolete source ConfigMaps need deliberate cleanup.
 
@@ -144,7 +146,7 @@ Kestrel's additional `Health` endpoint uses `Http1` because standard kubelet HTT
 
 Startup permits 60 failures at 5-second intervals, a nominal 300-second startup budget. Readiness checks every 5 seconds and marks the container unready after 3 consecutive failures. Liveness checks every 10 seconds and restarts the container after 6 consecutive failures. Each request has a 2-second timeout. Kubernetes suppresses readiness and liveness probes until startup succeeds. These are initial defaults; evaluate them against observed startup and migration durations.
 
-Before rolling out stage/prod, include `sample` in Sample's `AllowedHosts` Secret value and `nexus` in Nexus's value, alongside the existing accepted hosts. Otherwise host filtering returns HTTP 400 and the probes fail. Roll out pods after changing Secrets. Linkerd automatically authorizes declared HTTP probe routes while the port uses its default inbound policy. If an explicit Server or route policy is later introduced for this port, preserve probe authorization deliberately.
+Before rolling out staging or production, include `sample` in Sample's `AllowedHosts` Secret value and `nexus` in Nexus's value, alongside the existing accepted hosts. Otherwise host filtering returns HTTP 400 and the probes fail. Roll out pods after changing Secrets. Linkerd automatically authorizes declared HTTP probe routes while the port uses its default inbound policy. If an explicit Server or route policy is later introduced for this port, preserve probe authorization deliberately.
 
 The routes and anonymous action were checked against sibling DRN-Project tag `release/v0.10.1-preview003`. Confirm actual probes succeed with the pinned images and Linkerd before declaring the rollout healthy. See [Kubernetes probe behavior](https://kubernetes.io/docs/concepts/workloads/pods/probes/) and [Linkerd probe authorization](https://linkerd.io/docs/features/server-policy/).
 
@@ -158,11 +160,11 @@ The standard image includes extensions, locales and LLVM JIT, but omits the Barm
 
 Staging gets a CloudNativePG Cluster named `postgresql` in `drn-project`. It uses a single instance, an `8Gi` volume from the default StorageClass, database `drnDb`, owner `drn`, and primary service `postgresql-rw:5432`. Set a storage class explicitly if the cluster lacks a suitable default.
 
-CloudNativePG generates the `postgresql-app` credential Secret and `postgresql-ca` CA Secret. Stage mounts only their `pgpass` and public `ca.crt` keys directly. Its ConfigMaps provide explicit password-free connection strings using Npgsql `Passfile` and verified TLS. No database credential or CA copies are needed in the [application Secrets](staging-configuration.md#staging-database-credentials). Roll out affected pods after credential or CA rotation and verify new connections; projected-file updates alone do not establish connection-pool refresh. Production database inputs remain externally provisioned.
+CloudNativePG generates the `postgresql-app` credential Secret and `postgresql-ca` CA Secret. Staging mounts only their `pgpass` and public `ca.crt` keys directly. Its ConfigMaps provide explicit password-free connection strings using Npgsql `Passfile` and verified TLS. No database credential or CA copies are needed in the [application Secrets](staging-configuration.md#staging-database-credentials). Roll out affected pods after credential or CA rotation and verify new connections; projected-file updates alone do not establish connection-pool refresh. Production database inputs remain externally provisioned.
 
-The database and operator are unmeshed. PostgreSQL rejects non-TLS network connections and disables superuser network access. Server-enforced TLS alone does not establish server certificate verification. Stage/prod connections must explicitly verify the endpoint and trust its CA.
+The database and operator are unmeshed. PostgreSQL rejects non-TLS network connections and disables superuser network access. Server-enforced TLS alone does not establish server certificate verification. Staging and production connections must explicitly verify the endpoint and trust its CA.
 
-The single instance disables its PodDisruptionBudget, permits maintenance downtime and has no configured backups. PostgreSQL automatic pruning is disabled, and its Cluster has `Prune=false,Delete=false`. Retention is not a backup. Configure and verify recovery before relying on stored data. Prod has no bundled database Cluster and requires separate provisioning and migration.
+The single instance disables its PodDisruptionBudget, permits maintenance downtime and has no configured backups. PostgreSQL automatic pruning is disabled, and its Cluster has `Prune=false,Delete=false`. Retention is not a backup. Configure and verify recovery before relying on stored data. Production has no bundled database Cluster and requires separate provisioning and migration.
 
 ## Graylog
 
@@ -218,7 +220,7 @@ linkerd viz dashboard
 
 Keep the command running and open `/grafana/` on the local dashboard URL. Dashboards are provisioned from pinned revisions at startup. Local changes are not persisted.
 
-Sealed Secrets is installed separately from cert-manager. It provides a controller, not an application secret provisioning policy. The required stage/prod application Secrets must be supplied through an administrator-controlled process. The restricted workload AppProject cannot create Secret or SealedSecret resources. Back up sealing keys before depending on sealed data for recovery.
+Sealed Secrets is installed separately from cert-manager. It provides a controller, not an application secret provisioning policy. The required staging and production application Secrets must be supplied through an administrator-controlled process. The restricted workload AppProject cannot create Secret or SealedSecret resources. Back up sealing keys before depending on sealed data for recovery.
 
 The chart names its controller `sealed-secrets` in `kube-system`, while `kubeseal` defaults to `sealed-secrets-controller`. Specify the controller when fetching its public certificate or sealing a Secret:
 
@@ -248,6 +250,6 @@ If the root waits, inspect the child named in its resource tree. Complete missin
 
 Before enabling an environment, verify actual child revisions and health, route attachment, public HTTP behavior, h2c backend traffic, Sample-to-Nexus requests, database migrations/queries and received logs. Check Linkerd metrics/tap, Grafana through Viz, operator reconciliation and admission webhooks. Confirm both meshed and unmeshed callers from an unlisted namespace cannot access protected private services, except documented exceptions. Verify Traefik's other ports remain denied through mesh transport, with authorized health probes still working.
 
-Confirm app service accounts cannot read Secrets or ConfigMaps through the Kubernetes API. Verify non-TLS database connections fail and stage/prod clients authenticate the server certificate. Restore and credential-rotation exercises are required before relying on persistent beta data. These checks require an actual environment and are not established by static review.
+Confirm app service accounts cannot read Secrets or ConfigMaps through the Kubernetes API. Verify non-TLS database connections fail and staging and production clients authenticate the server certificate. Restore and credential-rotation exercises are required before relying on persistent beta data. These checks require an actual environment and are not established by static review.
 
 For MongoDB, verify both Graylog and Data Node connect with certificate verification, plaintext connections fail, and an untrusted CA fails the TLS handshake. Confirm Data Node's management and OpenSearch endpoints use HTTPS after certificate provisioning. Exercise MongoDB certificate renewal before treating the deployment as operationally validated.
