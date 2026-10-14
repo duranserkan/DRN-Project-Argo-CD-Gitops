@@ -100,7 +100,7 @@ Keep standalone resources in their component directories and chart-owned `extraO
 
 The root selects a tag once. Argo CD passes the resolved commit through `$ARGOCD_APP_REVISION`. Every child with a Git source uses that SHA. `$ARGOCD_APP_SOURCE_TARGET_REVISION` supplies the tag for validation. The chart includes the Linkerd and cert-manager child Applications directly. It uses native [Argo CD Helm build variables](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#build-environment). No custom plugin or deployment script is needed.
 
-Upstream Helm chart versions and container digests remain independent pins. GitOps tags do not trigger DRN Project's image publishing workflow or rename images. Sample and Nexus use `0.10.1-preview003` digest pins. A final GitOps tag alone does not certify those images for production.
+Upstream Helm chart versions and container digests remain independent pins. GitOps tags do not trigger DRN Project's image publishing workflow or rename images. Sample and Nexus use `0.10.1-preview004` digest pins. A final GitOps tag alone does not certify those images for production.
 
 Administrators apply the root configurations under `apps/`. Each root loads only `deployment/` from its selected tag. Changing that selection on a branch does not alter the tagged files. Review selection changes through the branch workflow. Then apply the root to its cluster and sync it explicitly. Roots do not auto-sync. Their children reconcile the selected sources.
 
