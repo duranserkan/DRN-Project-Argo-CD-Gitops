@@ -18,7 +18,7 @@ Use the latest compatible releases within the selected database lines. PostgreSQ
 | Argo CD bootstrap | Chart 10.10.2, Argo CD v3.5.4, chart-selected Dex and Redis dependencies |
 | trust-manager | Chart and image v0.25.0, chart-selected Trixie trust package pinned by digest |
 | Graylog and Data Node | Chart 2.1.0 remains current, both images updated to 7.1.10 |
-| Sample and Nexus | 0.10.1-preview003, image source revision matches the release tag |
+| Sample and Nexus | Updated 2026-10-14 to 0.10.1-preview004, image source revision matches the release tag |
 | PostgreSQL | Updated 2026-10-11 to the current 18.6 standard-trixie image, pinned by digest |
 | MongoDB credential bootstrap | Updated 2026-10-14 to .NET SDK 10.0.402-alpine3.24, pinned by digest |
 | Staging application Secret bootstrap | Updated 2026-10-14 to .NET SDK 10.0.402-alpine3.24, pinned by digest |

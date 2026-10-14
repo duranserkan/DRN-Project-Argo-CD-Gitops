@@ -26,7 +26,7 @@ spec:
       serviceAccountName: nexus
       containers:
         - name: nexus
-          image: duranserkan/drn-project-nexus:0.10.1-preview003@sha256:15caaffe7cd83917fd1a8ff7ed3409db4753f06ba32f499c3e2162fff0965c23
+          image: duranserkan/drn-project-nexus:0.10.1-preview004@sha256:50e6b75cd1c47da74db836eff2e0a519644f3156e104d8749053dc1cd7f7ad16
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
