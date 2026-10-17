@@ -173,21 +173,9 @@ The initial password does not change when you update the admin password. Use the
 
 ### Install platform dependencies and workloads
 
-After bootstrap, one full `drn-project` sync creates Applications in this order:
+After bootstrap, a full `drn-project` sync prepares scoped projects, Gateway API CRDs, certificate services, Linkerd and namespace isolation. It then starts logging, monitoring, workloads, Traefik and Sealed Secrets in parallel. Each branch orders its own dependencies. See [installation dependencies](docs/platform-operations.md#installation-dependencies).
 
-| Order | Dependencies installed by the root |
-|---|---|
-| 1 | Scoped AppProjects |
-| 2 | Gateway API CRDs, cert-manager, CloudNativePG, MongoDB operator and Sealed Secrets |
-| 3 | trust-manager and certificate bootstrap |
-| 4 | Linkerd CRDs, certificate/trust bootstrap and control plane |
-| 5 | Namespace isolation and Linkerd Viz |
-| 6 | Traefik, Grafana and MongoDB |
-| 7 | Graylog and staging PostgreSQL |
-| 8 | Staging application Secrets |
-| 9 | Nexus, then Sample |
-
-The root installs Gateway API through the `gateway-api` Application. Traefik's Gateway API provider is enabled. Later waves wait for earlier Applications to pass the completion gate and become healthy.
+The root installs Gateway API through the `gateway-api` Application. Traefik's Gateway API provider is enabled. Ingress failures do not block workload deployment. Public access requires Traefik and Sample's route to be ready. Within each chart, later waves wait for earlier Applications to pass the completion gate and become healthy.
 
 For a fork, update the repository URL in `apps/bootstrap-project.yaml`, each environment root and `deployment/values.yaml` before tagging. Keep Helm repository URLs unchanged. Configure Argo CD credentials for private repositories. Changing only a local Git remote is insufficient.
 
@@ -221,7 +209,9 @@ If Gateway API shows **Synced / Degraded: CRD is not established**, inspect its 
 
 Sample and Nexus probe their anonymous WeatherForecast endpoints over HTTP/1 on port `8081`. Their Services use h2c. Each application's `AllowedHosts` Secret must include its probe Host: `sample` or `nexus`. Probes check HTTP responsiveness, not dependencies. See [workload health probes](docs/platform-operations.md#workload-health-probes) for paths and timings.
 
-Do not recursively apply `apps/`, apply `deployment/templates/` as raw YAML, or deploy workload bases directly. The bootstrap project manages AppProjects and Applications in `argocd`, which grants indirect administrative authority. Restrict it and its source files to administrators. Infrastructure children own namespaces. The workload project cannot create namespaces, Secrets, RBAC, NetworkPolicies or Linkerd authorization policies.
+Do not recursively apply `apps/`, apply deployment chart templates as raw YAML, or deploy workload bases directly. After shared prerequisites, logging, monitoring, workloads and public access progress independently. Follow [sync ordering and ownership migration](docs/platform-operations.md#installation-dependencies) for the first sync without pruning.
+
+The bootstrap project manages AppProjects and Applications in `argocd`, which grants indirect administrative authority. Restrict it and the root and branch chart sources to administrators. Infrastructure children own namespaces. The workload project cannot create namespaces, Secrets, RBAC, NetworkPolicies or Linkerd authorization policies.
 
 ## Promote and roll back
 

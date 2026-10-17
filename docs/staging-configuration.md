@@ -45,7 +45,7 @@ The SDK restores packages and compiles the file at startup. The root filesystem 
 
 The source ConfigMap uses a content hash in its name. Kustomize updates the Job's reference when the source changes. Wave `-1` creates the ConfigMap and RBAC before the Sync hook. Automatic pruning remains disabled. Old source ConfigMaps can remain after updates. Remove unused versions deliberately after confirming that no Job references them. They contain source code and NuGet configuration only, never generated credentials.
 
-The staging-only `application-secrets` Application runs a Sync-hook Job at root wave `120`, before Nexus (`200`) and Sample (`300`). With the one-run override described below, a fresh installation generates a shared 99-character seed with 256 bits of randomness and a random 32-byte Base64 Nexus key. The seed satisfies DRN-Project's `SecureKeyAttribute` rules.
+The staging-only `application-secrets` Application runs a Sync-hook Job inside `drn-workloads`, alongside PostgreSQL, before Nexus and Sample. With the one-run override described below, a fresh installation generates a shared 99-character seed with 256 bits of randomness and a random 32-byte Base64 Nexus key. The seed satisfies DRN-Project's `SecureKeyAttribute` rules.
 
 New application Secrets copy Nexus's seed and key settings. Generated `AllowedHosts` covers each application's short and qualified Kubernetes DNS names, `localhost` and `127.0.0.1`. Add your ingress hostname through your secret-management process and roll out the application before public access.
 

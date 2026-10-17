@@ -4,7 +4,7 @@ metadata:
   name: mongodb-operator
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/sync-wave: "10"
 # https://artifacthub.io/packages/helm/mongodb-helm-charts/mongodb-kubernetes/1.14.0
 spec:
   project: graylog

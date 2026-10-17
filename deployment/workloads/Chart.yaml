@@ -1,0 +1,5 @@
+apiVersion: v2
+name: drn-workloads
+description: Workload prerequisites and ordered DRN Applications
+type: application
+version: 1.0.0

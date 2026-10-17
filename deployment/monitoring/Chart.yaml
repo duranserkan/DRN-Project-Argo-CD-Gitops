@@ -1,0 +1,5 @@
+apiVersion: v2
+name: drn-monitoring
+description: Ordered Linkerd Viz and Grafana Applications
+type: application
+version: 1.0.0

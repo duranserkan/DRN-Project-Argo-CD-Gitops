@@ -4,7 +4,7 @@ metadata:
   name: graylog
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "110"
+    argocd.argoproj.io/sync-wave: "30"
 # https://artifacthub.io/packages/helm/graylog2/graylog/2.1.0
 spec:
   project: graylog

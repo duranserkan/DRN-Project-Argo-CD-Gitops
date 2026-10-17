@@ -1,0 +1,33 @@
+{{- range $branch := list "logging" "monitoring" "workloads" }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: drn-{{ $branch }}
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "90"
+spec:
+  project: drn-project-bootstrap
+  source:
+    path: deployment/{{ $branch }}
+    repoURL: {{ $.Values.repository | quote }}
+    targetRevision: {{ $.Values.gitRevision | quote }}
+    helm:
+      valuesObject:
+        repository: {{ $.Values.repository | quote }}
+        environment: {{ $.Values.environment | quote }}
+        gitRevision: {{ $.Values.gitRevision | quote }}
+        releaseTag: {{ $.Values.releaseTag | quote }}
+        enableProduction: {{ $.Values.enableProduction }}
+  destination:
+    namespace: argocd
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: false
+      # Branches adopt existing Applications. Never prune them during transfer.
+      prune: false
+    syncOptions:
+      - ApplyOutOfSyncOnly=false
+{{- end }}

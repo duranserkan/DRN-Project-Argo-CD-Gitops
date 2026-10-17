@@ -1,0 +1,5 @@
+apiVersion: v2
+name: drn-logging
+description: Ordered MongoDB and Graylog Applications
+type: application
+version: 1.0.0

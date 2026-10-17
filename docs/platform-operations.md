@@ -1,6 +1,6 @@
 # Platform operations
 
-The environment root owns the Applications in [deployment/templates](../deployment/templates). Change their configuration in a reviewed snapshot, publish a new immutable tag and promote that snapshot. Do not apply these Helm templates directly. Upstream chart versions and image digests are recorded in the owning template, independently of the GitOps tag.
+The environment root owns shared prerequisites and parallel branch Applications in [deployment/templates](../deployment/templates). The [logging](../deployment/logging), [monitoring](../deployment/monitoring) and [workloads](../deployment/workloads) charts own their leaf Applications. Change their configuration in a reviewed snapshot, publish a new immutable tag and promote that snapshot. Do not apply these Helm templates directly. Upstream chart versions and image digests are recorded in the owning template, independently of the GitOps tag.
 
 Follow the [release procedure](../README.md#promote-and-roll-back). A new merge commit requires CI and staging validation before production promotion. Retain the tested image digests.
 
@@ -47,7 +47,7 @@ Keep standalone Kubernetes resources in separate files within their owning compo
 
 ## Installation dependencies
 
-Argo CD root sync waves order projects, operators, certificate bootstrap, Linkerd, namespace isolation and application dependencies. The Argo CD values files supply child Application health assessment. On a fresh install, inspect a blocked child before retrying the root. On updates, waves do not make independently auto-syncing children transactional.
+Argo CD root sync waves order projects, shared CRDs, certificate bootstrap, Linkerd and namespace isolation. The final wave starts logging, monitoring, workloads, Traefik and Sealed Secrets concurrently. Each branch has its own dependency waves. Logging or Traefik failures allow workloads and monitoring to progress, but block root completion. The Argo CD values files supply child Application health assessment at both levels. On updates, waves do not make independently auto-syncing children transactional.
 
 Both Argo CD installation values files use the same completion gate. A child reports Healthy to the root only when it has:
 
@@ -78,28 +78,35 @@ argocd app get drn-project --hard-refresh
 
 For HA, use `custom-values-ha.yaml` instead. An active root sync can continue once child health is reassessed. Retry `argocd app sync drn-project` only if its previous operation has stopped.
 
-Linkerd Viz syncs at wave `90`, before Grafana at wave `100`. This creates the `linkerd-viz` namespace before Grafana applies its Prometheus authorization policy there.
+Within `drn-monitoring`, Linkerd Viz syncs before Grafana to create the `linkerd-viz` namespace for Grafana's Prometheus authorization policy.
 
-Group root resource templates in `deployment/templates/NNN-description/` using positive waves. Directory prefixes are zero-padded for lexical sorting. Each resource's explicit `argocd.argoproj.io/sync-wave` annotation must equal its directory prefix numerically, for example `020-operators` uses `"20"`. Argo CD reads the annotation, not the path. Helm renders the nested templates together. Keep `validate.yaml` at the templates root because it validates values without emitting a resource.
+Group each chart's resource templates in descriptive directories without numeric prefixes. Set order through `argocd.argoproj.io/sync-wave` annotations, starting at `10` within each chart and increasing by `10` for dependent groups. Independent Applications share a wave. Missing annotations default to `0`. Keep `validate.yaml` identical at each chart's templates root. All four charts validate the environment, exact Git SHA, release tag and production opt-in.
 
-| Directory | Root wave | Resources |
-|---|---|---|
-| `010-projects` | `10` | AppProjects |
-| `020-operators` | `20` | cert-manager controller, CloudNativePG, Gateway API CRDs, MongoDB operator, Sealed Secrets |
-| `030-trust-manager` | `30` | trust-manager |
-| `040-cert-manager-bootstrap` | `40` | Certificate bootstrap |
-| `050-linkerd-crds` | `50` | Linkerd CRDs |
-| `060-linkerd-bootstrap` | `60` | Linkerd certificates and trust |
-| `070-linkerd-control-plane` | `70` | Linkerd control plane |
-| `080-namespace-isolation` | `80` | Namespace isolation |
-| `090-linkerd-viz` | `90` | Linkerd Viz |
-| `100-platform-services` | `100` | Grafana, MongoDB, Traefik |
-| `110-data-services` | `110` | Graylog, staging PostgreSQL |
-| `120-application-secrets` | `120` | Staging application Secret bootstrap |
-| `200-nexus` | `200` | Nexus |
-| `300-sample` | `300` | Sample |
+The root prepares these groups in order:
 
-Independent applications can share a wave. Use later waves for dependencies and normally space application tiers by `100`. When adding or moving templates, verify positive annotations match their directories. Missing annotations default to wave `0`, before projects. Keep directory prefixes at a consistent width. Waves inside each child are local to that child's sync.
+1. AppProjects.
+2. cert-manager controller and Gateway API CRDs.
+3. trust-manager.
+4. Certificate bootstrap.
+5. Linkerd CRDs.
+6. Linkerd certificates and trust.
+7. Linkerd control plane.
+8. Namespace isolation.
+9. Logging, monitoring, workloads, Traefik and Sealed Secrets in parallel.
+
+Branch waves are independent of the root and each other:
+
+| Branch | Dependency order |
+|---|---|
+| `drn-logging` | MongoDB operator → MongoDB, TLS trust and credential bootstrap → Graylog and Data Node |
+| `drn-monitoring` | Linkerd Viz → Grafana |
+| `drn-workloads` | CloudNativePG → staging PostgreSQL and staging application Secret bootstrap → Nexus → Sample |
+
+PostgreSQL and application Secret creation run independently. Nexus waits for both. Sample follows Nexus because it calls Nexus. Traefik runs alongside the branches, so ingress failures do not block workload deployment. Public access requires Traefik and Sample's route to be ready. Gateway API CRDs are shared by Linkerd and Traefik. MongoDB's credential hook must finish before Graylog starts. Verify public access and logging separately from workload readiness.
+
+Each branch uses the administrator-only bootstrap project and receives the root's Git SHA, environment, release tag and production opt-in. The SHA pins both the branch and its Git-backed leaves. Branch automatic pruning and self-healing are disabled. [Automatic sync requires an OutOfSync comparison](https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/#automated-sync-semantics). If a new revision leaves branch manifests unchanged, the health gate can still require a full sync. For example, run `argocd app sync drn-monitoring` when its health message requests one. Retry failed branches after recovery.
+
+For the first migration from the flat root, sync the new root snapshot **without pruning**. Branches adopt existing leaf Applications through Argo CD resource tracking, preserving their names, destinations, source settings and finalizers. Before enabling pruning, verify that each moved leaf belongs to its new branch, is absent from the root's pruning candidates and has no shared-resource warning. If `drn-workloads` already owns Traefik, transfer it back to the root without pruning and verify its tracking. Do not delete or recreate leaf Applications, databases, PVCs or Secrets during transfer. Rollback requires the same transfer without pruning back to the old root. Restrict root and branch chart sources to administrators.
 
 Staging's `application-secrets` Job completes before Nexus and Sample. Its dedicated project keeps Secret-creation RBAC outside the workload project. Full syncs preserve existing Secrets and create only missing ones, copying Nexus's seed and key with application-specific hosts. If Nexus is missing, a surviving application supplies its credentials. Total credential loss and lost legacy custom values require operator recovery. See [automatic staging Secret bootstrap](staging-configuration.md#automatic-staging-secret-bootstrap). Production does not install this component.
 
@@ -223,7 +230,7 @@ During the operator URI wait, HTTP 5xx responses and request timeouts retry afte
 
 [DRN.Framework.Testing tests](../tests/ApplicationSecretBootstrap.Tests/GraylogBootstrapTests.cs) cover credential lifecycle and polling through a fake API and clock. Develop and master CI build both standalone bootstrap files and run their tests with coverage and SonarCloud analysis. These tests do not establish live TLS behavior. Automatic pruning remains disabled. Remove old source ConfigMaps only after confirming no Job references them. Source ConfigMaps contain code and NuGet configuration, never generated credentials.
 
-The initial root sync can wait while Graylog setup needs human input. Forward its private UI:
+The logging branch and overall root completion can wait while Graylog setup needs human input. Workloads and monitoring continue independently. Forward its private UI:
 
 ```sh
 kubectl -n graylog port-forward svc/drn-graylog 9000:9000

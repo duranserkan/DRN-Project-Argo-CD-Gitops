@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: nexus
+  name: sample
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "200"
+    argocd.argoproj.io/sync-wave: "40"
 spec:
   project: drn-project
   source:
-    path: services/nexus/{{ .Values.environment }}
+    path: services/sample/{{ .Values.environment }}
     repoURL: {{ .Values.repository | quote }}
     targetRevision: {{ .Values.gitRevision | quote }}
   destination:
