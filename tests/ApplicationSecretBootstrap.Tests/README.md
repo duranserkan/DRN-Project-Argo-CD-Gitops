@@ -4,7 +4,7 @@ Open [Bootstrap.slnx](../Bootstrap.slnx) in your IDE to manage the bootstrap sou
 
 This project tests the real [application bootstrap](../../infrastructure/application-secrets/staging/bootstrap.cs) and [Graylog bootstrap](../../infrastructure/graylog/mongodb/bootstrap.cs). [Bootstrap.Sources](../Bootstrap.Sources/Bootstrap.Sources.csproj) compiles those files as a non-test library and exposes its internals only to this test assembly. This separates bootstrap code from tests for Sonar and coverage. Tests use DRN.Framework.Testing, xUnit v3 and AwesomeAssertions. Row tests use `DataInlineUnit` and `DataMemberUnit`. Fake HTTP handlers model Kubernetes responses. Tests never contact a cluster or read service account credentials.
 
-Each bootstrap declares its own typed Secret and metadata models in its deployed file. Tests use those same models for valid fixtures, captured requests and fake API storage. Secret data remains a dictionary because key names vary. Malformed-response tests retain raw JSON to exercise incompatible field types and sanitized errors. Each bootstrap clones `JsonConventions.DefaultOptions` with `WhenWritingNull`; tests reuse those options. Camel-case property naming preserves Kubernetes field names without model attributes. Both Jobs retain single-file deployment with unchanged manifests and reference DRN.Framework.Utils 0.10.1-preview003, which supplies SharedKernel transitively.
+Each bootstrap declares its own typed Secret and metadata models in its deployed file. Tests use those same models for valid fixtures, captured requests and fake API storage. Secret data remains a dictionary because key names vary. Malformed-response tests retain raw JSON to exercise incompatible field types and sanitized errors. Each bootstrap clones `JsonConventions.DefaultOptions` with `WhenWritingNull`; tests reuse those options. Camel-case property naming preserves Kubernetes field names without model attributes. Both Jobs retain single-file deployment with unchanged manifests and reference DRN.Framework.Utils 0.10.1-preview004, which supplies SharedKernel transitively.
 
 Outgoing JSON is also checked against a separate typed `SecretWireContract`. Its required properties use explicit Kubernetes JSON names and independent, case-sensitive serializer options. Unmapped fields are rejected at both the Secret and metadata levels, including `data`, `ownerReferences` and `annotations`, even when null. This preserves independent wire-format checks without `JsonDocument` or production model attributes.
 
@@ -52,17 +52,31 @@ Configure `SONAR_TOKEN` and enable CI-based analysis in the existing SonarCloud 
 
 The test and scanner package source is `tests/NuGet.Config`. Each deployed bootstrap's mounted NuGet configuration also enables nuget.org. Runtime restore now needs network access and uses the existing bounded `/tmp` storage. Existing Job commands retain disabled runtime NuGet audit. CI fails on reported test-dependency vulnerabilities or audit retrieval errors, including Utils and its transitive dependencies. Unlike DRN-Project, this repository does not currently use locked restore. Transitive dependencies remain subject to NuGet resolution. Startup timing and resource sufficiency require staging verification.
 
-Package provenance checked on 2026-10-12:
+Package provenance: DRN packages and SonarScanner checked on 2026-10-17. Unchanged xUnit, reporter and coverage hashes retain their 2026-10-12 verification.
 
 | Package | Version | Canonical NuGet SHA-512 |
 |---|---|---|
-| DRN.Framework.Testing | 0.10.1-preview003 | `bxGZIiI/X86hO4FH3Poq/6QGbf0MBO5atNkpdVDw72mVTwmv4Xd4VGo6hjVQM8qNuKh4wIeOHjWcGyUySi9wLA==` |
-| DRN.Framework.Utils | 0.10.1-preview003 | `pJSmIyJdDmMEwEUJztsDK9UMxuFqFvztTMCD7q5DOxMZfks1TPEV95mNbFPVUTMKHBDt4oZVc5+Kv/szOKcbAQ==` |
+| DRN.Framework.Testing | 0.10.1-preview004 | `bCO8ZW1XNq2+iESC3PeKtT1GGc1PxHM+7iQMDTEtEO4Ug6upjqi935TxIs5Y+RGbHQltPlIICqcC0u5Q2FzJ4A==` |
+| DRN.Framework.Utils | 0.10.1-preview004 | `C5kMVEiSx9a6m/SO7TnTprqYHZIL+MzPkRvr8gqp44m+ifgl6N4HX3kd2gjr8FPXAkL451r0CLtNIIR+TOCpTA==` |
 | xunit.v3.mtp-v2 | 4.0.2 | `OesFiVVe38QnAO3W7WhSvq1l7rNFS/Kf9ioQXmQ4zkV6fRAsI+RhWz1apRw6s70K2BLk4lq6ql10FKNeAkOyUQ==` |
 | Microsoft.Testing.Extensions.GitHubActionsReport | 2.5.1 | `9zM6qx1T0FWBConQwtgRJ3hsDQRH17g3nTW3rpg8ba+sBTkG2moeYwYbYxRfB44lSbyYzoEOxyYVYygwCztdew==` |
 | Microsoft.Testing.Extensions.CodeCoverage | 18.12.0 | `bMR8B/80Nx8AyaOyuOTuSjaZtyuTCFeB3Q0Vej8eFBI3PQWOyk5lV8dEdm9TwQLNgxMQUxuF2uauwofS5LsHww==` |
-| dotnet-sonarscanner | 11.2.1 | `GGLhuNOiN4XdQkrFCd0AXLW4qoc3AjYcxGZxsqmn5Lvys/Bso18y64m0tIFGSb4uAEvVSMAqjz3P6vXBGI2tFg==` |
+| dotnet-sonarscanner | 12.0.0 | `3de/QlFpKg+CbPeWQmVOTnMh/7A0KIw44zrwIFVyPBtRevdNAi+CODye25mzdkxK1upJ0Qrzypua855bwPFwgg==` |
 
-The DRN.Framework.Testing package download matched its catalog hash. The cached Utils package hash matched its [canonical NuGet catalog](https://api.nuget.org/v3/catalog0/data/2026.10.04.17.33.37/drn.framework.utils.0.10.1-preview003.json). The xUnit hash was checked in NuGet catalog metadata. The setup-dotnet v5.4.0 tag resolves to its pinned action commit.
+Downloaded [Testing](https://api.nuget.org/v3/catalog0/data/2026.10.14.15.56.32/drn.framework.testing.0.10.1-preview004.json), [Utils](https://api.nuget.org/v3/catalog0/data/2026.10.14.15.57.10/drn.framework.utils.0.10.1-preview004.json) and [SonarScanner](https://api.nuget.org/v3/catalog0/data/2026.10.15.15.17.03/dotnet-sonarscanner.12.0.0.json) packages matched their canonical NuGet SHA-512 hashes. Both DRN packages target .NET 10 and identify source commit `a8bc3c7f667962d66da37d7ef0df5437f61b4f00`.
 
-The downloaded reporter, coverage collector and scanner packages matched the SHA-512 values in their canonical NuGet catalogs. The upstream `actions/upload-artifact` v7.0.1 tag resolves directly to `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`.
+The earlier reporter and coverage collector downloads matched their canonical NuGet hashes. The xUnit hash was checked in NuGet catalog metadata. All three versions remain current in the 2026-10-17 registry check.
+
+[SonarScanner 12.0](https://github.com/SonarSource/sonar-scanner-msbuild/releases/tag/12.0.0.12728) removes support for older SonarQube Server versions and TFS XAML builds. This repository uses SonarCloud with the standard .NET begin/build/end workflow. CI must verify the updated scanner and packages.
+
+CI dependency provenance checked on 2026-10-17:
+
+| Action | Release | Verified commit |
+|---|---|---|
+| actions/setup-dotnet | v6.0.0 | `a98b56852c35b8e3190ac28c8c2271da59106c68` |
+| actions/upload-artifact | v7.0.2 | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
+| github/codeql-action | v4.39.0 | `6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee` |
+
+Upstream Git tag queries verified these commits. CodeQL's annotated tag was peeled to its commit. Its pinned defaults select CodeQL 2.27.2 through `tools: linked`. The setup-dotnet v6 release retains the existing inputs and Node 24 runtime. CI uses GitHub-hosted Ubuntu 24.04 runners.
+
+Trivy is pinned to v0.76.0 in both PR and branch scans. Its [official release metadata](https://github.com/aquasecurity/trivy/releases/tag/v0.76.0) records Linux x64 archive SHA-256 `e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7`. The unchanged Trivy action v0.36.0 accepts this explicit version. Checkout v7.0.1 and Trivy action v0.36.0 remain current at this review. Local builds and scans were not run.

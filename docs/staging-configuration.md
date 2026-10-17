@@ -39,7 +39,7 @@ For production or custom staging values, provision both Secrets through the clus
 
 The [bootstrap tests](../tests/ApplicationSecretBootstrap.Tests/README.md) use DRN.Framework.Testing and a fake Kubernetes HTTP handler. Both develop and master workflows build the standalone source and run these tests with coverage and SonarCloud analysis. Live TLS behavior and container resources still need staging verification.
 
-The Job runs [bootstrap.cs](../infrastructure/application-secrets/staging/bootstrap.cs) with an official .NET SDK image. [Kustomize](../infrastructure/application-secrets/staging/kustomization.yaml) packages the source in a ConfigMap mounted read-only at `/bootstrap`. The file references DRN.Framework.Utils 0.10.1-preview003 for SharedKernel JSON conventions with null omission. Kubernetes requests use built-in .NET HTTP. Startup restore requires nuget.org access.
+The Job runs [bootstrap.cs](../infrastructure/application-secrets/staging/bootstrap.cs) with an official .NET SDK image. [Kustomize](../infrastructure/application-secrets/staging/kustomization.yaml) packages the source in a ConfigMap mounted read-only at `/bootstrap`. The file references DRN.Framework.Utils 0.10.1-preview004 for SharedKernel JSON conventions with null omission. Kubernetes requests use built-in .NET HTTP. Startup restore requires nuget.org access.
 
 The SDK restores packages and compiles the file at startup. The root filesystem is read-only. A bounded `emptyDir` at `/tmp` holds packages, SDK files and build output. Limits are 512 MiB of memory, one CPU and 512 MiB of temporary storage, with a 300-second deadline. Verify these limits in staging. Runtime NuGet audit is disabled. CI audits test dependencies, including Utils.
 

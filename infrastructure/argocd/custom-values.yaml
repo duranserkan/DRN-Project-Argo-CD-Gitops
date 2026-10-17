@@ -105,7 +105,7 @@ configs:
           return waiting("Manual selective sync cannot establish deployment completion; run a full child sync")
         end
 
-        -- Argo CD 3.5.4 records history only for successful, non-dry-run syncs
+        -- Argo CD 3.5.5 records history only for successful, non-dry-run syncs
         -- without resource filters. Controller-initiated syncs use repository
         -- manifests and the hook strategy. Manual history lacks that proof.
         local deployed = false
