@@ -2,33 +2,33 @@
 
 The environment root owns the Applications in [deployment/templates](../deployment/templates). Change their configuration in a reviewed snapshot, publish a new immutable tag and promote that snapshot. Do not apply these Helm templates directly. Upstream chart versions and image digests are recorded in the owning template, independently of the GitOps tag.
 
-Integrate changes on `develop` and publish preview tags from that branch. Promote reviewed candidates through `develop → master` and publish final tags from `master`. Both branches run CI. A new merge commit requires its own CI and staging validation before production promotion, while retaining the tested image digests. Follow the [release procedure](../README.md#promote-and-roll-back). The `develop` branch does not create a development deployment environment.
+Follow the [release procedure](../README.md#promote-and-roll-back). A new merge commit requires CI and staging validation before production promotion. Retain the tested image digests.
 
 ## Dependency review, 2026-10-10
 
 The project uses Kubernetes `1.36.4` for testing. When changing component pins, check their Kubernetes support ranges and validate the selected combination on that baseline. A chart's minimum Kubernetes version alone does not establish compatibility for the complete deployment.
 
-Use the latest compatible releases within the selected database lines. PostgreSQL now targets 18 following the requested upgrade on 2026-10-11; MongoDB remains on 8.2. Keep operator helpers aligned with their chart and avoid independently upgrading bundled components across major versions.
+Keep PostgreSQL on major 18 and MongoDB on 8.2 unless planning a database upgrade. Align operator helpers with their chart. Review compatibility before upgrading bundled components across major versions.
 
 | Component | Reviewed selection |
 |---|---|
 | Linkerd CRDs, control plane and Viz | Charts 2026.10.1, images edge-26.10.1, proxy v2.370.0 |
 | Traefik | Chart 41.7.1, image v3.7.14 |
-| Grafana | Chart 13.5.0, existing image 13.2.3-distroless and curl 8.22.0 remain current |
+| Grafana | Chart 13.5.0, image 13.2.3-distroless and curl 8.22.0 |
 | Argo CD bootstrap | Chart 10.10.2, Argo CD v3.5.4, chart-selected Dex and Redis dependencies |
 | trust-manager | Chart and image v0.25.0, chart-selected Trixie trust package pinned by digest |
-| Graylog and Data Node | Chart 2.1.0 remains current, both images updated to 7.1.10 |
+| Graylog and Data Node | Chart 2.1.0, images 7.1.10 |
 | Sample and Nexus | Updated 2026-10-14 to 0.10.1-preview004, image source revision matches the release tag |
-| PostgreSQL | Updated 2026-10-11 to the current 18.6 standard-trixie image, pinned by digest |
+| PostgreSQL | Updated 2026-10-11 to 18.6 standard-trixie, pinned by digest |
 | MongoDB credential bootstrap | Updated 2026-10-14 to .NET SDK 10.0.402-alpine3.24, pinned by digest |
 | Staging application Secret bootstrap | Updated 2026-10-14 to .NET SDK 10.0.402-alpine3.24, pinned by digest |
-| cert-manager | v1.21.2 remains current |
-| CloudNativePG operator | Chart 0.29.1 and image 1.30.1 remain current |
-| MongoDB operator and server | Chart 1.13.0 and its helper versions remain current; 8.2.12-ubi8 remains the latest published image in the selected server line |
-| Sealed Secrets | Chart 2.20.0, controller 0.40.0 remain current |
-| Viz Prometheus and extension-init | Retain chart-selected 2.55.1 and 0.1.12; Prometheus 3 is a separate compatibility upgrade |
+| cert-manager | v1.21.2 |
+| CloudNativePG operator | Chart 0.29.1, image 1.30.1 |
+| MongoDB operator and server | Chart 1.13.0 with its helper versions, server 8.2.12-ubi8 |
+| Sealed Secrets | Chart 2.20.0, controller 0.40.0 |
+| Viz Prometheus and extension-init | Chart-selected 2.55.1 and 0.1.12. Prometheus 3 requires a separate compatibility review. |
 
-Chart archives were checked against publisher index checksums. Changed explicit image pins were verified against registry manifests. Argo CD chart archive SHA-256 is `1f2bdb0e23b87fdac5222d99d1acf6964e670db9bf63912c58ab4677e505638b`. Its image digest is `sha256:49dff79439bb38b1b942b19a113fe1fec7e6b6c671ddf9fe6a4a7c46bde0b77b`. Argo CD's ECR dependency mirror was rate-limited during review; Redis and HAProxy versions were inspected through their upstream Docker Hub manifests instead. This is static verification, not a deployment or runtime compatibility test. Separate release notes are not required for this configuration update.
+Chart archives were checked against publisher index checksums and changed image pins against registry manifests. Argo CD chart archive SHA-256 is `1f2bdb0e23b87fdac5222d99d1acf6964e670db9bf63912c58ab4677e505638b`. Its image digest is `sha256:49dff79439bb38b1b942b19a113fe1fec7e6b6c671ddf9fe6a4a7c46bde0b77b`. ECR rate limiting prevented checking Argo CD's dependency mirror. Redis and HAProxy versions were inspected through upstream Docker Hub manifests instead. Runtime compatibility remains unverified.
 
 ## Resource organization
 
@@ -40,7 +40,13 @@ Keep standalone Kubernetes resources in separate files within their owning compo
 
 Argo CD root sync waves order projects, operators, certificate bootstrap, Linkerd, namespace isolation and application dependencies. The Argo CD values files supply child Application health assessment. On a fresh install, inspect a blocked child before retrying the root. On updates, waves do not make independently auto-syncing children transactional.
 
-Both Argo CD installation values files use the same completion gate. A child must have no queued operation, a successful finished sync, a current source/destination comparison, matching synced source configuration and resolved revisions, and healthy resources before it reports Healthy to the root. Failed operations report Degraded. Pending operations, stale comparisons, dry runs, manual selective syncs, apply-strategy syncs and nonempty local-manifest overrides cannot release later waves.
+Both Argo CD installation values files use the same completion gate. A child reports Healthy to the root only when it has:
+
+- No queued operation and a successful finished sync.
+- A current source/destination comparison with matching source configuration and resolved revisions.
+- Healthy resources.
+
+Failed operations report Degraded. Pending operations, stale comparisons, dry runs, manual selective syncs, apply-strategy syncs and nonempty local-manifest overrides block later waves.
 
 A successful automatic self-heal may replace the latest full-sync result with a selective operation. The gate accepts it only with a positive `autoHealAttemptsCount` and an automated deployment history entry matching all current sources and resolved revisions. Argo CD `v3.5.4` [records history only after successful unfiltered, non-dry-run syncs](https://github.com/argoproj/argo-cd/blob/v3.5.4/controller/sync.go#L373). Its [automatic operations](https://github.com/argoproj/argo-cd/blob/v3.5.4/controller/appcontroller.go#L2316) use repository manifests and the hook strategy. This retains evidence that deployment hooks, including MongoDB credential bootstrap, completed before later self-healing. `ApplyOutOfSyncOnly` [retains hook tasks](https://github.com/argoproj/argo-cd/blob/v3.5.4/gitops-engine/pkg/sync/sync_context.go#L705) in this version.
 
@@ -48,7 +54,9 @@ Manual deployment history omits the strategy and local-manifest inputs, so it ca
 
 The gate normalizes omitted optional `ignoreDifferences` fields so that an empty core API group in the spec matches its omitted representation in comparison status. Actual rule changes still block the gate until compared. Error conditions use explicit Argo CD condition names without requiring Lua standard libraries. Recheck these names against the pinned Argo CD API when upgrading.
 
-If a new source revision or configuration renders identical resources, Argo CD may leave the child Synced without starting another operation. The gate deliberately waits. Run a full sync of that child at its selected revision, then retry the root if its operation has stopped. Do not use selective resource sync to bypass this requirement. A failed operation also needs a successful retry even when its resources appear healthy. Changes to this gate require updating the Argo CD installation with the chosen values file; syncing the DRN root does not update Argo CD itself.
+If a source change renders identical resources, Argo CD may leave the child Synced without starting another operation. Run a full child sync at the selected revision, then retry the root if its operation has stopped. Selective sync cannot satisfy this gate. Failed operations also require a successful retry, even when resources appear healthy.
+
+Gate changes require updating the Argo CD installation with the chosen values file. Syncing the DRN root does not update Argo CD itself.
 
 To install the updated gate on an existing standard installation, use the intended cluster context and preserve any additional installation-specific values:
 
@@ -82,9 +90,7 @@ Group root resource templates in `deployment/templates/NNN-description/` using p
 | `200-nexus` | `200` | Nexus |
 | `300-sample` | `300` | Sample |
 
-Independent applications can share a wave. Allocate a later wave only for a real deployment dependency. Use gaps for intermediate dependencies and normally space new application tiers by `100`. When adding or moving templates, verify every resource has a positive annotation matching its directory. An omitted annotation defaults to wave `0`, before projects. Keep directory names at a consistent width if the allocation grows beyond three digits. These are root Application waves; waves inside each child remain local to that child's sync.
-
-The numbered layout replaces the former negative infrastructure waves and application waves `100`/`200`. It preserves dependency order and same-wave groups. Resource identities and child source paths are unchanged.
+Independent applications can share a wave. Use later waves for dependencies and normally space application tiers by `100`. When adding or moving templates, verify positive annotations match their directories. Missing annotations default to wave `0`, before projects. Keep directory prefixes at a consistent width. Waves inside each child are local to that child's sync.
 
 Staging's `application-secrets` Job completes before Nexus and Sample. Its dedicated project keeps Secret-creation RBAC outside the workload project. Full syncs preserve existing Secrets and create only missing ones, copying Nexus's seed and key with application-specific hosts. If Nexus is missing, a surviving application supplies its credentials. Total credential loss and lost legacy custom values require operator recovery. See [automatic staging Secret bootstrap](staging-configuration.md#automatic-staging-secret-bootstrap). Production does not install this component.
 
@@ -94,9 +100,11 @@ Both files reference DRN.Framework.Utils 0.10.1-preview003 for its transitive Sh
 
 Both bootstrap files declare `#:property PublishAot=false` to support their reflection-based JSON serialization. Direct IDE and file-based builds therefore use the same managed execution mode as the Job and CI commands. Native AOT and trimming are not supported.
 
-Linkerd uses the edge chart repository and externally managed certificates. cert-manager issues the root, identity issuer and webhook certificates. trust-manager distributes the public trust bundle from `cert-manager`. Keep root private keys out of public bundles. Root key rotation is disabled; renewal retains the existing key. Follow the [planned coordinated rotation procedure](../todo.md#linkerd-root-key-rotation) before changing that behavior. Use a Linkerd CLI matching the deployed control plane.
+Linkerd uses the edge chart repository and externally managed certificates. cert-manager issues the root, identity issuer and webhook certificates. trust-manager distributes public trust from `cert-manager`. Keep private keys out of public bundles. Renewal retains the root key. Follow the [planned coordinated rotation procedure](../todo.md#linkerd-root-key-rotation) before changing it. Match the Linkerd CLI to the deployed control plane.
 
-Gateway API CRDs precede Traefik. Traefik watches `drn-project` and creates the `drn-project` Gateway there. Sample's HTTPRoute attaches in the same namespace, routes `/app`, and rewrites the prefix. Confirm route `Accepted=True` and `ResolvedRefs=True` before evaluating application behavior. Public HTTP/1.1 reaches Traefik; backend Sample and Nexus listeners use h2c on 5998 and 5988, with Service port 80 and `appProtocol: kubernetes.io/h2c`. Those service listeners do not accept HTTP/1.1. A separate HTTP/1 listener on port 8081 supports kubelet probes. Linkerd supplies mesh mTLS.
+Gateway API CRDs precede Traefik. Traefik watches `drn-project` and creates its Gateway there. Sample's HTTPRoute attaches in the same namespace. Confirm `Accepted=True` and `ResolvedRefs=True` before evaluating application behavior.
+
+Traefik accepts public HTTP/1.1. Sample and Nexus use h2c on ports 5998 and 5988, exposed through Service port 80 with `appProtocol: kubernetes.io/h2c`. These listeners do not accept HTTP/1.1. Port 8081 serves HTTP/1 kubelet probes. Linkerd supplies mesh mTLS.
 
 The [Sample HTTPRoute](../services/sample/base/httproute.yaml) maps `/app` and `/app/` to `/`, and `/app/example` to `/example`. Prefix matching is case-sensitive and excludes `/appx`. The route sets `X-Forwarded-Prefix: /app` and removes client-supplied `Forwarded`, `X-Forwarded-Ssl`, `X-Original-URI`, `X-Forwarded-Path` and `l5d-dst-override` headers. Configure application proxy trust for Traefik's forwarded request metadata.
 
@@ -120,7 +128,7 @@ If the wait fails, use the condition reasons/messages and events from `describe`
 argocd app get gateway-api --hard-refresh
 ```
 
-Do not delete the CRD or bypass the health gate. Deleting a CRD deletes its custom resources. A screenshot showing only "CRD is not established" does not identify the underlying failure. Kubernetes conditions and the sync result are needed before choosing a repair.
+Do not delete the CRD or bypass the health gate. Deleting a CRD deletes its custom resources. Diagnose the failure from Kubernetes conditions and the sync result before choosing a repair.
 
 Once the CRD is established, refresh the Application and check its health. If no sync is running and the root still waits for a successful full child sync at the current revision, run:
 
@@ -144,15 +152,27 @@ Probe requests go directly to the Pod IP. Sample's external `/app` prefix is not
 
 Kestrel's additional `Health` endpoint uses `Http1` because standard kubelet HTTP probes use HTTP/1. Native h2c probes require the alpha `H2CContainerProbe` feature gate. The existing h2c service listeners remain unchanged. Port 8081 is not published by a Service or Gateway, and no ingress allowance is added. This Kestrel listener serves the same application routes, not only WeatherForecast, and retains application authentication, host filtering, mesh policy and namespace isolation.
 
-Startup permits 60 failures at 5-second intervals, a nominal 300-second startup budget. Readiness checks every 5 seconds and marks the container unready after 3 consecutive failures. Liveness checks every 10 seconds and restarts the container after 6 consecutive failures. Each request has a 2-second timeout. Kubernetes suppresses readiness and liveness probes until startup succeeds. These are initial defaults; evaluate them against observed startup and migration durations.
+Startup permits 60 failures at 5-second intervals, a nominal 300-second budget. Readiness checks every 5 seconds and marks the container unready after 3 consecutive failures. Liveness checks every 10 seconds and restarts it after 6 consecutive failures. Requests time out after 2 seconds. Readiness and liveness probes start after startup succeeds. Evaluate these defaults against observed startup and migration durations.
 
 Before rolling out staging or production, include `sample` in Sample's `AllowedHosts` Secret value and `nexus` in Nexus's value, alongside the existing accepted hosts. Otherwise host filtering returns HTTP 400 and the probes fail. Roll out pods after changing Secrets. Linkerd automatically authorizes declared HTTP probe routes while the port uses its default inbound policy. If an explicit Server or route policy is later introduced for this port, preserve probe authorization deliberately.
 
 The routes and anonymous action were checked against sibling DRN-Project tag `release/v0.10.1-preview003`. Confirm actual probes succeed with the pinned images and Linkerd before declaring the rollout healthy. See [Kubernetes probe behavior](https://kubernetes.io/docs/concepts/workloads/pods/probes/) and [Linkerd probe authorization](https://linkerd.io/docs/features/server-policy/).
 
+## Application persistent storage
+
+Sample and Nexus mount separate `1Gi` PersistentVolumeClaims (PVCs) at `/appdata`: `sample-data` and `nexus-data` in `drn-project`. Staging and production inherit these claims from the service bases. Each cluster provisions its own volumes. PostgreSQL retains its separate `8Gi` volume.
+
+Provide a default StorageClass supporting ReadWriteOnce filesystem volumes writable by pod group `1654`. To use another class, set `storageClassName` on each claim before provisioning. Keep PVCs and Deployments in the same child sync wave so `WaitForFirstConsumer` binding can proceed. The workload AppProject permits PVCs.
+
+Both applications use one replica and `Recreate`, stopping the old pod before starting its replacement. Updates interrupt service until the new pod is ready. `rollingUpdate: null` clears the previous strategy's settings. Review storage access and application concurrency before increasing replicas. `/apptemp`, `/applogs` and `/tmp` remain ephemeral, with a `1Gi` ephemeral-storage request and limit per application container.
+
+New volumes start empty. Before syncing, preserve required `/appdata` files from existing `emptyDir` volumes and plan their restoration. Reverting to a pre-PVC deployment stops mounting the retained data. Verify claim binding, non-root write access and persistence across pod replacement. Runtime verification is pending.
+
+`Prune=false,Delete=false` retains claims when removed from manifests or when their Application is deleted. Skipped pruning can leave the Application OutOfSync. Retention does not replace backups or protect against direct PVC or namespace deletion. Check the StorageClass reclaim policy and back up data before retiring a claim. See [Argo CD sync options](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/) and [Kubernetes persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/).
+
 ## PostgreSQL
 
-The image is `ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:79be0d10e78b7ac4520cf6c5db199a8bb7f6de53b3229f47e90cab5865528a0d`. The unsuffixed `18.6-standard` tag is not published. The current tag's multi-architecture index digest was verified directly against GHCR on 2026-10-11 with `docker buildx imagetools inspect`; it contains Linux amd64 and arm64 images. The [publisher's image listing](https://github.com/cloudnative-pg/postgres-containers/pkgs/container/postgresql) also associates it with the October 5 build. This is manifest verification, not a runtime compatibility test.
+The image is `ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:79be0d10e78b7ac4520cf6c5db199a8bb7f6de53b3229f47e90cab5865528a0d`. The unsuffixed `18.6-standard` tag was unavailable during the 2026-10-11 review. `docker buildx imagetools inspect` verified the pinned GHCR index for Linux amd64 and arm64. The [publisher's listing](https://github.com/cloudnative-pg/postgres-containers/pkgs/container/postgresql) associates it with the October 5 build. Runtime compatibility remains unverified.
 
 Fresh clusters initialize PostgreSQL 18.6 on Debian Trixie. The former PostgreSQL 16 pin used Bookworm. Do not directly sync this pin to that existing cluster: CloudNativePG 1.30 in-place major upgrades require the same OS distribution. Plan and rehearse a migration to a new cluster, such as logical dump/restore, with a verified backup, application and extension compatibility checks, locale/collation validation and scheduled downtime. Take a new backup after success. Reverting an image tag after a successful major upgrade is not a database downgrade. See [CloudNativePG 1.30 major upgrades](https://cloudnative-pg.io/docs/1.30/postgres_upgrades/). No cluster upgrade was executed as part of this pin change.
 
@@ -160,7 +180,7 @@ The standard image includes extensions, locales and LLVM JIT, but omits the Barm
 
 Staging gets a CloudNativePG Cluster named `postgresql` in `drn-project`. It uses a single instance, an `8Gi` volume from the default StorageClass, database `drnDb`, owner `drn`, and primary service `postgresql-rw:5432`. Set a storage class explicitly if the cluster lacks a suitable default.
 
-CloudNativePG generates the `postgresql-app` credential Secret and `postgresql-ca` CA Secret. Staging mounts only their `pgpass` and public `ca.crt` keys directly. Its ConfigMaps provide explicit password-free connection strings using Npgsql `Passfile` and verified TLS. No database credential or CA copies are needed in the [application Secrets](staging-configuration.md#staging-database-credentials). Roll out affected pods after credential or CA rotation and verify new connections; projected-file updates alone do not establish connection-pool refresh. Production database inputs remain externally provisioned.
+Staging mounts CloudNativePG's generated password file and public CA directly. ConfigMaps supply password-free Npgsql connection strings with `Passfile` and verified TLS. See [database credentials](staging-configuration.md#staging-database-credentials) for Secret projections and connection settings. Roll out affected pods after credential or CA rotation and verify new connections. Projected-file updates do not prove connection-pool refresh. Production database inputs are externally provisioned.
 
 The database and operator are unmeshed. PostgreSQL rejects non-TLS network connections and disables superuser network access. Server-enforced TLS alone does not establish server certificate verification. Staging and production connections must explicitly verify the endpoint and trust its CA.
 
@@ -168,19 +188,21 @@ The single instance disables its PodDisruptionBudget, permits maintenance downti
 
 ## Graylog
 
-See the README's [connection encryption and certificates](../README.md#connection-encryption-and-certificates) tables for the transport and certificate lifecycle of each connection. Data Node's automatic self-signed startup uses certificates valid for `99 × 365` days in the pinned version. No automatic Data Node rotation policy is configured. MongoDB's cert-manager certificate instead has a 90-day lifetime and renews 30 days before expiry with a new private key.
+See [connection encryption and certificates](../README.md#connection-encryption-and-certificates) for transport protection, certificate lifetimes and renewal ownership.
 
-Graylog Open and Data Node use the upstream Graylog chart. MongoDB Community is managed by MongoDB Controllers for Kubernetes through a separate Git-backed Application. Only Graylog server pods are meshed. MongoDB, its operator and Data Node remain unmeshed; Data Node manages OpenSearch internally.
+Graylog Open and Data Node use the upstream Graylog chart. MongoDB Controllers for Kubernetes manages MongoDB Community through a separate Git-backed Application. Only Graylog server pods are meshed. MongoDB, its operator and Data Node are unmeshed. Data Node manages OpenSearch internally.
 
-MongoDB requires native TLS and retains SCRAM authentication. cert-manager issues its server certificate through the existing `linkerd-trust-anchor` ClusterIssuer. A trust-manager Bundle distributes that CA and public roots to the `graylog` namespace as PEM and a Java PKCS12 truststore. Graylog and Data Node mount that store and verify MongoDB's certificate. Its `changeit` password protects no private material; the store contains public CA certificates only. No certificate-generation script or additional controller is needed.
+MongoDB requires native TLS and SCRAM authentication. cert-manager issues its certificate through `linkerd-trust-anchor`. trust-manager distributes the CA and public roots to `graylog` as PEM and a Java PKCS12 truststore. Graylog and Data Node mount the store and verify MongoDB's certificate. The store contains only public CA certificates, so its `changeit` password protects no private material.
 
-For fresh installs, the MongoDB operator's generated connection URI includes `ssl=true`; the existing bootstrap Job copies it into `graylog-credentials` for both clients. This configuration is not an automatic migration of an existing plaintext deployment: the Job preserves existing Secrets. Such a migration would require updating the saved URI and restarting both clients. After CA bundle changes, restart Graylog and Data Node so their JVMs reload trust. Coordinate root CA rotation with Linkerd because the issuer is shared.
+For fresh installs, the operator's connection URI includes `ssl=true`. The bootstrap copies it into `graylog-credentials` for both clients. Existing Secrets are preserved. To migrate a plaintext deployment, update the saved URI and restart both clients. Restart Graylog and Data Node after CA changes so their JVMs reload trust. Coordinate root rotation with Linkerd because the issuer is shared.
 
 The pinned chart defaults `graylog.config.selfSignedStartup` to `"true"`, enabling automatic startup with self-signed certificates. This deployment inherits that setting. Manual CA provisioning in the preflight UI is not required for this startup mode. Data Node uses its certificate configuration for both OpenSearch and its management API. Do not add a second certificate mechanism or infer API encryption from the standalone `http_enable_tls` default. Verify HTTPS on ports 8999 and 9200 after startup. Automatic self-signed startup is distinct from configuring a managed CA and renewal policy, which remain outside this beta setup. See the [pinned chart configuration](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), [encrypted startup test](https://github.com/Graylog2/graylog2-server/blob/7.1.10/full-backend-tests/src/test/java/org/graylog/searchbackend/datanode/DatanodeSelfsignedStartupIT.java), and [Data Node API implementation](https://github.com/Graylog2/graylog2-server/blob/7.1.10/data-node/src/main/java/org/graylog/datanode/initializers/JerseyService.java).
 
-Provide a default ReadWriteOnce StorageClass. Baseline volumes are MongoDB `8Gi` data plus `2Gi` logs, Graylog `8Gi`, and Data Node `8Gi`. Hosts need `vm.max_map_count >= 262144` and must meet MongoDB's platform requirements. Memory requests include Graylog `1Gi`, Data Node `3.5Gi` and MongoDB `1Gi`, plus agent/operator overhead. They are not usage limits. The stack is single-instance and has no configured backups.
+Provide a default ReadWriteOnce StorageClass. Baseline volumes are MongoDB `4Gi` data plus `2Gi` logs, Graylog `8Gi`, and Data Node `8Gi`. Hosts need `vm.max_map_count >= 262144` and must meet MongoDB's platform requirements. Memory requests include Graylog `1Gi`, Data Node `3.5Gi` and MongoDB `1Gi`, plus agent/operator overhead. They are not usage limits. The stack is single-instance and has no configured backups.
 
-The MongoDB Application must receive a full sync. Its bootstrap Job generates credentials, waits for the operator connection URI, and creates Graylog's external Secret. Selective resource sync skips hooks. Later full syncs preserve existing Secrets; the Job does not rotate credentials or recover deleted Secrets for existing data. Back up those Secrets with the database. MongoDB's readiness RBAC names `mongodb-0`; extend it deliberately when adding members.
+MongoDB's `4Gi` data request applies to new volumes. Kubernetes cannot shrink an existing `8Gi` PVC. Before syncing an existing installation, verify a backup/restore migration to a new volume. Include credentials and capacity for data and database overhead. Do not delete or recreate the database or PVC to force reconciliation. See [PVC resizing restrictions](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#recovering-from-failure-when-expanding-volumes).
+
+Full-sync the MongoDB Application to run its bootstrap hook. The Job generates credentials, waits for the operator URI and creates Graylog's external Secret. Selective sync skips hooks. Later syncs preserve existing Secrets without rotating credentials or recovering deleted Secrets for existing data. Back up Secrets with the database. Readiness RBAC names `mongodb-0`. Extend it when adding members.
 
 The Graylog Job runs [bootstrap.cs](../infrastructure/graylog/mongodb/bootstrap.cs) from a hashed source ConfigMap. Its mounted NuGet configuration enables nuget.org for startup restore. The source and root filesystem stay read-only. Downloaded packages and SDK output use the existing bounded 512 MiB `/tmp` volume. Limits remain one CPU and 512 MiB of memory. The Job keeps its 20-minute deadline and polls for the operator URI every five seconds for up to 15 minutes. Verify startup timing and these resource limits with the transitive dependencies in staging.
 
@@ -204,9 +226,9 @@ The DRN stream matches `scope_ScopedLog=true`, uses the default index set and re
 
 Both applications send LF-delimited, uncompressed GELF HTTP to `http://drn-graylog.graylog:12201/gelf`. Keep this internal URL as HTTP because Linkerd proxies provide mesh mTLS. Application authorization is still required for Graylog's API.
 
-To change a content pack, increment its own revision in the template and publish a new GitOps snapshot. After syncing the changed files, restart Graylog. The loader installs a revision once; a new revision creates a separate installation. Preserve customizations and uninstall the prior installation before loading a replacement to avoid duplicate inputs/streams. Input and stream packs do not reference each other's entities.
+To change a content pack, increment its revision and publish a new GitOps snapshot. Sync the files, then restart Graylog. Each revision creates a separate installation. Preserve customizations and uninstall the prior installation before loading its replacement to avoid duplicate inputs or streams. Input and stream packs do not reference each other's entities.
 
-Automatic pruning is disabled for Graylog/MongoDB; MongoDB also has explicit deletion protection. Restart Graylog and Data Node after credential rotation. Data recovery and availability need separate operational procedures.
+Automatic pruning is disabled for Graylog and MongoDB. MongoDB also has deletion protection. Restart Graylog and Data Node after credential rotation. Plan and verify data recovery separately.
 
 ## Grafana and secrets
 

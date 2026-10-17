@@ -2,24 +2,26 @@
 
 Use separate staging and production clusters. Both use the `drn-project` workload namespace and the same service names. Staging is the rolling beta environment. Production overlays are inactive scaffolding. Development is local only and has no GitOps root or overlay here.
 
-The `develop` Git branch remains the integration branch. Preview releases come from `develop`; normal final releases come from `master` after promotion through `develop → master`. Staging can validate either tag type. Production accepts final tags only. Branch names do not add deployment environments.
+Preview releases come from `develop`. Final releases come from `master` after promotion through `develop → master`. Staging accepts either tag type. Production accepts final tags only.
 
 | Overlay | DRN environment | Startup migration | Database |
 |---|---|---|---|
 | `services/*/staging` | `Staging` | `AutoMigrateStaging=true` | Single-instance CloudNativePG |
 | `services/*/production` | `Production` | Disabled | Provisioned separately before activation |
 
-Prototype recreation and external dependency launch are disabled in every overlay. Staging applies existing migrations. It does not generate migrations for model changes. Changes must remain compatible with older pods during a rolling update. Reverting a deployment tag does not revert database migrations.
+Prototype recreation and external dependency launch are disabled in every overlay. Staging applies existing migrations. It does not generate migrations for model changes. Migrations must remain compatible with other applications sharing the database. Reverting a deployment tag does not revert database migrations.
 
-Staging retains the former development manifests' resource limits, pod security settings and single-instance PostgreSQL topology. Its application environment is `Staging`, with `AutoMigrateDevelopment=false` and `AutoMigrateStaging=true`. It uses explicit password-free connection strings and mounts the operator-generated password file and database CA directly. This does not use DRN's development-only connection-string helper.
+Staging disables `AutoMigrateDevelopment`. It uses explicit password-free connection strings and mounts the operator-generated password file and database CA directly.
 
 ## Configuration ownership
 
 Each service base supplies `common-settings.json`. The environment overlay adds `mounted-settings.json` to the same generated ConfigMap. Their configuration keys are disjoint because DRN does not specify mounted JSON file enumeration order. Common settings retain service ports, logging, app IDs, and existing resource limits. Image tags and digests remain pinned in the base Deployments.
 
+Both environments inherit persistent `/appdata` storage and single-replica `Recreate` deployments. Updates briefly interrupt service. Follow [application storage requirements](platform-operations.md#application-persistent-storage) before rollout, including preservation of existing files.
+
 Both environments require `sample-settings` and `nexus-settings` Secrets in `drn-project`. Staging generates them on first installation through the `application-secrets` bootstrap described below. Production requires external provisioning. Secret values are never checked into Git. Required projected keys make missing configuration prevent pod startup.
 
-The application reads these settings at startup. Roll out affected pods after changing Secrets. Mounted JSON is loaded after key-per-file settings, so do not add secret-owned keys to either JSON file. Staging's password-free connection strings belong to its mounted JSON; production connection strings remain Secret-owned. Environment names are DRN settings, not image tag channels.
+Applications read settings at startup. Roll out affected pods after changing Secrets. Mounted JSON loads after key-per-file settings, so keep secret-owned keys out of both JSON files. Staging's password-free connection strings belong to mounted JSON. Production connection strings belong to Secrets. Environment names are DRN settings, not image tag channels.
 
 ## Required staging and production Secrets
 
@@ -37,15 +39,19 @@ For production or custom staging values, provision both Secrets through the clus
 
 The [bootstrap tests](../tests/ApplicationSecretBootstrap.Tests/README.md) use DRN.Framework.Testing and a fake Kubernetes HTTP handler. Both develop and master workflows build the standalone source and run these tests with coverage and SonarCloud analysis. Live TLS behavior and container resources still need staging verification.
 
-The Job runs [bootstrap.cs](../infrastructure/application-secrets/staging/bootstrap.cs) with an official .NET SDK image. [Kustomize](../infrastructure/application-secrets/staging/kustomization.yaml) puts the complete file in a ConfigMap. It mounts the source read-only at `/bootstrap`. No custom image is built. The file references DRN.Framework.Utils 0.10.1-preview003 and uses its transitive SharedKernel JSON conventions with null omission. Kubernetes requests still use built-in .NET HTTP. The mounted NuGet configuration enables nuget.org, which must be reachable for startup restore.
+The Job runs [bootstrap.cs](../infrastructure/application-secrets/staging/bootstrap.cs) with an official .NET SDK image. [Kustomize](../infrastructure/application-secrets/staging/kustomization.yaml) packages the source in a ConfigMap mounted read-only at `/bootstrap`. The file references DRN.Framework.Utils 0.10.1-preview003 for SharedKernel JSON conventions with null omission. Kubernetes requests use built-in .NET HTTP. Startup restore requires nuget.org access.
 
-The SDK restores packages and compiles the file when the Job starts. The root filesystem stays read-only. A bounded `emptyDir` at `/tmp` holds downloaded packages, SDK files and build output. The unchanged manifest allows 512 MiB of memory, one CPU and 512 MiB of temporary storage. Its deadline is 300 seconds. Verify startup timing and resource sufficiency with the transitive dependencies in staging. Runtime NuGet audit remains disabled by the existing Job command. CI audits the test dependency graph, which includes Utils.
+The SDK restores packages and compiles the file at startup. The root filesystem is read-only. A bounded `emptyDir` at `/tmp` holds packages, SDK files and build output. Limits are 512 MiB of memory, one CPU and 512 MiB of temporary storage, with a 300-second deadline. Verify these limits in staging. Runtime NuGet audit is disabled. CI audits test dependencies, including Utils.
 
 The source ConfigMap uses a content hash in its name. Kustomize updates the Job's reference when the source changes. Wave `-1` creates the ConfigMap and RBAC before the Sync hook. Automatic pruning remains disabled. Old source ConfigMaps can remain after updates. Remove unused versions deliberately after confirming that no Job references them. They contain source code and NuGet configuration only, never generated credentials.
 
-The staging-only `application-secrets` Application runs a Sync-hook Job at root wave `120`, before Nexus (`200`) and Sample (`300`). A fresh installation generates one shared 99-character seed with 256 bits of randomness and one shared random 32-byte Nexus key encoded as Base64. Seed formatting satisfies DRN-Project's `SecureKeyAttribute` length, character-class and sequence rules. New application Secrets copy Nexus's seed and key settings. Only generated `AllowedHosts` differs by application, covering its short and qualified Kubernetes DNS names, `localhost` and `127.0.0.1`. Add your actual ingress hostname through your secret-management process and roll out the affected application before public access.
+The staging-only `application-secrets` Application runs a Sync-hook Job at root wave `120`, before Nexus (`200`) and Sample (`300`). With the one-run override described below, a fresh installation generates a shared 99-character seed with 256 bits of randomness and a random 32-byte Base64 Nexus key. The seed satisfies DRN-Project's `SecureKeyAttribute` rules.
 
-The Job reads and validates all configured Secrets before writing. It checks all five nonempty fields and matching Nexus key settings, rejecting malformed Base64 and invalid UTF-8. Existing Secrets are skipped for creation and never overwritten, including older installations with independent seeds. The applications remain responsible for full DRN value validation. Syncing again does not rotate keys or reset custom hosts. The bootstrap identity has named Secret reads and namespace-scoped Secret creation. It has no Deployment, Secret update or Secret delete access. Workload permissions remain unchanged.
+New application Secrets copy Nexus's seed and key settings. Generated `AllowedHosts` covers each application's short and qualified Kubernetes DNS names, `localhost` and `127.0.0.1`. Add your ingress hostname through your secret-management process and roll out the application before public access.
+
+The Job validates all configured Secrets before writing. It requires five nonempty fields and matching Nexus key settings, rejecting malformed Base64 and invalid UTF-8. It never overwrites existing Secrets, including legacy independent seeds. Applications perform full DRN value validation. Syncing again does not rotate keys or reset custom hosts.
+
+The bootstrap identity has named Secret reads and namespace-scoped Secret creation. It cannot access Deployments or update or delete Secrets.
 
 API requests use the mounted service account token and CA bundle. Certificate chain and hostname checks remain enabled. The token is read again for each request. Requests time out after 30 seconds. Redirects and proxy use are disabled. Errors do not log credentials or API response bodies.
 
@@ -69,7 +75,7 @@ Host=postgresql-rw;Port=5432;Database=drnDb;Username=drn;Passfile=/appcerts/post
 
 DRN passes each explicit connection string to the context's Npgsql data source. Npgsql reads its password from `Passfile`. Keep the host, port, database and username aligned with the operator's generated `pgpass` entry. The short service hostname also appears in CloudNativePG's generated server certificate. No database password or CA copy is required in staging `sample-settings` or `nexus-settings`.
 
-For an existing staging installation, sync both the updated ConfigMaps and Deployments and verify connectivity for all contexts. Old database connection-string and CA keys in the application Secrets are no longer projected; remove those unused copies through the trusted secret-management process after the rollout succeeds. Keep all application seed/key and host settings.
+For an existing staging installation, sync ConfigMaps and Deployments and verify connectivity for all contexts. Old database connection-string and CA keys in application Secrets are no longer projected. Remove unused copies through the trusted secret-management process after rollout succeeds. Keep application seed/key and host settings.
 
 The projected files can receive Secret updates without `subPath` mounts. This does not establish seamless credential or CA rotation for existing connection pools. Roll out both applications after rotation and verify database connectivity and certificate validation. No automatic rollout controller is configured.
 
@@ -96,7 +102,7 @@ Use `SSL Mode=VerifyFull;Root Certificate=/appcerts/postgresql/root.crt` and a h
 
 Staging migration credentials need the DDL privileges required by the application's migrations. Production runtime credentials should have only runtime permissions, with a separate privileged migration procedure. No production database Cluster or migration Job is supplied by these scaffolds.
 
-Keep seeds and ID key material separate across environments. Do not regenerate them at each deployment. Sample persists ASP.NET data-protection keys in `DrnDataProtectionContext`; changing its seed can prevent reading existing protected material. The current projection permits one default Nexus key. A planned key rotation that retains older parsing keys must also extend the projected key list before rollout.
+Keep seeds and ID key material separate across environments. Do not regenerate them at each deployment. Sample persists ASP.NET data-protection keys in `DrnDataProtectionContext`. Changing its seed can prevent reading existing protected material. The projection permits one default Nexus key. Extend the projected key list before rotating keys if older parsing keys must remain available.
 
 ## Authentication and image readiness
 
@@ -104,7 +110,7 @@ The pinned Sample image's staging settings disable `Identity:RequireConfirmedAcc
 
 The local DRN source tag `release/v0.10.1-preview003` includes these environment, migration, and secret-validation contracts. Source inspection alone does not prove the provenance or runtime behavior of the pinned container digests. Validate startup, connectivity, identity flows, and migrations before making staging available to users.
 
-The production scaffold currently inherits the existing preview image pins. Keep production disabled until approved final image digests, database provisioning and migration, secrets, identity flows, public TLS, persistence, backups, and recovery have been validated. A final GitOps snapshot tag does not independently certify its embedded images as production-ready.
+Production inherits preview image pins. Keep it disabled until the [production prerequisites](../README.md#production-activation-prerequisites) are verified, including approved final images and identity flows. A final GitOps tag does not certify its images for production.
 
 ## Source evidence
 

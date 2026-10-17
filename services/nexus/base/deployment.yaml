@@ -6,6 +6,10 @@ metadata:
     app: nexus
 spec:
   replicas: 1
+  # Stop the old pod before reattaching its ReadWriteOnce data volume.
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   selector:
     matchLabels:
       app: nexus
@@ -100,7 +104,8 @@ spec:
           configMap:
             name: nexus-config
         - name: app-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: nexus-data
         - name: app-temp
           emptyDir: {}
         - name: app-logs
