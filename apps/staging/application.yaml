@@ -8,9 +8,9 @@ spec:
   source:
     repoURL: https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git
     path: deployment
-    # Publish preview002 with the staging chart and overlay paths before applying this root.
+    # Publish preview003 with the staging chart and overlay paths before applying this root.
     # Do not move or recreate an existing tag.
-    targetRevision: refs/tags/2026.10.1-preview002
+    targetRevision: refs/tags/2026.10.1-preview003
     helm:
       parameters:
         - name: environment
