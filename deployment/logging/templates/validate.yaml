@@ -1,0 +1,20 @@
+{{- if not (has .Values.environment (list "staging" "production")) -}}
+{{- fail "environment must be staging or production; development is local only" -}}
+{{- end -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" .Values.gitRevision) -}}
+{{- fail "gitRevision must be the root Application's resolved Git commit SHA" -}}
+{{- end -}}
+{{- if not (regexMatch "^refs/tags/[0-9]{4}\\.([1-9]|1[0-2])\\.[1-9][0-9]*(-preview(00[1-9]|0[1-9][0-9]|[1-9][0-9]{2}))?$" .Values.releaseTag) -}}
+{{- fail "select an exact refs/tags/YYYY.M.sequence or refs/tags/YYYY.M.sequence-previewNNN tag (preview001 through preview999)" -}}
+{{- end -}}
+{{- if not (kindIs "bool" .Values.enableProduction) -}}
+{{- fail "enableProduction must be a boolean" -}}
+{{- end -}}
+{{- if eq .Values.environment "production" -}}
+{{- if not .Values.enableProduction -}}
+{{- fail "production is disabled; complete the production prerequisites before enabling it" -}}
+{{- end -}}
+{{- if contains "-preview" .Values.releaseTag -}}
+{{- fail "production requires a final release tag" -}}
+{{- end -}}
+{{- end -}}

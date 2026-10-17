@@ -1,0 +1,6 @@
+repository: https://github.com/duranserkan/DRN-Project-Argo-CD-Gitops.git
+# Supplied by the root Application. There is no floating-ref fallback.
+environment: ""
+gitRevision: ""
+releaseTag: ""
+enableProduction: false

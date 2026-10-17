@@ -5,7 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     # Grafana creates its Prometheus authorization policy in the Viz namespace.
-    argocd.argoproj.io/sync-wave: "90"
+    argocd.argoproj.io/sync-wave: "10"
 # https://artifacthub.io/packages/helm/linkerd2-edge/linkerd-viz/2026.10.1
 spec:
   project: linkerd-viz

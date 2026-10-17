@@ -1,22 +1,22 @@
-{{- if eq .Values.environment "staging" }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: postgresql
+  name: mongodb
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "110"
+    argocd.argoproj.io/sync-wave: "20"
 spec:
-  project: drn-project
+  project: graylog
   source:
-    path: services/postgresql/{{ .Values.environment }}
+    path: infrastructure/graylog/mongodb
     repoURL: {{ .Values.repository | quote }}
     targetRevision: {{ .Values.gitRevision | quote }}
   destination:
-    namespace: drn-project
+    namespace: graylog
     server: https://kubernetes.default.svc
   syncPolicy:
     automated:
       selfHeal: true
       prune: false
-{{- end }}
+    syncOptions:
+      - CreateNamespace=true
