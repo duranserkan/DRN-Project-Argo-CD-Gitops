@@ -10,9 +10,9 @@ spec:
   source:
     chart: traefik
     repoURL: https://traefik.github.io/charts
-    # Verified 2026-10-10 against https://traefik.github.io/charts/index.yaml and chart bytes.
-    # SHA-256: f9edd5ca699ff0f5eab14df6e4feefa15f7597a9b56f0b1c01f6089b1eecbaf1
-    targetRevision: 41.7.1
+    # Verified 2026-10-17 against https://traefik.github.io/charts/index.yaml and chart bytes.
+    # SHA-256: a6ede324662ddcca0160a5ce639b7b5b9dd40a20a475e1101e9f95b5e5d83dd5
+    targetRevision: 42.0.0
     helm:
       skipCrds: true
       valuesObject:

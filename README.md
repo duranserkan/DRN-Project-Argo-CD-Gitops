@@ -117,7 +117,7 @@ On macOS with [Homebrew](https://formulae.brew.sh/), install the command-line to
 brew install kubernetes-cli helm argocd kubeseal linkerd
 ```
 
-Homebrew installs its current versions. To match this deployment, use the [Argo CD `v3.5.4` client](https://github.com/argoproj/argo-cd/releases/tag/v3.5.4) and [Linkerd `edge-26.10.1` client](https://github.com/linkerd/linkerd2/releases/tag/edge-26.10.1). On other platforms, follow the upstream installation instructions. Use `kubeseal` to prepare Sealed Secrets.
+Homebrew installs its current versions. To match this deployment, use the [Argo CD `v3.5.5` client](https://github.com/argoproj/argo-cd/releases/tag/v3.5.5) and [Linkerd `edge-26.10.1` client](https://github.com/linkerd/linkerd2/releases/tag/edge-26.10.1). On other platforms, follow the upstream installation instructions. Use `kubeseal` to prepare Sealed Secrets.
 
 Check the tools and intended cluster before installing Argo CD:
 
@@ -138,12 +138,12 @@ Use the intended cluster's kubectl context. Install Argo CD with the existing pi
 ```sh
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
-helm install argocd argo/argo-cd --version 10.10.2 \
+helm install argocd argo/argo-cd --version 10.10.5 \
   -f infrastructure/argocd/custom-values.yaml \
   --create-namespace -n argocd --wait --timeout 10m
 ```
 
-For a highly available Argo CD setup, use `custom-values-ha.yaml` with at least three workers. This chart installs Argo CD `v3.5.4`. Both values files include the child Application health checks needed by root sync waves. Authenticated users have no resource access by default. Grant administrator and project access explicitly. Restrict the built-in default project:
+For a highly available Argo CD setup, use `custom-values-ha.yaml` with at least three workers. This chart installs Argo CD `v3.5.5`. Both values files include the child Application health checks needed by root sync waves. Authenticated users have no resource access by default. Grant administrator and project access explicitly. Restrict the built-in default project:
 
 ```sh
 kubectl apply -f infrastructure/argocd/default-project.yaml
@@ -151,7 +151,7 @@ kubectl apply -f apps/bootstrap-project.yaml
 kubectl -n argocd port-forward svc/argocd-server 8080:443
 ```
 
-Keep the port-forward running in a separate terminal. Open another terminal with the Argo CD `v3.5.4` CLI. Retrieve the initial `admin` password from the cluster:
+Keep the port-forward running in a separate terminal. Open another terminal with the Argo CD `v3.5.5` CLI. Retrieve the initial `admin` password from the cluster:
 
 ```sh
 argocd admin initial-password -n argocd
@@ -296,7 +296,7 @@ Certificate issuance and renewal have separate owners:
 
 trust-manager distributes public trust material. It does not issue certificates. Existing controllers handle automatic renewal where noted. No custom renewal jobs are needed. Staging mounts the operator's public PostgreSQL CA directly. Administrators manage production CA copies in application Secrets. After database credential or CA rotation, roll out affected applications. Verify new connections.
 
-These are configured behaviors, not evidence of a verified running deployment. See [platform operations](docs/platform-operations.md) for startup, trust changes and runtime checks. Upstream references: [Linkerd mTLS](https://linkerd.io/docs/features/automatic-mtls/), [CloudNativePG certificates](https://cloudnative-pg.io/docs/devel/certificates/), [pinned Graylog chart startup setting](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), and [Data Node self-signed certificate lifetime](https://github.com/Graylog2/graylog2-server/blob/7.1.10/data-node/src/main/java/org/graylog/datanode/configuration/DatanodeKeystore.java).
+These are configured behaviors, not evidence of a verified running deployment. See [platform operations](docs/platform-operations.md) for startup, trust changes and runtime checks. Upstream references: [Linkerd mTLS](https://linkerd.io/docs/features/automatic-mtls/), [CloudNativePG certificates](https://cloudnative-pg.io/docs/devel/certificates/), [pinned Graylog chart startup setting](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), and [Data Node self-signed certificate lifetime](https://github.com/Graylog2/graylog2-server/blob/7.2.0/data-node/src/main/java/org/graylog/datanode/configuration/DatanodeKeystore.java).
 
 ### Post-quantum support in the pinned deployment
 

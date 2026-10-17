@@ -10,19 +10,19 @@ spec:
   source:
     chart: grafana
     repoURL: https://grafana-community.github.io/helm-charts
-    # Chart SHA256 verified 2026-10-10.
-    # 8085f5d02dd351e2d1de394a5b65e9ebd421227a2a4cd0758f5625fa5559e9ed
-    targetRevision: 13.5.0
+    # Chart SHA256 verified 2026-10-17.
+    # 4dbc6ed68ee29e78edd4db47d10aad72f8fc473e4169501a2bdaf149463e74df
+    targetRevision: 14.0.1
     helm:
       skipTests: true
       valuesObject:
         fullnameOverride: grafana
         image:
-          tag: 13.2.3-distroless
-          sha: 202e5d5b3f8499e70ccac7991eea6d7da72d2790eb2e0597e7987acf724e7180
+          tag: 13.2.4-distroless
+          sha: ae3d3add290adbe6a88412229f5d76fd7bb82743050881698642d3d62f277e35
         downloadDashboardsImage:
-          tag: 8.22.0
-          sha: 58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
+          tag: 8.23.0
+          sha: a134550be58ab783810e613ae96fd253c38f7bdd16d9bf9be350700c7a29ac06
         rbac:
           create: false
         serviceAccount:

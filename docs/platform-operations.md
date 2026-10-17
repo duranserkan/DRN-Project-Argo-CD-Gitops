@@ -4,7 +4,7 @@ The environment root owns the Applications in [deployment/templates](../deployme
 
 Follow the [release procedure](../README.md#promote-and-roll-back). A new merge commit requires CI and staging validation before production promotion. Retain the tested image digests.
 
-## Dependency review, 2026-10-10
+## Dependency review, 2026-10-17
 
 The project uses Kubernetes `1.36.4` for testing. When changing component pins, check their Kubernetes support ranges and validate the selected combination on that baseline. A chart's minimum Kubernetes version alone does not establish compatibility for the complete deployment.
 
@@ -13,22 +13,31 @@ Keep PostgreSQL on major 18 and MongoDB on 8.2 unless planning a database upgrad
 | Component | Reviewed selection |
 |---|---|
 | Linkerd CRDs, control plane and Viz | Charts 2026.10.1, images edge-26.10.1, proxy v2.370.0 |
-| Traefik | Chart 41.7.1, image v3.7.14 |
-| Grafana | Chart 13.5.0, image 13.2.3-distroless and curl 8.22.0 |
-| Argo CD bootstrap | Chart 10.10.2, Argo CD v3.5.4, chart-selected Dex and Redis dependencies |
+| Traefik | Chart 42.0.0, image v3.7.14 |
+| Grafana | Chart 14.0.1, image 13.2.4-distroless and curl 8.23.0 |
+| Argo CD bootstrap | Chart 10.10.5, Argo CD v3.5.5, chart-selected Dex and Redis dependencies |
+| Gateway API | Retain v1.5.1 standard CRDs recommended by the pinned Linkerd release |
 | trust-manager | Chart and image v0.25.0, chart-selected Trixie trust package pinned by digest |
-| Graylog and Data Node | Chart 2.1.0, images 7.1.10 |
+| Graylog and Data Node | Chart 2.1.0, images 7.2.0 |
 | Sample and Nexus | Updated 2026-10-14 to 0.10.1-preview004, image source revision matches the release tag |
-| PostgreSQL | Updated 2026-10-11 to 18.6 standard-trixie, pinned by digest |
+| PostgreSQL | 18.6 standard-trixie, refreshed registry digest on 2026-10-17 |
 | MongoDB credential bootstrap | Updated 2026-10-14 to .NET SDK 10.0.402-alpine3.24, pinned by digest |
 | Staging application Secret bootstrap | Updated 2026-10-14 to .NET SDK 10.0.402-alpine3.24, pinned by digest |
 | cert-manager | v1.21.2 |
 | CloudNativePG operator | Chart 0.29.1, image 1.30.1 |
-| MongoDB operator and server | Chart 1.13.0 with its helper versions, server 8.2.12-ubi8 |
+| MongoDB operator and server | Chart 1.14.0 with agent 109.0.1.9310-1, server 8.2.12-ubi8 |
 | Sealed Secrets | Chart 2.20.0, controller 0.40.0 |
 | Viz Prometheus and extension-init | Chart-selected 2.55.1 and 0.1.12. Prometheus 3 requires a separate compatibility review. |
 
-Chart archives were checked against publisher index checksums and changed image pins against registry manifests. Argo CD chart archive SHA-256 is `1f2bdb0e23b87fdac5222d99d1acf6964e670db9bf63912c58ab4677e505638b`. Its image digest is `sha256:49dff79439bb38b1b942b19a113fe1fec7e6b6c671ddf9fe6a4a7c46bde0b77b`. ECR rate limiting prevented checking Argo CD's dependency mirror. Redis and HAProxy versions were inspected through upstream Docker Hub manifests instead. Runtime compatibility remains unverified.
+Chart archives were checked against publisher index checksums and changed image pins against registry manifests. Argo CD chart archive SHA-256 is `ba6447eeed42bc41d1f0527721047b236304e97669a7b6286d02be4a1644ba7a`. Its image digest is `sha256:13db7b10db23283b1b36f855046602e18539a8a8204c9f6f039e8896c8897518`. Chart-selected Dex and Redis dependencies remain aligned with the chart. Runtime compatibility remains unverified.
+
+The [Traefik 42 upgrade notes](https://github.com/traefik/traefik-helm-chart/releases/tag/v42.0.0) require Kubernetes 1.30 or newer and change unused Hub settings. The repository baseline satisfies that minimum. Grafana 14 adds a values schema. Current values were inspected against that schema without rendering. MongoDB's upgrade and readiness helpers retain the new chart's default versions, with refreshed registry digests for their republished tags. Bootstrap Utils and test packages now use 0.10.1-preview004. CI action commits, package hashes and SonarScanner 12.0.0 compatibility are recorded in the [test documentation](../tests/ApplicationSecretBootstrap.Tests/README.md).
+
+All 18 Grafana dashboard revisions were checked. Retain Deployment dashboard 15475 at revision 6 from the pinned Linkerd suite. Revision 7 changes datasource strings to UID objects and a datasource variable, so it needs a separate provisioning change before use with the current string substitution. The other 17 revisions remain current. Staging already selects the latest published GitOps preview tag. Production remains disabled with its final-tag placeholder because no final release has been published.
+
+Gateway API v1.6.3 is published and its standard bundle checksum was verified. Retain v1.5.1 because the pinned Linkerd release still recommends it. Linkerd's API-version checks alone do not establish tested support for the newer bundle. Coordinate this update with Linkerd compatibility verification.
+
+No chart render, restore, build, test or deployment was run during this dependency update. Verify the changed combination in staging before promotion. Separate release notes are not required for this configuration repository. Operational changes and migration constraints are recorded here.
 
 ## Resource organization
 
@@ -48,7 +57,7 @@ Both Argo CD installation values files use the same completion gate. A child rep
 
 Failed operations report Degraded. Pending operations, stale comparisons, dry runs, manual selective syncs, apply-strategy syncs and nonempty local-manifest overrides block later waves.
 
-A successful automatic self-heal may replace the latest full-sync result with a selective operation. The gate accepts it only with a positive `autoHealAttemptsCount` and an automated deployment history entry matching all current sources and resolved revisions. Argo CD `v3.5.4` [records history only after successful unfiltered, non-dry-run syncs](https://github.com/argoproj/argo-cd/blob/v3.5.4/controller/sync.go#L373). Its [automatic operations](https://github.com/argoproj/argo-cd/blob/v3.5.4/controller/appcontroller.go#L2316) use repository manifests and the hook strategy. This retains evidence that deployment hooks, including MongoDB credential bootstrap, completed before later self-healing. `ApplyOutOfSyncOnly` [retains hook tasks](https://github.com/argoproj/argo-cd/blob/v3.5.4/gitops-engine/pkg/sync/sync_context.go#L705) in this version.
+A successful automatic self-heal may replace the latest full-sync result with a selective operation. The gate accepts it only with a positive `autoHealAttemptsCount` and an automated deployment history entry matching all current sources and resolved revisions. Argo CD `v3.5.5` [records history only after successful unfiltered, non-dry-run syncs](https://github.com/argoproj/argo-cd/blob/v3.5.5/controller/sync.go#L408). Its [automatic operations](https://github.com/argoproj/argo-cd/blob/v3.5.5/controller/appcontroller.go#L2465) use repository manifests and the hook strategy. This retains evidence that deployment hooks, including MongoDB credential bootstrap, completed before later self-healing. `ApplyOutOfSyncOnly` [retains hook tasks](https://github.com/argoproj/argo-cd/blob/v3.5.5/gitops-engine/pkg/sync/sync_context.go#L761) in this version. These source files are unchanged from v3.5.4.
 
 Manual deployment history omits the strategy and local-manifest inputs, so it cannot prove hooks ran. If matching automated history is absent or evicted, run a full child sync from the configured source. A successful full sync passes directly, but later self-healing still requires retained automated history. Recheck these upstream semantics when upgrading Argo CD. History records deployment completion, not continued availability of a hook's external effects.
 
@@ -61,7 +70,7 @@ Gate changes require updating the Argo CD installation with the chosen values fi
 To install the updated gate on an existing standard installation, use the intended cluster context and preserve any additional installation-specific values:
 
 ```sh
-helm upgrade argocd argo/argo-cd --version 10.10.2 \
+helm upgrade argocd argo/argo-cd --version 10.10.5 \
   -n argocd -f infrastructure/argocd/custom-values.yaml \
   --wait --timeout 10m
 argocd app get drn-project --hard-refresh
@@ -96,7 +105,7 @@ Staging's `application-secrets` Job completes before Nexus and Sample. Its dedic
 
 Both credential bootstrap Jobs run a single C# file from a Kustomize-generated ConfigMap. They use the official `mcr.microsoft.com/dotnet/sdk:10.0.402-alpine3.24` image. Its index digest is `sha256:230c3fbae0ceedc70bca04eed2bfb5694e8b248cadbb81010f41b7a993601f55`. On 2026-10-14, the MCR manifest response and its calculated SHA-256 matched this pin. The index includes Linux amd64, arm/v7 and arm64. The [SDK supports file-based apps](https://learn.microsoft.com/en-us/dotnet/core/sdk/file-based-apps), so no custom image is needed.
 
-Both files reference DRN.Framework.Utils 0.10.1-preview003 for its transitive SharedKernel JSON conventions. Each clones the default options with null omission, avoiding JSON model attributes. Kubernetes HTTP still uses built-in .NET. Startup restore requires nuget.org access and downloads Utils with its transitive dependencies into writable `/tmp` storage under a non-root user. The source and root filesystem stay read-only. Existing manifests retain disabled runtime NuGet audit, telemetry and workload update notifications. CI audits the test dependency graph, including Utils. The application Secret Job retains its 300-second deadline. Static review does not establish startup timing or resource sufficiency after adding package restore. Verify these in staging before promotion. Automatic pruning remains disabled, so obsolete source ConfigMaps need deliberate cleanup.
+Both files reference DRN.Framework.Utils 0.10.1-preview004 for its transitive SharedKernel JSON conventions. Each clones the default options with null omission, avoiding JSON model attributes. Kubernetes HTTP still uses built-in .NET. Startup restore requires nuget.org access and downloads Utils with its transitive dependencies into writable `/tmp` storage under a non-root user. The source and root filesystem stay read-only. Existing manifests retain disabled runtime NuGet audit, telemetry and workload update notifications. CI audits the test dependency graph, including Utils. The application Secret Job retains its 300-second deadline. Static review does not establish startup timing or resource sufficiency after adding package restore. Verify these in staging before promotion. Automatic pruning remains disabled, so obsolete source ConfigMaps need deliberate cleanup.
 
 Both bootstrap files declare `#:property PublishAot=false` to support their reflection-based JSON serialization. Direct IDE and file-based builds therefore use the same managed execution mode as the Job and CI commands. Native AOT and trimming are not supported.
 
@@ -172,7 +181,7 @@ New volumes start empty. Before syncing, preserve required `/appdata` files from
 
 ## PostgreSQL
 
-The image is `ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:79be0d10e78b7ac4520cf6c5db199a8bb7f6de53b3229f47e90cab5865528a0d`. The unsuffixed `18.6-standard` tag was unavailable during the 2026-10-11 review. `docker buildx imagetools inspect` verified the pinned GHCR index for Linux amd64 and arm64. The [publisher's listing](https://github.com/cloudnative-pg/postgres-containers/pkgs/container/postgresql) associates it with the October 5 build. Runtime compatibility remains unverified.
+The image is `ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:c7747d8d1049fff9cf30d9cd83d14d609c957afb5ffbcd114145f393ea1850e1`. The registry manifest was verified on 2026-10-17. This refresh preserves PostgreSQL major 18 and the Trixie distribution. Runtime compatibility remains unverified.
 
 Fresh clusters initialize PostgreSQL 18.6 on Debian Trixie. The former PostgreSQL 16 pin used Bookworm. Do not directly sync this pin to that existing cluster: CloudNativePG 1.30 in-place major upgrades require the same OS distribution. Plan and rehearse a migration to a new cluster, such as logical dump/restore, with a verified backup, application and extension compatibility checks, locale/collation validation and scheduled downtime. Take a new backup after success. Reverting an image tag after a successful major upgrade is not a database downgrade. See [CloudNativePG 1.30 major upgrades](https://cloudnative-pg.io/docs/1.30/postgres_upgrades/). No cluster upgrade was executed as part of this pin change.
 
@@ -196,7 +205,9 @@ MongoDB requires native TLS and SCRAM authentication. cert-manager issues its ce
 
 For fresh installs, the operator's connection URI includes `ssl=true`. The bootstrap copies it into `graylog-credentials` for both clients. Existing Secrets are preserved. To migrate a plaintext deployment, update the saved URI and restart both clients. Restart Graylog and Data Node after CA changes so their JVMs reload trust. Coordinate root rotation with Linkerd because the issuer is shared.
 
-The pinned chart defaults `graylog.config.selfSignedStartup` to `"true"`, enabling automatic startup with self-signed certificates. This deployment inherits that setting. Manual CA provisioning in the preflight UI is not required for this startup mode. Data Node uses its certificate configuration for both OpenSearch and its management API. Do not add a second certificate mechanism or infer API encryption from the standalone `http_enable_tls` default. Verify HTTPS on ports 8999 and 9200 after startup. Automatic self-signed startup is distinct from configuring a managed CA and renewal policy, which remain outside this beta setup. See the [pinned chart configuration](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), [encrypted startup test](https://github.com/Graylog2/graylog2-server/blob/7.1.10/full-backend-tests/src/test/java/org/graylog/searchbackend/datanode/DatanodeSelfsignedStartupIT.java), and [Data Node API implementation](https://github.com/Graylog2/graylog2-server/blob/7.1.10/data-node/src/main/java/org/graylog/datanode/initializers/JerseyService.java).
+The pinned chart defaults `graylog.config.selfSignedStartup` to `"true"`, enabling automatic startup with self-signed certificates. This deployment inherits that setting. Manual CA provisioning in the preflight UI is not required for this startup mode. Data Node uses its certificate configuration for both OpenSearch and its management API. Do not add a second certificate mechanism or infer API encryption from the standalone `http_enable_tls` default. Verify HTTPS on ports 8999 and 9200 after startup. Automatic self-signed startup is distinct from configuring a managed CA and renewal policy, which remain outside this beta setup. See the [pinned chart configuration](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), [encrypted startup test](https://github.com/Graylog2/graylog2-server/blob/7.2.0/full-backend-tests/src/test/java/org/graylog/searchbackend/datanode/DatanodeSelfsignedStartupIT.java), and [Data Node API implementation](https://github.com/Graylog2/graylog2-server/blob/7.2.0/data-node/src/main/java/org/graylog/datanode/initializers/JerseyService.java).
+
+Graylog and Data Node now select 7.2.0 together. Before syncing an existing 7.1 installation, verify backups of MongoDB, Data Node data and credential Secrets, then schedule a coordinated upgrade with service interruption. Follow the [7.2 upgrade procedure](https://go2docs.graylog.org/current/upgrading_graylog/upgrade_to_graylog_7.2.htm). The [compatibility matrix](https://go2docs.graylog.org/current/downloading_and_installing_graylog/compatibility_matrix.htm) includes MongoDB 8.2. Version 7.2 enables stream-aware field types by default and reports container-aware resource metrics. Check search performance and monitoring after rollout. Existing GELF inputs and the chart's self-signed startup settings are retained. A tag rollback does not replace a data recovery plan.
 
 Provide a default ReadWriteOnce StorageClass. Baseline volumes are MongoDB `4Gi` data plus `2Gi` logs, Graylog `8Gi`, and Data Node `8Gi`. Hosts need `vm.max_map_count >= 262144` and must meet MongoDB's platform requirements. Memory requests include Graylog `1Gi`, Data Node `3.5Gi` and MongoDB `1Gi`, plus agent/operator overhead. They are not usage limits. The stack is single-instance and has no configured backups.
 
