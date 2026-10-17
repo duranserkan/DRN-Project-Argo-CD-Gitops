@@ -66,6 +66,7 @@ Checked items describe repository configuration, not verified production readine
   - [X] Graylog
 - [x] [Namespace ingress isolation](#service-protection) for application, Graylog and Grafana namespaces
 - [ ] RabbitMQ support in staging
+- [ ] Extend Nexus with service discovery, remote settings, a microservices topology view and service self-documentation
 - [ ] Explore CloudNativePG for production, including high availability, backups, recovery and upgrades
 - [ ] Pulumi support to create a Kubernetes cluster on cloud providers such as Oracle Cloud, AWS or Azure
 - [ ] [Additional Kubernetes hardening](todo.md#cluster-level-prerequisites) and [verification in a running cluster](todo.md#runtime-verification-and-operations)
@@ -172,7 +173,7 @@ The initial password does not change when you update the admin password. Use the
 
 ### Install platform dependencies and workloads
 
-The environment root now installs the dependencies that the previous layout required you to apply separately. After bootstrap, one full `drn-project` sync creates their Applications in this order:
+After bootstrap, one full `drn-project` sync creates Applications in this order:
 
 | Order | Dependencies installed by the root |
 |---|---|
@@ -186,7 +187,7 @@ The environment root now installs the dependencies that the previous layout requ
 | 8 | Staging application Secrets |
 | 9 | Nexus, then Sample |
 
-Gateway API installation is included through the `gateway-api` Application. Traefik's Gateway API provider is already enabled in its chart values. Later waves wait for earlier Applications to satisfy the deployment completion gate described below and become healthy. Use the root flow below instead of the removed per-component `kubectl apply` paths.
+The root installs Gateway API through the `gateway-api` Application. Traefik's Gateway API provider is enabled. Later waves wait for earlier Applications to pass the completion gate and become healthy.
 
 For a fork, update the repository URL in `apps/bootstrap-project.yaml`, each environment root and `deployment/values.yaml` before tagging. Keep Helm repository URLs unchanged. Configure Argo CD credentials for private repositories. Changing only a local Git remote is insufficient.
 
@@ -212,15 +213,13 @@ Follow the [staging secret configuration](docs/staging-configuration.md). Isolat
 
 The staging `application-secrets` bootstrap creates `sample-settings` and `nexus-settings` before Nexus starts. New credentials require [explicit operator approval](docs/staging-configuration.md#automatic-staging-secret-bootstrap). Existing Secrets are preserved, and missing application Secrets copy Nexus's credentials. Generated allowed hosts cover local access and service DNS names. Configure your ingress hostname before public access. Root sync may time out while waiting for configuration or Graylog setup. Finish those steps and sync again.
 
-Graylog setup may need your input. The child gate requires healthy resources and completed deployment hooks before later root waves can proceed. Those hooks must have completed for the current source and revision. Successful automatic self-heals pass when matching automated deployment history proves this. A new revision may need a full child sync even when its manifests are unchanged. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for gate rules and upgrade instructions.
+The child gate requires healthy resources and completed hooks for the current source and revision. Automatic self-heals require matching deployment history. A new revision may need a full child sync even when its manifests are unchanged. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for gate rules, wave allocation and upgrades.
 
 Waves are not transactions. On later updates, children can auto-sync independently without following the root's wave order. Check each child's sync revision and health before declaring success.
 
 If Gateway API shows **Synced / Degraded: CRD is not established**, inspect its Kubernetes conditions before continuing. Synced alone does not mean the API is available. Follow [Gateway API CRD troubleshooting](docs/platform-operations.md#gateway-api-crd-troubleshooting).
 
-Root templates use numbered directories under `deployment/templates/` with matching sync-wave annotations. The annotations control deployment order. See [installation dependencies](docs/platform-operations.md#installation-dependencies) for wave allocation.
-
-Sample and Nexus use their anonymous WeatherForecast endpoints for startup, readiness and liveness probes. These probes use an internal HTTP/1 listener on port `8081`. Their Services continue to use h2c. In staging and production, each application's `AllowedHosts` Secret must allow its probe Host header. Use `sample` for Sample and `nexus` for Nexus. The probes check application responsiveness. They do not check database or downstream availability. See [workload health probes](docs/platform-operations.md#workload-health-probes) for paths, timings and rollout requirements.
+Sample and Nexus probe their anonymous WeatherForecast endpoints over HTTP/1 on port `8081`. Their Services use h2c. Each application's `AllowedHosts` Secret must include its probe Host: `sample` or `nexus`. Probes check HTTP responsiveness, not dependencies. See [workload health probes](docs/platform-operations.md#workload-health-probes) for paths and timings.
 
 Do not recursively apply `apps/`, apply `deployment/templates/` as raw YAML, or deploy workload bases directly. The bootstrap project manages AppProjects and Applications in `argocd`, which grants indirect administrative authority. Restrict it and its source files to administrators. Infrastructure children own namespaces. The workload project cannot create namespaces, Secrets, RBAC, NetworkPolicies or Linkerd authorization policies.
 
@@ -262,11 +261,11 @@ Ingress policies protect `drn-project`, `graylog` and `grafana` independently in
 | MongoDB operator webhook | Any source | 1993 |
 | Grafana namespace | `linkerd-viz` | 3000, 4143, 4191, 4190 |
 
-Traefik starts with Linkerd's default inbound policy `deny`. Its public web Server grants unauthenticated HTTP/1.1 only on the web listener. TCP4143 does not grant access to its other application ports. Automatic health-probe authorization is separate. Dashboard and public websecure exposure remain disabled.
+Traefik starts with Linkerd's default inbound policy `deny`. Its public web Server grants unauthenticated HTTP/1.1 only on the web listener. TCP port 4143 does not grant access to its other application ports. Automatic health-probe authorization is separate. Dashboard and public websecure exposure remain disabled.
 
 Other meshed destinations require trusted identities. Graylog's allowance for TCP port 4143 covers more than GELF. It also lets trusted workloads reach Graylog's authenticated API. Native database authentication and TLS remain required. Node traffic and API-authorized port-forwarding need separate controls. The MongoDB webhook exception preserves API-server admission until reliable source CIDRs are known.
 
-Sample and Nexus run as non-root users with read-only root filesystems. They use dedicated service accounts. API tokens are not mounted, and applications have no RBAC grants. Data and logs in writable `emptyDir` volumes are lost when a pod is removed. Workload creators can mount secrets in their namespace. See [remaining hardening work](todo.md#namespace-isolation).
+Sample and Nexus run as non-root users with read-only root filesystems and dedicated service accounts. API tokens are not mounted, and applications have no RBAC grants. `/appdata` persists on PVCs. Temporary files and logs in `emptyDir` volumes are lost when a pod is removed. Workload creators can mount secrets in their namespace. See [remaining hardening work](todo.md#namespace-isolation).
 
 ## Connection encryption and certificates
 
