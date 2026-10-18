@@ -1,14 +1,14 @@
 # Platform operations
 
-For workstation access to Graylog, Argo CD, Linkerd Viz, Grafana, PostgreSQL and MongoDB, use the [local access guide](local-access.md).
+Use the [README](../README.md#bootstrap-a-cluster) for installation and releases, [environment configuration](staging-configuration.md) for application settings, and [local access](local-access.md) for UIs and database tunnels.
 
-The environment root owns shared prerequisites and parallel branch Applications in [deployment/templates](../deployment/templates). The [logging](../deployment/logging), [monitoring](../deployment/monitoring) and [workloads](../deployment/workloads) charts own their leaf Applications. Change their configuration in a reviewed snapshot, publish a new immutable tag and promote that snapshot. Do not apply these Helm templates directly. Upstream chart versions and image digests are recorded in the owning template, independently of the GitOps tag.
+[Dependencies](#installation-dependencies) | [Bootstrap runtime](#credential-bootstrap-runtime) | [Certificates](#certificates-and-trust) | [Gateway API](#gateway-api-crd-troubleshooting) | [Probes](#workload-health-probes) | [Storage](#application-persistent-storage) | [PostgreSQL](#postgresql) | [Graylog](#graylog) | [Grafana and Secrets](#grafana-and-secrets) | [Readiness](#readiness-checks)
 
-Follow the [release procedure](../README.md#promote-and-roll-back). A new merge commit requires CI and staging validation before production promotion. Retain the tested image digests.
+Chart templates own version and image pins. Publish changes through the [release procedure](../README.md#promote-and-roll-back), retaining tested image digests. Never apply Helm templates directly.
 
 ## Dependency review, 2026-10-17
 
-The project uses Kubernetes `1.36.4` for testing. When changing component pins, check their Kubernetes support ranges and validate the selected combination on that baseline. A chart's minimum Kubernetes version alone does not establish compatibility for the complete deployment.
+The test baseline is Kubernetes `1.36.4`. Pinned Linkerd charts require 1.31 or newer. Component minimums do not establish whole-stack compatibility. Validate changed combinations in staging.
 
 Keep PostgreSQL on major 18 and MongoDB on 8.2 unless planning a database upgrade. Align operator helpers with their chart. Review compatibility before upgrading bundled components across major versions.
 
@@ -49,42 +49,7 @@ Keep standalone Kubernetes resources in separate files within their owning compo
 
 ## Installation dependencies
 
-Argo CD root sync waves order projects, shared CRDs, certificate bootstrap, Linkerd and namespace isolation. The final wave starts logging, monitoring, workloads, Traefik and Sealed Secrets concurrently. Each branch has its own dependency waves. Logging or Traefik failures allow workloads and monitoring to progress, but block root completion. The Argo CD values files supply child Application health assessment at both levels. On updates, waves do not make independently auto-syncing children transactional.
-
-Both Argo CD installation values files use the same completion gate. A child reports Healthy to the root only when it has:
-
-- No queued operation and a successful finished sync.
-- A current source/destination comparison with matching source configuration and resolved revisions.
-- Healthy resources.
-
-Failed operations report Degraded. Pending operations, stale comparisons, dry runs, manual selective syncs, apply-strategy syncs and nonempty local-manifest overrides block later waves.
-
-A successful automatic self-heal may replace the latest full-sync result with a selective operation. The gate accepts it only with a positive `autoHealAttemptsCount` and an automated deployment history entry matching all current sources and resolved revisions. Argo CD `v3.5.5` [records history only after successful unfiltered, non-dry-run syncs](https://github.com/argoproj/argo-cd/blob/v3.5.5/controller/sync.go#L408). Its [automatic operations](https://github.com/argoproj/argo-cd/blob/v3.5.5/controller/appcontroller.go#L2465) use repository manifests and the hook strategy. This retains evidence that deployment hooks, including MongoDB credential bootstrap, completed before later self-healing. `ApplyOutOfSyncOnly` [retains hook tasks](https://github.com/argoproj/argo-cd/blob/v3.5.5/gitops-engine/pkg/sync/sync_context.go#L761) in this version. These source files are unchanged from v3.5.4.
-
-Manual deployment history omits the strategy and local-manifest inputs, so it cannot prove hooks ran. If matching automated history is absent or evicted, run a full child sync from the configured source. A successful full sync passes directly, but later self-healing still requires retained automated history. Recheck these upstream semantics when upgrading Argo CD. History records deployment completion, not continued availability of a hook's external effects.
-
-The gate normalizes omitted optional `ignoreDifferences` fields so that an empty core API group in the spec matches its omitted representation in comparison status. Actual rule changes still block the gate until compared. Error conditions use explicit Argo CD condition names without requiring Lua standard libraries. Recheck these names against the pinned Argo CD API when upgrading.
-
-If a source change renders identical resources, Argo CD may leave the child Synced without starting another operation. Run a full child sync at the selected revision, then retry the root if its operation has stopped. Selective sync cannot satisfy this gate. Failed operations also require a successful retry, even when resources appear healthy.
-
-Gate changes require updating the Argo CD installation with the chosen values file. Syncing the DRN root does not update Argo CD itself.
-
-To install the updated gate on an existing standard installation, use the intended cluster context and preserve any additional installation-specific values:
-
-```sh
-helm upgrade argocd argo/argo-cd --version 10.10.5 \
-  -n argocd -f infrastructure/argocd/custom-values.yaml \
-  --wait --timeout 10m
-argocd app get drn-project --hard-refresh
-```
-
-For HA, use `custom-values-ha.yaml` instead. An active root sync can continue once child health is reassessed. Retry `argocd app sync drn-project` only if its previous operation has stopped.
-
-Within `drn-monitoring`, Linkerd Viz syncs before Grafana to create the `linkerd-viz` namespace for Grafana's Prometheus authorization policy.
-
-Group each chart's resource templates in descriptive directories without numeric prefixes. Set order through `argocd.argoproj.io/sync-wave` annotations, starting at `10` within each chart and increasing by `10` for dependent groups. Independent Applications share a wave. Missing annotations default to `0`. Keep `validate.yaml` identical at each chart's templates root. All four charts validate the environment, exact Git SHA, release tag and production opt-in.
-
-The root prepares these groups in order:
+The root prepares shared prerequisites in this order:
 
 1. AppProjects.
 2. cert-manager controller and Gateway API CRDs.
@@ -96,7 +61,7 @@ The root prepares these groups in order:
 8. Namespace isolation.
 9. Logging, monitoring, workloads, Traefik and Sealed Secrets in parallel.
 
-Branch waves are independent of the root and each other:
+Each branch then orders its own dependencies:
 
 | Branch | Dependency order |
 |---|---|
@@ -104,35 +69,111 @@ Branch waves are independent of the root and each other:
 | `drn-monitoring` | Linkerd Viz → Grafana |
 | `drn-workloads` | CloudNativePG → staging PostgreSQL and staging application Secret bootstrap → Nexus → Sample |
 
-PostgreSQL and application Secret creation run independently. Nexus waits for both. Sample follows Nexus because it calls Nexus. Traefik runs alongside the branches, so ingress failures do not block workload deployment. Public access requires Traefik and Sample's route to be ready. Gateway API CRDs are shared by Linkerd and Traefik. MongoDB's credential hook must finish before Graylog starts. Verify public access and logging separately from workload readiness.
+In staging, Nexus waits for PostgreSQL and application Secrets. Sample follows Nexus because it calls it. Viz creates the namespace needed by Grafana's Prometheus authorization. MongoDB's credential hook must finish before Graylog starts.
 
-Each branch uses the administrator-only bootstrap project and receives the root's Git SHA, environment, release tag and production opt-in. The SHA pins both the branch and its Git-backed leaves. Branch automatic pruning and self-healing are disabled. [Automatic sync requires an OutOfSync comparison](https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/#automated-sync-semantics). If a new revision leaves branch manifests unchanged, the health gate can still require a full sync. For example, run `argocd app sync drn-monitoring` when its health message requests one. Retry failed branches after recovery.
+Branches inherit the root's SHA, environment, release tag and production opt-in. They use the administrator-only bootstrap project, with automatic pruning and self-healing disabled. Traefik or logging failures do not stop other branches, but every child must succeed for root completion. On updates, children can auto-sync independently. Root waves are not transactions.
 
-For the first migration from the flat root, sync the new root snapshot **without pruning**. Branches adopt existing leaf Applications through Argo CD resource tracking, preserving their names, destinations, source settings and finalizers. Before enabling pruning, verify that each moved leaf belongs to its new branch, is absent from the root's pruning candidates and has no shared-resource warning. If `drn-workloads` already owns Traefik, transfer it back to the root without pruning and verify its tracking. Do not delete or recreate leaf Applications, databases, PVCs or Secrets during transfer. Rollback requires the same transfer without pruning back to the old root. Restrict root and branch chart sources to administrators.
+Use descriptive template directories without numeric prefixes. Set sync waves from `10`, increasing by `10` for dependent groups. Independent Applications share a wave. Missing annotations default to `0`. Keep `validate.yaml` identical in all four charts.
 
-Staging's `application-secrets` Job completes before Nexus and Sample. Its dedicated project keeps Secret and initialization-marker creation RBAC outside the workload project. A fresh install creates the immutable `application-secret-bootstrap-initialized` ConfigMap before generating credentials automatically. Retain this non-secret marker independently of Jobs and source ConfigMaps. Full syncs preserve existing Secrets and create only missing ones, copying Nexus's seed and key with application-specific hosts. If Nexus is missing, a surviving application supplies its credentials. Once the marker exists, total settings Secret loss requires operator recovery. Enroll existing installations while their credentials survive. Marker or namespace deletion is outside this protection boundary. Lost legacy custom values also require operator recovery. See [automatic staging Secret bootstrap](staging-configuration.md#automatic-staging-secret-bootstrap). Production does not install this component.
+### Child completion gate
 
-Both credential bootstrap Jobs run a single C# file from a Kustomize-generated ConfigMap. Their init and bootstrap containers use the official `mcr.microsoft.com/dotnet/sdk:10.0.402-noble` image based on Ubuntu 24.04 LTS. Its index digest is `sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa`. On 2026-10-18, the MCR manifest response and its calculated SHA-256 matched this pin. The index includes Linux amd64, arm/v7 and arm64. This replaces Alpine while retaining the SDK version. The [SDK supports file-based apps](https://learn.microsoft.com/en-us/dotnet/core/sdk/file-based-apps), so no custom image is needed. Verify restore and execution on the new base under the existing security settings and resource limits before promotion.
+Both Argo CD values files use the same health gate:
 
-Both Jobs use the SDK image's built-in `app` user with UID/GID `1654` and pod filesystem group `1654`. This identity applies to the init and bootstrap containers. Both Jobs set `XDG_RUNTIME_DIR=/tmp/runtime` on their private scratch volumes. An init container using the same SDK pin creates it with mode `0700` as UID `1654`. Since .NET 10.0.13, Unix named mutex storage uses the runtime directory or the user's home. `DOTNET_CLI_HOME` does not redirect it, so SDK initialization can fail with `NuGet-Migrations` before bootstrap code starts. See the [runtime change](https://github.com/dotnet/docs/issues/56396) and [SDK reproduction](https://github.com/dotnet/runtime/issues/135726). Preserve the non-root identity, read-only root filesystem and storage limits.
+| Child state | Result |
+|---|---|
+| Successful finished sync, current Synced source/destination comparison, matching revisions and healthy resources | Healthy |
+| Failed operation | Degraded |
+| Queued/running operation, stale comparison, dry run, manual selective sync, apply strategy or nonempty local manifests | Blocks later waves |
+| Automatic selective self-heal | Requires positive `autoHealAttemptsCount` and matching automated deployment history for every source and revision |
 
-Both Jobs also set `XDG_DATA_HOME=/tmp/data`. The same init container creates this directory with mode `0700` as UID `1654` on the scratch volume. This supplies an existing writable `LocalApplicationData` directory for file-based SDK execution. The built-in user does not make its home writable on a read-only root filesystem, so retain these scratch directories. `DOTNET_CLI_HOME` and `XDG_RUNTIME_DIR` do not configure this lookup. A missing application-data directory can cause `Unable to determine a temporary directory path` before bootstrap code starts. See the [upstream folder-resolution report](https://github.com/dotnet/runtime/issues/27582). After deploying the change, verify a fresh bootstrap Job completes under the existing security settings. Static checks do not establish runtime success.
+In Argo CD `v3.5.5`, [history records successful unfiltered syncs](https://github.com/argoproj/argo-cd/blob/v3.5.5/controller/sync.go#L408). [Automatic operations](https://github.com/argoproj/argo-cd/blob/v3.5.5/controller/appcontroller.go#L2465) use repository manifests and hooks. [`ApplyOutOfSyncOnly` retains hooks](https://github.com/argoproj/argo-cd/blob/v3.5.5/gitops-engine/pkg/sync/sync_context.go#L761). Manual history cannot prove hooks ran because it omits strategy and local-manifest inputs. History proves completion, not continued availability of a hook's effects.
 
-Both files reference DRN.Framework.Utils 0.10.1-preview004 for its transitive SharedKernel JSON conventions. Each clones the default options with null omission, avoiding JSON model attributes. Kubernetes HTTP still uses built-in .NET. Startup restore requires nuget.org access and downloads Utils with its transitive dependencies into writable `/tmp` storage under a non-root user. The source and root filesystem stay read-only. Existing manifests retain disabled runtime NuGet audit, telemetry and workload update notifications. CI audits the test dependency graph, including Utils. The application Secret Job retains its 300-second deadline. Static review does not establish startup timing or resource sufficiency after adding package restore. Verify these in staging before promotion. Automatic pruning remains disabled, so obsolete source ConfigMaps need deliberate cleanup.
+Run a full child sync when automated history is missing, a previous operation failed, or a new revision renders unchanged resources. For example: `argocd app sync drn-monitoring`. A successful full sync passes directly. Later self-heals still need matching automated history. Retry the root only after its previous operation has stopped.
 
-Both bootstrap files declare `#:property PublishAot=false` to support their reflection-based JSON serialization. Direct IDE and file-based builds therefore use the same managed execution mode as the Job and CI commands. Native AOT and trimming are not supported.
+The gate normalizes omitted optional `ignoreDifferences` fields. Real rule changes require a new comparison. Recheck history semantics, error-condition names and Lua sandbox compatibility when upgrading Argo CD.
 
-Linkerd uses the edge chart repository and externally managed certificates. cert-manager issues the root, identity issuer and webhook certificates. trust-manager distributes public trust from `cert-manager`. Keep private keys out of public bundles. Renewal retains the root key. Follow the [planned coordinated rotation procedure](../todo.md#linkerd-root-key-rotation) before changing it. Match the Linkerd CLI to the deployed control plane.
+Gate changes belong to the Argo CD installation. In the intended context, preserve installation-specific values and run:
 
-Gateway API CRDs precede Traefik. Traefik watches `drn-project` and creates its Gateway there. Sample's HTTPRoute attaches in the same namespace. Confirm `Accepted=True` and `ResolvedRefs=True` before evaluating application behavior.
+```sh
+helm upgrade argocd argo/argo-cd --version 10.10.5 \
+  -n argocd -f infrastructure/argocd/custom-values.yaml \
+  --wait --timeout 10m
+argocd app get drn-project --hard-refresh
+```
 
-Traefik accepts public HTTP/1.1. Sample and Nexus use h2c on ports 5998 and 5988, exposed through Service port 80 with `appProtocol: kubernetes.io/h2c`. These listeners do not accept HTTP/1.1. Port 8081 serves HTTP/1 kubelet probes. Linkerd supplies mesh mTLS.
+Use `custom-values-ha.yaml` for HA. Syncing the DRN root does not update Argo CD itself.
 
-The [Sample HTTPRoute](../services/sample/base/httproute.yaml) maps `/app` and `/app/` to `/`, and `/app/example` to `/example`. Prefix matching is case-sensitive and excludes `/appx`. The route sets `X-Forwarded-Prefix: /app` and removes client-supplied `Forwarded`, `X-Forwarded-Ssl`, `X-Original-URI`, `X-Forwarded-Path` and `l5d-dst-override` headers. Configure application proxy trust for Traefik's forwarded request metadata.
+### Ownership migration
 
-The route also removes Linkerd retry and timeout override headers before forwarding requests to workloads. Traefik's inbound Linkerd proxy receives public requests before these filters run, so keep per-request retry and timeout policies disabled on that unfiltered ingress path. See [Linkerd's per-request policy guidance](https://linkerd.io/docs/features/retries-and-timeouts/#per-request-policies).
+When moving from a flat root to branch charts:
 
-Use a CNI that enforces the [documented ingress policies](../README.md#service-protection). Fresh Traefik pods start with a deny default before serving traffic. When changing policies later, deploy restrictive mesh authorization before widening transport access. Do not assume manifest acceptance proves isolation, probe health or webhook reachability.
+1. Sync **without pruning** so branches adopt existing leaf Applications. Preserve names, destinations, source settings and finalizers.
+2. Verify each leaf belongs to its new branch, has no shared-resource warning and is absent from the root's pruning candidates.
+3. If `drn-workloads` owns Traefik, transfer it to the root without pruning and verify tracking.
+4. Use the same process in reverse for rollback. Never delete Applications, databases, PVCs or Secrets to transfer ownership.
+
+### Credential bootstrap runtime
+
+The [application](../infrastructure/application-secrets/staging/credential-bootstrap.yaml) and [Graylog](../infrastructure/graylog/mongodb/credential-bootstrap.yaml) Jobs compile C# files from hashed ConfigMaps at startup. See their separate [application recovery](staging-configuration.md#automatic-staging-secret-bootstrap) and [Graylog recovery](#graylog-credentials-and-recovery) rules.
+
+| Setting | Both Jobs |
+|---|---|
+| Image | Official .NET SDK `10.0.402-noble`, same digest for init and bootstrap containers |
+| Identity | Built-in `app` user, UID/GID and `fsGroup` `1654` |
+| Filesystems | Read-only source and root, bounded `512Mi` scratch volume at `/tmp` |
+| Bootstrap limits | One CPU, `512Mi` memory |
+| Restore | nuget.org access for DRN.Framework.Utils and transitive dependencies |
+| Execution | `PublishAot=false`, reflection-based JSON, no native AOT or trimming |
+| Audit | Runtime NuGet audit disabled, [CI dependency audit](../tests/ApplicationSecretBootstrap.Tests/README.md) enabled |
+| API access | Mounted CA and hostname verification, per-request token reads, sanitized errors |
+
+The MCR index digest `sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa` was verified on 2026-10-18. It includes Linux amd64, arm/v7 and arm64. This Noble pin replaces Alpine without changing the SDK version.
+
+The init container creates both directories below with mode `0700` before SDK startup. The image's home is read-only. `DOTNET_CLI_HOME` does not configure either location.
+
+| Variable | Path | Failure prevented |
+|---|---|---|
+| `XDG_RUNTIME_DIR` | `/tmp/runtime` | `NuGet-Migrations` named-mutex failure since .NET 10.0.13 |
+| `XDG_DATA_HOME` | `/tmp/data` | `Unable to determine a temporary directory path` during file-based execution |
+
+See the [runtime change](https://github.com/dotnet/docs/issues/56396), [SDK reproduction](https://github.com/dotnet/runtime/issues/135726) and [folder-resolution report](https://github.com/dotnet/runtime/issues/27582). Verify fresh Job completion, restore timing and resource limits in staging. The application Job has a 300-second deadline. Graylog has 20 minutes, including a 15-minute URI wait.
+
+Source ConfigMaps contain code and NuGet configuration, never credentials. Wave `-1` creates source and RBAC before the hook. Pruning is disabled. Remove obsolete source ConfigMaps only after confirming no Job uses them. Retain initialization markers independently of source ConfigMaps and Jobs.
+
+### Routing
+
+Traefik watches `drn-project`, where its Gateway and Sample's HTTPRoute live. Confirm route conditions `Accepted=True` and `ResolvedRefs=True`.
+
+| Path | Listener |
+|---|---|
+| Public → Traefik | HTTP/1.1 |
+| Service port `80` → Sample / Nexus | h2c only, ports `5998` / `5988`, `appProtocol: kubernetes.io/h2c` |
+| Kubelet → Sample / Nexus | HTTP/1 on `8081` |
+
+The [Sample route](../services/sample/base/httproute.yaml) strips `/app`: `/app` and `/app/` become `/`, while `/app/example` becomes `/example`. Matching is case-sensitive and excludes `/appx`.
+
+It sets `X-Forwarded-Prefix: /app` and removes client-supplied forwarding, Linkerd destination, retry and timeout overrides. See the route for exact headers. Configure [application proxy trust](https://github.com/duranserkan/DRN-Project/blob/master/DRN.Framework.Hosting/README.md#forwarded-headers-reverse-proxy--gateway) for Traefik's metadata.
+
+Traefik's inbound proxy sees public requests before route filters. Keep [per-request retries and timeouts](https://linkerd.io/docs/features/retries-and-timeouts/#per-request-policies) disabled on that path. Apply restrictive mesh authorization before widening network access. Verify the [ingress policy](../README.md#service-protection) with a NetworkPolicy-capable CNI.
+
+## Certificates and trust
+
+See the [connection map](../README.md#connection-encryption-and-certificates) for transport protection. Certificate owners handle renewal as follows:
+
+| Certificate | Owner | Lifetime and renewal |
+|---|---|---|
+| Linkerd workload identities | Linkerd | Automatic rotation, default lifetime 24 hours |
+| Linkerd issuer and admission webhooks | cert-manager | `24000h`, renewed `73h` before expiry |
+| Shared Linkerd/MongoDB trust anchor | cert-manager | `175200h`, renewed `87600h` before expiry, existing private key retained |
+| MongoDB server | cert-manager | 90 days, renewed 30 days before expiry with a new key |
+| Staging PostgreSQL CA and server | CloudNativePG | Operator-managed renewal |
+| Data Node API and OpenSearch | Data Node | Automatic self-signed startup, `99 × 365` days, no configured rotation policy |
+
+trust-manager distributes public roots, including PEM and PKCS12 bundles for Graylog clients. It does not issue certificates. Keep private keys out of bundles. Replacing the shared root key requires [coordinated rotation](../todo.md#linkerd-root-key-rotation). Restart Graylog and Data Node after MongoDB CA changes.
+
+Production database certificates and application CA copies are externally managed. After database credential or CA rotation, roll out affected applications and verify new connections. Data Node managed CA issuance and renewal remain outside beta scope.
+
+References: [Linkerd mTLS](https://linkerd.io/docs/features/automatic-mtls/), [CloudNativePG certificates](https://cloudnative-pg.io/docs/devel/certificates/), [Graylog startup setting](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), [Data Node certificate lifetime](https://github.com/Graylog2/graylog2-server/blob/7.2.0/data-node/src/main/java/org/graylog/datanode/configuration/DatanodeKeystore.java).
 
 ## Gateway API CRD troubleshooting
 
@@ -163,34 +204,44 @@ The root can then continue. If its operation has already failed or timed out, sy
 
 ## Workload health probes
 
-Both workload bases define startup, readiness and liveness probes. All environment overlays inherit them. Each probe requests the local anonymous GET inherited from DRN's `WeatherForecastControllerBase`:
+Both overlays inherit startup, readiness and liveness probes for local anonymous WeatherForecast endpoints:
 
 | Workload | Pod path | Host header | Named port |
 |---|---|---|---|
 | Sample | `/Api/Sample/WeatherForecast` | `sample` | `health` (`8081`) |
 | Nexus | `/Api/WeatherForecast` | `nexus` | `health` (`8081`) |
 
-Probe requests go directly to the Pod IP. Sample's external `/app` prefix is not used. The Sample `/Api/Sample/WeatherForecast/Nexus` action calls Nexus and is deliberately excluded from probes. These local checks verify that the HTTP application pipeline responds. They do not query databases or establish dependency readiness.
+Requests go directly to the Pod IP, without Sample's external `/app` prefix. They check HTTP responsiveness, not databases or downstream services. Sample's Nexus-calling action is deliberately excluded.
 
-Kestrel's additional `Health` endpoint uses `Http1` because standard kubelet HTTP probes use HTTP/1. Native h2c probes require the alpha `H2CContainerProbe` feature gate. The existing h2c service listeners remain unchanged. Port 8081 is not published by a Service or Gateway, and no ingress allowance is added. This Kestrel listener serves the same application routes, not only WeatherForecast, and retains application authentication, host filtering, mesh policy and namespace isolation.
+| Probe | Interval | Consecutive failures | Effect |
+|---|---|---|---|
+| Startup | 5 seconds | 60 | Nominal 300-second startup budget |
+| Readiness | 5 seconds | 3 | Remove from service traffic |
+| Liveness | 10 seconds | 6 | Restart container |
 
-Startup permits 60 failures at 5-second intervals, a nominal 300-second budget. Readiness checks every 5 seconds and marks the container unready after 3 consecutive failures. Liveness checks every 10 seconds and restarts it after 6 consecutive failures. Requests time out after 2 seconds. Readiness and liveness probes start after startup succeeds. Evaluate these defaults against observed startup and migration durations.
+All requests time out after two seconds. Readiness and liveness start after startup succeeds. Check these budgets against migration and startup times.
 
-Before rolling out staging or production, include `sample` in Sample's `AllowedHosts` Secret value and `nexus` in Nexus's value, alongside the existing accepted hosts. Otherwise host filtering returns HTTP 400 and the probes fail. Roll out pods after changing Secrets. Linkerd automatically authorizes declared HTTP probe routes while the port uses its default inbound policy. If an explicit Server or route policy is later introduced for this port, preserve probe authorization deliberately.
+The HTTP/1 `Health` listener avoids requiring native h2c probe support. It serves the application's other routes too, with authentication and host filtering intact. Port `8081` has no Service, Gateway or added ingress allowance.
 
-The routes and anonymous action were checked against sibling DRN-Project tag `release/v0.10.1-preview003`. Confirm actual probes succeed with the pinned images and Linkerd before declaring the rollout healthy. See [Kubernetes probe behavior](https://kubernetes.io/docs/concepts/workloads/pods/probes/) and [Linkerd probe authorization](https://linkerd.io/docs/features/server-policy/).
+Include each probe Host in its [AllowedHosts Secret](staging-configuration.md#required-staging-and-production-secrets) before rollout, or probes return HTTP 400. Linkerd authorizes declared HTTP probes under its default inbound policy. Preserve this authorization when adding an explicit Server or route policy.
+
+Routes were checked against DRN-Project `release/v0.10.1-preview003`. Verify them with the pinned images and Linkerd. References: [Kubernetes probes](https://kubernetes.io/docs/concepts/workloads/pods/probes/), [Linkerd probe authorization](https://linkerd.io/docs/features/server-policy/).
 
 ## Application persistent storage
 
-Sample and Nexus mount separate `1Gi` PersistentVolumeClaims (PVCs) at `/appdata`: `sample-data` and `nexus-data` in `drn-project`. Staging and production inherit these claims from the service bases. Each cluster provisions its own volumes. PostgreSQL retains its separate `8Gi` volume.
+| Storage | Configuration |
+|---|---|
+| Sample `/appdata` | `sample-data`, `1Gi` PVC |
+| Nexus `/appdata` | `nexus-data`, `1Gi` PVC |
+| Access | ReadWriteOnce filesystem, writable by pod group `1654` |
+| Rollout | One replica, `Recreate`, `rollingUpdate: null` |
+| Temporary files and logs | `/apptemp`, `/applogs`, `/tmp` in `emptyDir`, `1Gi` ephemeral-storage request and limit per container |
 
-Provide a default StorageClass supporting ReadWriteOnce filesystem volumes writable by pod group `1654`. To use another class, set `storageClassName` on each claim before provisioning. Keep PVCs and Deployments in the same child sync wave so `WaitForFirstConsumer` binding can proceed. The workload AppProject permits PVCs.
+Each environment provisions its own volumes. Provide a default StorageClass or set `storageClassName` before provisioning. Keep PVCs and Deployments in the same child wave for `WaitForFirstConsumer` binding. Updates interrupt service. Review storage access and concurrency before adding replicas.
 
-Both applications use one replica and `Recreate`, stopping the old pod before starting its replacement. Updates interrupt service until the new pod is ready. `rollingUpdate: null` clears the previous strategy's settings. Review storage access and application concurrency before increasing replicas. `/apptemp`, `/applogs` and `/tmp` remain ephemeral, with a `1Gi` ephemeral-storage request and limit per application container.
+Before replacing `emptyDir` with a PVC, preserve required files and plan restoration. New volumes start empty. Reverting to a pre-PVC deployment stops mounting retained data. Verify binding, non-root writes and persistence across pod replacement.
 
-New volumes start empty. Before syncing, preserve required `/appdata` files from existing `emptyDir` volumes and plan their restoration. Reverting to a pre-PVC deployment stops mounting the retained data. Verify claim binding, non-root write access and persistence across pod replacement. Runtime verification is pending.
-
-`Prune=false,Delete=false` retains claims when removed from manifests or when their Application is deleted. Skipped pruning can leave the Application OutOfSync. Retention does not replace backups or protect against direct PVC or namespace deletion. Check the StorageClass reclaim policy and back up data before retiring a claim. See [Argo CD sync options](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/) and [Kubernetes persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/).
+`Prune=false,Delete=false` retains claims after manifest or Application removal, which can leave Argo CD OutOfSync. It does not protect against direct PVC or namespace deletion. Back up data and check the StorageClass reclaim policy before retirement. See [Argo CD retention](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/) and [Kubernetes volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/).
 
 ## PostgreSQL
 
@@ -210,77 +261,81 @@ The single instance disables its PodDisruptionBudget, permits maintenance downti
 
 ## Graylog
 
-See [connection encryption and certificates](../README.md#connection-encryption-and-certificates) for transport protection, certificate lifetimes and renewal ownership.
+| Component | Deployment | Network |
+|---|---|---|
+| Graylog Open | Graylog Helm chart | Meshed |
+| Data Node, including OpenSearch | Graylog Helm chart | Unmeshed |
+| MongoDB Community | MongoDB operator and Git-backed Application | Unmeshed |
 
-Graylog Open and Data Node use the upstream Graylog chart. MongoDB Controllers for Kubernetes manages MongoDB Community through a separate Git-backed Application. Only Graylog server pods are meshed. MongoDB, its operator and Data Node are unmeshed. Data Node manages OpenSearch internally.
+MongoDB uses native TLS and SCRAM. Graylog and Data Node verify its certificate through the shared PEM/PKCS12 trust bundle. The truststore contains public certificates only, so `changeit` protects no private material. See [certificates and trust](#certificates-and-trust).
 
-MongoDB requires native TLS and SCRAM authentication. cert-manager issues its certificate through `linkerd-trust-anchor`. trust-manager distributes the CA and public roots to `graylog` as PEM and a Java PKCS12 truststore. Graylog and Data Node mount the store and verify MongoDB's certificate. The store contains only public CA certificates, so its `changeit` password protects no private material.
+The [MongoDB user](../infrastructure/graylog/mongodb/mongodb-custom-resource.yaml) needs `readWrite` and `dbAdmin` on `graylog` only. The latter permits [`collMod`](https://www.mongodb.com/docs/v8.0/reference/command/collmod/#access-control) on `cluster_events`. If startup fails with MongoDB error 13, sync MongoDB and wait for role reconciliation. Verify Graylog starts and passes its probe. Preserve credentials and volumes. Probe HTTP 502 can be a symptom of this failure.
 
-The MongoDB `graylog` user has `readWrite` and `dbAdmin`, both scoped only to the `graylog` database in the [MongoDB resource](../infrastructure/graylog/mongodb/mongodb-custom-resource.yaml). Graylog needs `collMod` to configure the capped `cluster_events` collection during startup. `readWrite` alone does not grant this action. The database-scoped `dbAdmin` role supplies it. See [MongoDB collMod privileges](https://www.mongodb.com/docs/v8.0/reference/command/collmod/#access-control).
+Fresh installs copy the operator's TLS URI, including `ssl=true`, unchanged. For a plaintext-to-TLS migration, update the saved URI and restart both clients. Restart them after CA changes and coordinate shared-root rotation with Linkerd.
 
-For existing installations, sync the MongoDB Application and wait for the operator to reconcile the user roles. Confirm Graylog starts without MongoDB error 13 (`Unauthorized`) on `collMod` and passes its startup probe. Preserve the existing credential Secrets and database volumes. A startup probe HTTP 502 can be a downstream symptom of Graylog exiting after this permission error. Check the application logs before changing Linkerd or probe settings.
+The chart inherits `graylog.config.selfSignedStartup: "true"`. Data Node automatically creates certificates for its API and OpenSearch, without manual CA provisioning. Verify HTTPS on ports `8999` and `9200`. Managed CA renewal is outside beta scope. See the [chart setting](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), [startup test](https://github.com/Graylog2/graylog2-server/blob/7.2.0/full-backend-tests/src/test/java/org/graylog/searchbackend/datanode/DatanodeSelfsignedStartupIT.java) and [API implementation](https://github.com/Graylog2/graylog2-server/blob/7.2.0/data-node/src/main/java/org/graylog/datanode/initializers/JerseyService.java).
 
-For fresh installs, the operator's connection URI includes `ssl=true`. The bootstrap copies it into `graylog-credentials` for both clients. Existing Secrets are preserved. To migrate a plaintext deployment, update the saved URI and restart both clients. Restart Graylog and Data Node after CA changes so their JVMs reload trust. Coordinate root rotation with Linkerd because the issuer is shared.
-
-The pinned chart defaults `graylog.config.selfSignedStartup` to `"true"`, enabling automatic startup with self-signed certificates. This deployment inherits that setting. Manual CA provisioning in the preflight UI is not required for this startup mode. Data Node uses its certificate configuration for both OpenSearch and its management API. Do not add a second certificate mechanism or infer API encryption from the standalone `http_enable_tls` default. Verify HTTPS on ports 8999 and 9200 after startup. Automatic self-signed startup is distinct from configuring a managed CA and renewal policy, which remain outside this beta setup. See the [pinned chart configuration](https://github.com/Graylog2/graylog-helm/blob/graylog-2.1.0/charts/graylog/templates/config/graylog.yaml), [encrypted startup test](https://github.com/Graylog2/graylog2-server/blob/7.2.0/full-backend-tests/src/test/java/org/graylog/searchbackend/datanode/DatanodeSelfsignedStartupIT.java), and [Data Node API implementation](https://github.com/Graylog2/graylog2-server/blob/7.2.0/data-node/src/main/java/org/graylog/datanode/initializers/JerseyService.java).
+### Capacity and upgrades
 
 Graylog and Data Node now select 7.2.0 together. Before syncing an existing 7.1 installation, verify backups of MongoDB, Data Node data and credential Secrets, then schedule a coordinated upgrade with service interruption. Follow the [7.2 upgrade procedure](https://go2docs.graylog.org/current/upgrading_graylog/upgrade_to_graylog_7.2.htm). The [compatibility matrix](https://go2docs.graylog.org/current/downloading_and_installing_graylog/compatibility_matrix.htm) includes MongoDB 8.2. Version 7.2 enables stream-aware field types by default and reports container-aware resource metrics. Check search performance and monitoring after rollout. Existing GELF inputs and the chart's self-signed startup settings are retained. A tag rollback does not replace a data recovery plan.
 
-Provide a default ReadWriteOnce StorageClass. Baseline volumes are MongoDB `4Gi` data plus `2Gi` logs, Graylog `8Gi`, and Data Node `8Gi`. Hosts need `vm.max_map_count >= 262144` and must meet MongoDB's platform requirements. Memory requests include Graylog `1Gi`, Data Node `3.5Gi` and MongoDB `1Gi`, plus agent/operator overhead. They are not usage limits. The stack is single-instance and has no configured backups.
+| Component | Storage | Memory request |
+|---|---|---|
+| MongoDB | `4Gi` data + `2Gi` logs | `1Gi`, plus agent/operator overhead |
+| Graylog | `8Gi` | `1Gi` |
+| Data Node | `8Gi` | `3.5Gi` |
+
+Provide a default ReadWriteOnce StorageClass and hosts with `vm.max_map_count >= 262144` that meet MongoDB's requirements. Memory requests are not usage limits. The stack is single-instance with no configured backups.
 
 MongoDB's `4Gi` data request applies to new volumes. Kubernetes cannot shrink an existing `8Gi` PVC. Before syncing an existing installation, verify a backup/restore migration to a new volume. Include credentials and capacity for data and database overhead. Do not delete or recreate the database or PVC to force reconciliation. See [PVC resizing restrictions](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#recovering-from-failure-when-expanding-volumes).
 
-Full-sync the MongoDB Application to run its bootstrap hook. The Job generates credentials, waits for the operator URI and creates Graylog's external Secret. Selective sync skips hooks. Later syncs preserve existing Secrets without rotating credentials or recovering deleted Secrets for existing data. Back up Secrets with the database. Readiness RBAC names `mongodb-0`. Extend it when adding members.
+### Graylog credentials and recovery
 
-Before generating credentials, the Job atomically creates the immutable ConfigMap `graylog-credential-bootstrap-initialized` in `graylog` with `data.version: "1"`. Only the run receiving a validated successful creation may initialize automatically. The marker contains no credentials and has no Job owner or Argo CD tracking metadata. Retain it during hook and source ConfigMap cleanup. It records an initialization claim, not successful completion.
+Full-sync MongoDB to run its credential hook. Selective sync skips hooks. The Job creates random credentials, waits for the operator URI and creates `graylog-credentials`. It stores the admin password separately and supplies its SHA-256 hash to Graylog. Later syncs preserve credentials.
 
-An existing marker with all credential Secrets missing blocks regeneration. Partial-loss safeguards remain: missing `graylog-credentials` with any database password, admin password or operator connection Secret surviving requires restoration. A surviving `graylog-credentials` without `mongo-graylog-password` also requires restoration. A valid pair can run without the separate admin or operator connection Secret. These different credentials cannot be recovered by copying one Secret to another.
+Before writing, the Job claims the immutable `graylog-credential-bootstrap-initialized` ConfigMap in `graylog`, containing only `data.version: "1"`. It has no Job owner or Argo CD tracking. Retain it during cleanup and back it up with credentials and data. It records a claim, not completion.
 
-Enroll existing installations by full-syncing MongoDB while `graylog-credentials` and `mongo-graylog-password` remain intact and valid. Enrollment preserves their values. Confirm the marker with `kubectl -n graylog get configmap graylog-credential-bootstrap-initialized`. An unmarked installation that already lost every checked Secret is indistinguishable from a fresh install. Restore its credentials before deploying this change.
+| State | Action |
+|---|---|
+| No marker or credentials | Only the confirmed marker creator may initialize. |
+| Valid `graylog-credentials` and `mongo-graylog-password` | Preserve them and enroll if needed. Separate admin/operator connection Secrets may be absent. |
+| Marker exists, all credentials lost | Restore from backup. No regeneration. |
+| `graylog-credentials` missing, any database/admin/operator connection Secret survives | Restore the missing credentials. |
+| `graylog-credentials` survives, database password missing | Restore `mongo-graylog-password`. |
+| Invalid/unreadable marker, creation conflict or ambiguous response | Stop without generation. |
 
-Marker read failures, invalid markers, create conflicts and uncertain create responses never authorize generation. A crash after claiming but before completing credentials requires operator recovery, even on an originally fresh install. Restore the original credential Secrets from backup and retry the full sync. If initialization never saved a complete set and no backup exists, stop for an explicitly reviewed recovery or fresh-environment reset that accounts for database and Graylog data. This bootstrap has no generation override. Do not delete the marker to clear the error.
+Enroll existing installations while the valid pair survives. Confirm with `kubectl -n graylog get configmap graylog-credential-bootstrap-initialized`. Restore damaged unmarked installations before enrollment. An empty unmarked environment looks like a fresh install.
 
-Protection covers Secret deletion while the namespace and marker survive. Deleting the marker or namespace removes that history. Back up the marker along with credentials and data. The marker is not a credential backup and does not restore operator-managed Secrets, TLS keys or database contents.
+An interrupted initialization also requires recovery. Restore original credentials and retry a full sync. If no complete set or backup exists, stop for a reviewed recovery or fresh-environment reset that accounts for stored data. There is **no generation override**. Never delete the marker to clear an error. Different credentials cannot be recovered by copying one Secret to another.
 
-The Graylog Job runs [bootstrap.cs](../infrastructure/graylog/mongodb/bootstrap.cs) from a hashed source ConfigMap. Its mounted NuGet configuration enables nuget.org for startup restore. The source and root filesystem stay read-only. Downloaded packages and SDK output use the existing bounded 512 MiB `/tmp` volume. Limits remain one CPU and 512 MiB of memory. The Job keeps its 20-minute deadline and polls for the operator URI every five seconds for up to 15 minutes. Verify startup timing and these resource limits with the transitive dependencies in staging.
+Protection requires the namespace and marker to survive. The marker does not restore credentials, TLS keys or data. See [shared runtime settings](#credential-bootstrap-runtime) and [bootstrap tests](../tests/ApplicationSecretBootstrap.Tests/README.md).
 
-The C# bootstrap preserves existing Secrets and rejects partial credential sets. Passwords use cryptographic random bytes. The administrator password is stored separately and hashed with SHA-256 for Graylog. The operator's connection URI is copied unchanged. API calls verify the mounted CA bundle and server hostname. Each request reads the current service account token. Errors do not log credentials or response bodies. RBAC permits named Secret and marker reads plus namespace-scoped Secret and ConfigMap creation. Kubernetes cannot restrict create permission by resource name. The Job has no update or delete permission.
+The Job can read named Secrets and the marker, and create Secrets/ConfigMaps in its namespace. It cannot update or delete them. Kubernetes cannot restrict create permission by name. Readiness RBAC names `mongodb-0`. Extend it when adding members.
 
-During the operator URI wait, HTTP 5xx responses and request timeouts retry after the existing five-second delay within the original 15-minute deadline. HTTP 401/403, malformed Secret values and failures outside that polling read remain fatal. Retries never regenerate passwords or restart the deadline.
+Operator URI polling runs every five seconds for up to 15 minutes within the 20-minute Job deadline. HTTP 5xx and request timeouts retry without regenerating passwords or resetting the deadline. HTTP 401/403, malformed values and failures outside this polling read are fatal.
 
-[DRN.Framework.Testing tests](../tests/ApplicationSecretBootstrap.Tests/GraylogBootstrapTests.cs) cover credential lifecycle and polling through a fake API and clock. Develop and master CI build both standalone bootstrap files and run their tests with coverage and SonarCloud analysis. These tests do not establish live TLS behavior. Automatic pruning remains disabled. Remove old source ConfigMaps only after confirming no Job references them. Source ConfigMaps contain code and NuGet configuration, never generated credentials.
+### Logging setup
 
-The logging branch and overall root completion can wait while Graylog setup needs human input. Workloads and monitoring continue independently. Forward its private UI:
+Open Graylog through the [local access guide](local-access.md#graylog). Complete Data Node setup if prompted. This can delay logging and root completion while other branches continue.
 
-```sh
-kubectl -n graylog port-forward svc/drn-graylog 9000:9000
-```
+| Content pack | Configuration |
+|---|---|
+| `DRN input` | **DRN GELF HTTP**, `0.0.0.0:12201`, bulk messages, preserved `full_message`, scoped properties as `scope_...` |
+| `DRN streams` | Match `scope_ScopedLog=true`, use the default index set, remove matches from Default Stream |
 
-Open [Graylog](http://localhost:9000). Retrieve the generated password from `graylog-admin-password` privately. Complete Data Node provisioning using the setup credentials from pod logs if prompted, then log in as `admin`. Keep credentials out of Git and shared output. Update `graylog.config.network.externalUri` in the template if changing the UI address.
+Set index replicas to `0` for the single Data Node. Content-pack streams start paused. Start **DRN**, confirm exactly one input and stream, and verify a real scoped message.
 
-Graylog loads separate `DRN input` and `DRN streams` content packs at startup. The input creates **DRN GELF HTTP** on `0.0.0.0:12201`, accepts bulk messages, preserves `full_message`, and extracts scoped JSON properties as `scope_...`. Set index replicas to `0` for this single Data Node.
+Applications send LF-delimited, uncompressed GELF to `http://drn-graylog.graylog:12201/gelf`. Keep HTTP internally because Linkerd provides mTLS. Graylog API authorization still applies.
 
-The DRN stream matches `scope_ScopedLog=true`, uses the default index set and removes matching messages from the Default Stream. Graylog creates content-pack streams paused. Start **DRN** after installation and confirm exactly one GELF input and one DRN stream. Verify an actual scoped message before treating logging as ready.
+For content-pack changes, increment the revision and publish a new snapshot. Preserve customizations and uninstall the prior pack installation before loading its replacement. Sync files and restart Graylog. Each revision creates a separate installation, so leaving the old one creates duplicates. Input and stream packs are independent.
 
-Both applications send LF-delimited, uncompressed GELF HTTP to `http://drn-graylog.graylog:12201/gelf`. Keep this internal URL as HTTP because Linkerd proxies provide mesh mTLS. Application authorization is still required for Graylog's API.
-
-To change a content pack, increment its revision and publish a new GitOps snapshot. Sync the files, then restart Graylog. Each revision creates a separate installation. Preserve customizations and uninstall the prior installation before loading its replacement to avoid duplicate inputs or streams. Input and stream packs do not reference each other's entities.
-
-Automatic pruning is disabled for Graylog and MongoDB. MongoDB also has deletion protection. Restart Graylog and Data Node after credential rotation. Plan and verify data recovery separately.
+Graylog and MongoDB disable automatic pruning. MongoDB also has deletion protection. Restart Graylog and Data Node after credential rotation. Verify data recovery separately.
 
 ## Grafana and secrets
 
-Grafana is an ephemeral, anonymous Viewer behind Linkerd Viz. It has no initial admin account, no login form, immutable dashboard definitions and a Prometheus datasource in `linkerd-viz`. Do not expose it publicly without reviewing access and persistence needs. Its service account is authorized for the Viz Prometheus admin Server.
+Grafana provides anonymous Viewer access through [Linkerd Viz](local-access.md#linkerd-viz-and-grafana). It has no initial admin account or login form. Pinned dashboards load at startup and local changes are not persisted. Its service account can access the Viz Prometheus admin Server. Review access and persistence before public exposure.
 
-Start the local Viz dashboard with the matching Linkerd CLI:
-
-```sh
-linkerd viz dashboard
-```
-
-Keep the command running and open `/grafana/` on the local dashboard URL. Dashboards are provisioned from pinned revisions at startup. Local changes are not persisted.
-
-Sealed Secrets is installed separately from cert-manager. It provides a controller, not an application secret provisioning policy. The required staging and production application Secrets must be supplied through an administrator-controlled process. The restricted workload AppProject cannot create Secret or SealedSecret resources. Back up sealing keys before depending on sealed data for recovery.
+Sealed Secrets supplies a controller, independently of cert-manager. Application Secret ownership follows [environment configuration](staging-configuration.md#configuration-ownership). The workload AppProject cannot create Secrets or SealedSecrets. Back up sealing keys before relying on sealed data for recovery.
 
 The chart names its controller `sealed-secrets` in `kube-system`, while `kubeseal` defaults to `sealed-secrets-controller`. Specify the controller when fetching its public certificate or sealing a Secret:
 
@@ -308,8 +363,17 @@ kubectl -n drn-project get httproute sample -o yaml
 
 If the root waits, inspect the child named in its resource tree. Complete missing setup or retry a full child sync as described under [installation dependencies](#installation-dependencies). A CLI wait timeout does not cancel the controller's sync operation.
 
-Before enabling an environment, verify actual child revisions and health, route attachment, public HTTP behavior, h2c backend traffic, Sample-to-Nexus requests, database migrations/queries and received logs. Check Linkerd metrics/tap, Grafana through Viz, operator reconciliation and admission webhooks. Confirm both meshed and unmeshed callers from an unlisted namespace cannot access protected private services, except documented exceptions. Verify Traefik's other ports remain denied through mesh transport, with authorized health probes still working.
+Before enabling an environment, verify these in the running cluster:
 
-Confirm app service accounts cannot read Secrets or ConfigMaps through the Kubernetes API. Verify non-TLS database connections fail and staging and production clients authenticate the server certificate. Restore and credential-rotation exercises are required before relying on persistent beta data. These checks require an actual environment and are not established by static review.
+| Area | Required checks |
+|---|---|
+| Applications | Expected child revisions and health, route attachment, public HTTP, h2c backends, Sample-to-Nexus calls, migrations and queries |
+| Observability | Received logs, Linkerd metrics/tap and Grafana through Viz |
+| Controllers | Operator reconciliation and admission webhooks |
+| Isolation | Deny unlisted meshed and unmeshed callers except documented allowances. Deny Traefik's private ports through mesh transport while probes remain healthy. |
+| Workload permissions | Application service accounts cannot read Secrets or ConfigMaps through the API. |
+| Database TLS | Reject plaintext and verify server certificates. For both Graylog clients, reject an untrusted MongoDB CA and exercise certificate renewal. |
+| Data Node | HTTPS on management and OpenSearch endpoints |
+| Recovery | Exercise restore and credential rotation before relying on persistent beta data. |
 
-For MongoDB, verify both Graylog and Data Node connect with certificate verification, plaintext connections fail, and an untrusted CA fails the TLS handshake. Confirm Data Node's management and OpenSearch endpoints use HTTPS after certificate provisioning. Exercise MongoDB certificate renewal before treating the deployment as operationally validated.
+Static review does not establish these runtime results.
