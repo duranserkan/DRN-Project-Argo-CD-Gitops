@@ -184,6 +184,7 @@ public class BootstrapTests
         (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain(name).And.Contain(field);
 
         api.Writes.Should().BeEmpty();
+        api.MarkerWrites.Should().BeEmpty();
         Snapshot(api).Should().Equal(before);
     }
 
@@ -314,8 +315,9 @@ public class BootstrapTests
         using var client = api.CreateClient();
         var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token");
 
-        (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("disappeared");
-        api.Writes.Should().ContainSingle();
+        (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().Contain("Secret disappeared during bootstrap");
+        api.MarkerWrites.Should().ContainSingle();
+        api.Writes.Should().ContainSingle().Which.Name.Should().Be(NexusSettingsSecret);
         api.Secrets.Should().BeEmpty();
     }
 

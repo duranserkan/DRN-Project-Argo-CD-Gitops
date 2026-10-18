@@ -92,6 +92,7 @@ public class GraylogBootstrapTests
         var act = api.Run;
         (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain("Refusing password regeneration");
         api.Writes.Should().BeEmpty();
+        api.MarkerWrites.Should().Be(0);
     }
 
     [Fact]
@@ -164,9 +165,11 @@ public class GraylogBootstrapTests
     public async Task Disappearing_Conflict_Winner_Should_Fail()
     {
         using var api = new Api();
-        api.Intercept = (method, _) => method == HttpMethod.Post ? Response(HttpStatusCode.Conflict, "private") : null;
+        api.Intercept = (method, name) => method == HttpMethod.Post && name != MarkerName
+            ? Response(HttpStatusCode.Conflict, "private") : null;
         var act = api.Run;
-        (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain("disappeared");
+        (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().Contain("Secret disappeared during bootstrap");
+        api.MarkerWrites.Should().Be(1);
         api.Secrets.Should().BeEmpty();
     }
 
