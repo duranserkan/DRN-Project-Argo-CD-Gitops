@@ -1,4 +1,4 @@
-# DRN Project Argo CD GitOps
+# DRN-Project Argo CD GitOps
 
 [![DRN-Project](https://img.shields.io/badge/DRN--Project-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://github.com/duranserkan/DRN-Project)
 [![DRN-Project-Pulumi-Ops](https://img.shields.io/badge/DRN--Project--Pulumi--Ops-F7BF2A?style=for-the-badge&logo=pulumi&logoColor=black)](https://github.com/duranserkan/DRN-Project-Pulumi-Ops)
@@ -19,7 +19,7 @@
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=bugs)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=duranserkan_DRN-Project-Argo-CD-Gitops&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=duranserkan_DRN-Project-Argo-CD-Gitops)
 
-Deploy [DRN Project](https://github.com/duranserkan/DRN-Project) Sample and Nexus with Argo CD, Linkerd, Traefik, PostgreSQL and Graylog. This repository owns deployment configuration. Application builds and image publishing belong to DRN Project.
+Deploy [DRN-Project](https://github.com/duranserkan/DRN-Project) Sample and Nexus with Argo CD, Linkerd, Traefik, PostgreSQL and Graylog. This repository owns deployment configuration. Application builds and image publishing belong to DRN-Project.
 
 **TL;DR: You can**
 
@@ -28,7 +28,7 @@ Deploy [DRN Project](https://github.com/duranserkan/DRN-Project) Sample and Nexu
 - Use Sample as a reference application and adapt this repository's deployment structure for your own services.
 - Publish preview releases from `develop` and final releases from `master`, using immutable tags.
 - **TODO:** Extend [Nexus App](https://hub.docker.com/r/duranserkan/drn-project-nexus) with service discovery, remote settings, a unified microservices topology view and service self-documentation.
-- **TODO:** Automate Oracle Cloud cluster provisioning and Argo CD bootstrap with [DRN Project Pulumi Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops).
+- **TODO:** Automate Oracle Cloud cluster provisioning and Argo CD bootstrap with [DRN-Project Pulumi Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops).
 
 [About Project, Kubernetes and Argo CD](#about-project-kubernetes-and-argo-cd) | [GitOps Roadmap](#gitops-roadmap) | [Tools](#tools) | [Deployment](#deployment-model) | [Bootstrap](#bootstrap-a-cluster) | [Continuous Integration](#continuous-integration)
 
@@ -73,13 +73,13 @@ Checked items describe repository configuration, not verified production readine
 - [ ] RabbitMQ support in staging
 - [ ] Extend Nexus with service discovery, remote settings, a microservices topology view and service self-documentation
 - [ ] Explore CloudNativePG for production, including high availability, backups, recovery and upgrades
-- [ ] Oracle Cloud cluster provisioning and Argo CD bootstrap through [DRN Project Pulumi Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops)
+- [ ] Oracle Cloud cluster provisioning and Argo CD bootstrap through [DRN-Project Pulumi Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops)
 - [ ] [Additional Kubernetes hardening](todo.md#cluster-level-prerequisites) and [verification in a running cluster](todo.md#runtime-verification-and-operations)
 - [ ] [OpenTelemetry Collector and distributed tracing](todo.md#opentelemetry-collector-and-distributed-tracing)
 
 ## Deployment model
 
-Use **one environment root per cluster**, each with its own Argo CD installation. Both environments use `drn-project` and the same platform resource names. Development stays local in [DRN Project](https://github.com/duranserkan/DRN-Project/blob/master/README.md#quick-start).
+Use **one environment root per cluster**, each with its own Argo CD installation. Both environments use `drn-project` and the same platform resource names. Development stays local in [DRN-Project](https://github.com/duranserkan/DRN-Project/blob/master/README.md#quick-start).
 
 | Environment | Root | GitOps tags | Database |
 |---|---|---|---|
