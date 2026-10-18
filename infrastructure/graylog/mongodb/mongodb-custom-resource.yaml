@@ -26,6 +26,8 @@ spec:
       roles:
         - name: readWrite
           db: graylog
+        - name: dbAdmin
+          db: graylog
       scramCredentialsSecretName: graylog-scram
   statefulSet:
     spec:
