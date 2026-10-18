@@ -53,6 +53,7 @@ static class GraylogBootstrap
     private const string ServiceAccount = "/var/run/secrets/kubernetes.io/serviceaccount";
     private const string KubernetesApiAddress = "https://kubernetes.default.svc";
     private const string CredentialsSecret = "graylog-credentials";
+    private const string InitializationMarker = "graylog-credential-bootstrap-initialized";
     private const string DatabasePasswordSecret = "mongo-graylog-password";
     private const string AdminPasswordSecret = "graylog-admin-password";
     // Public Kubernetes resource name. The operator supplies the credential-bearing URI in its data.
@@ -133,6 +134,15 @@ static class GraylogBootstrap
         if (credentials is not null && database is null)
             throw new GraylogBootstrapException($"Restore {DatabasePasswordSecret} from backup. Refusing password regeneration.");
 
+        // Validate survivors before enrolling an existing installation.
+        if (database is not null) Value(database, DatabasePasswordSecret, PasswordKey);
+        if (credentials is not null)
+            foreach (var key in new[] { RootUsernameKey, RootPasswordHashKey, PasswordSecretKey, MongoDbUriKey })
+                Value(credentials, CredentialsSecret, key);
+        var claimedInitialization = await ClaimInitializationAsync(client, readToken, namespaceName);
+        if (credentials is null && !claimedInitialization)
+            throw new GraylogBootstrapException("Initialization was already claimed but no Graylog credentials survive. Restore the lost Secrets from backup. Refusing credential regeneration.");
+
         database ??= await Ensure(DatabasePasswordSecret, new Dictionary<string, string?> { [PasswordKey] = RandomPassword(48) });
         Value(database, DatabasePasswordSecret, PasswordKey);
         if (credentials is null)
@@ -150,6 +160,57 @@ static class GraylogBootstrap
         }
         foreach (var key in new[] { RootUsernameKey, RootPasswordHashKey, PasswordSecretKey, MongoDbUriKey })
             Value(credentials, CredentialsSecret, key);
+    }
+
+    private static async Task<bool> ClaimInitializationAsync(HttpClient client, Func<string> readToken, string namespaceName)
+    {
+        var path = $"/api/v1/namespaces/{namespaceName}/configmaps";
+        if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is not null)
+            return false;
+        var marker = new GraylogInitializationMarker
+        {
+            ApiVersion = "v1", Kind = "ConfigMap",
+            Metadata = new GraylogMetadata { Name = InitializationMarker, Namespace = namespaceName },
+            Immutable = true,
+            Data = new Dictionary<string, string?> { ["version"] = "1" }
+        };
+        // Persist the claim before credentials. Conflict or ambiguity never grants generation permission.
+        if (await RequestMarkerAsync(HttpMethod.Post, path, marker) is not null)
+            return true;
+        if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is null)
+            throw new GraylogBootstrapException("Initialization marker disappeared after a create conflict. Restore bootstrap state before retrying.");
+        return false;
+
+        async Task<GraylogInitializationMarker?> RequestMarkerAsync(
+            HttpMethod method, string requestPath, GraylogInitializationMarker? body = null)
+        {
+            using var request = new HttpRequestMessage(method, requestPath);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", readToken());
+            if (body is not null)
+                request.Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
+            using var response = await client.SendAsync(request);
+            if (method == HttpMethod.Get && response.StatusCode == HttpStatusCode.NotFound ||
+                method == HttpMethod.Post && response.StatusCode == HttpStatusCode.Conflict)
+                return null;
+            var expectedStatus = method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.OK;
+            if (response.StatusCode != expectedStatus)
+                throw new GraylogBootstrapException($"Initialization marker API {method} failed with HTTP {(int)response.StatusCode}.");
+            GraylogInitializationMarker? stored;
+            try
+            {
+                stored = JsonSerializer.Deserialize<GraylogInitializationMarker>(await response.Content.ReadAsStringAsync(), JsonOptions);
+            }
+            catch (JsonException)
+            {
+                throw new GraylogBootstrapException("Initialization marker API returned invalid JSON.");
+            }
+            if (stored?.ApiVersion != "v1" || stored.Kind != "ConfigMap" ||
+                stored.Metadata?.Name != InitializationMarker || stored.Metadata.Namespace != namespaceName ||
+                stored.Immutable != true || stored.Data is not { Count: 1 } ||
+                !stored.Data.TryGetValue("version", out var version) || version != "1")
+                throw new GraylogBootstrapException("Initialization marker is invalid. Restore bootstrap state before retrying.");
+            return stored;
+        }
     }
 
     /// <summary>Waits for the operator URI, retrying transient reads within one monotonic deadline.</summary>
@@ -253,7 +314,17 @@ sealed class GraylogSecret
     public Dictionary<string, string?>? StringData { get; set; }
 }
 
-/// <summary>Secret identity without ownership or tracking metadata that could cause credential pruning.</summary>
+/// <summary>Non-secret initialization claim retained independently of the bootstrap Job.</summary>
+sealed class GraylogInitializationMarker
+{
+    public string? ApiVersion { get; set; }
+    public string? Kind { get; set; }
+    public GraylogMetadata? Metadata { get; set; }
+    public bool? Immutable { get; set; }
+    public Dictionary<string, string?>? Data { get; set; }
+}
+
+/// <summary>Resource identity without ownership or tracking metadata that could cause pruning.</summary>
 sealed class GraylogMetadata
 {
     public string? Name { get; set; }
