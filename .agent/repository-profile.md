@@ -4,6 +4,8 @@
 
 This repository contains Argo CD GitOps configuration for DRN Framework Sample and Nexus. Application source and image publication live in the sibling DRN-Project repository and are outside this repository's write scope.
 
+Oracle Cloud cluster provisioning and Argo CD bootstrap are planned in [DRN-Project-Pulumi-Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops). This repository retains ownership of GitOps workload configuration.
+
 - `apps/bootstrap-project.yaml`: administrator-owned root project.
 - `apps/{staging,production}/application.yaml`: one manually synced root per separate cluster.
 - `deployment/`: root Helm chart rendering scoped projects, shared prerequisites and parallel branch Applications. `deployment/{logging,monitoring,workloads}/` are independent Helm charts owning their leaf Applications.
