@@ -13,6 +13,7 @@ This repository contains Argo CD GitOps configuration for DRN Framework Sample a
 - `services/postgresql/{base,staging}`: staging database.
 - `tests/Bootstrap.slnx`: IDE and solution-build entry point for the bootstrap source library and test project. Run tests through `tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj`.
 - `README.md`, `docs/platform-operations.md`, `docs/staging-configuration.md`: source-owned deployment documentation.
+- `docs/local-access.md`: workstation port-forwarding, login and database TLS guidance for platform UIs, staging PostgreSQL and Graylog MongoDB.
 
 ## Repository overview
 

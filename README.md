@@ -133,6 +133,8 @@ kubeseal --version
 
 ### Install Argo CD and log in
 
+See the [local access guide](docs/local-access.md) for Graylog, Argo CD, Linkerd Viz, Grafana, PostgreSQL and MongoDB port-forwarding commands.
+
 Use the intended cluster's kubectl context. Install Argo CD with the existing pinned chart:
 
 ```sh

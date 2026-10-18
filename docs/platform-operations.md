@@ -1,5 +1,7 @@
 # Platform operations
 
+For workstation access to Graylog, Argo CD, Linkerd Viz, Grafana, PostgreSQL and MongoDB, use the [local access guide](local-access.md).
+
 The environment root owns shared prerequisites and parallel branch Applications in [deployment/templates](../deployment/templates). The [logging](../deployment/logging), [monitoring](../deployment/monitoring) and [workloads](../deployment/workloads) charts own their leaf Applications. Change their configuration in a reviewed snapshot, publish a new immutable tag and promote that snapshot. Do not apply these Helm templates directly. Upstream chart versions and image digests are recorded in the owning template, independently of the GitOps tag.
 
 Follow the [release procedure](../README.md#promote-and-roll-back). A new merge commit requires CI and staging validation before production promotion. Retain the tested image digests.
