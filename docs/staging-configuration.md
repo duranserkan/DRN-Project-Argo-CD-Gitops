@@ -47,19 +47,35 @@ Both containers use the SDK image's built-in `app` user with UID/GID `1654` and 
 
 The source ConfigMap uses a content hash in its name. Kustomize updates the Job's reference when the source changes. Wave `-1` creates the ConfigMap and RBAC before the Sync hook. Automatic pruning remains disabled. Old source ConfigMaps can remain after updates. Remove unused versions deliberately after confirming that no Job references them. They contain source code and NuGet configuration only, never generated credentials.
 
-The staging-only `application-secrets` Application runs a Sync-hook Job inside `drn-workloads`, alongside PostgreSQL, before Nexus and Sample. With the one-run override described below, a fresh installation generates a shared 99-character seed with 256 bits of randomness and a random 32-byte Base64 Nexus key. The seed satisfies DRN-Project's `SecureKeyAttribute` rules.
+The staging-only `application-secrets` Application runs a Sync-hook Job inside `drn-workloads`, alongside PostgreSQL, before Nexus and Sample. A fresh installation automatically generates a shared 99-character seed with 256 bits of randomness and a random 32-byte Base64 Nexus key after claiming initialization as described below. The seed satisfies DRN-Project's `SecureKeyAttribute` rules.
 
 New application Secrets copy Nexus's seed and key settings. Generated `AllowedHosts` covers each application's short and qualified Kubernetes DNS names, `localhost` and `127.0.0.1`. Add your ingress hostname through your secret-management process and roll out the application before public access.
 
 The Job validates all configured Secrets before writing. It requires five nonempty fields and matching Nexus key settings, rejecting malformed Base64 and invalid UTF-8. It never overwrites existing Secrets, including legacy independent seeds. Applications perform full DRN value validation. Syncing again does not rotate keys or reset custom hosts.
 
-The bootstrap identity has named Secret reads and namespace-scoped Secret creation. It cannot access Deployments or update or delete Secrets.
+The bootstrap identity has named settings Secret reads and a named read for the initialization ConfigMap. It can create Secrets and ConfigMaps only in `drn-project`. Kubernetes RBAC cannot restrict create requests by resource name. It cannot access Deployments or update or delete either resource type. Keep these permissions separate from workload permissions.
 
 API requests use the mounted service account token and CA bundle. Certificate chain and hostname checks remain enabled. The token is read again for each request. Requests time out after 30 seconds. Redirects and proxy use are disabled. Errors do not log credentials or API response bodies.
 
-Missing application Secrets are recreated from Nexus, including its seed, regardless of existing Deployments. If Nexus is missing, the first surviving application in the configured order supplies its credentials. If no configured Secret survives, bootstrap stops without writing. A competing creator's stored Secret remains authoritative and must pass validation. A Nexus create conflict uses the stored winner's seed and key for subsequent creations.
+Missing application Secrets are recreated from Nexus, including its seed, regardless of existing Deployments. If Nexus is missing, the first surviving application in the configured order supplies its credentials. A competing creator's stored Secret remains authoritative and must pass validation. A Nexus create conflict uses the stored winner's seed and key for subsequent creations.
 
-For a fresh install or deliberate credential reset, set `ALLOW_CREDENTIAL_GENERATION=true` in the Job's environment for one run. Do not save this override in GitOps. New credentials cannot recover data protected by lost seeds or keys.
+The bootstrap creates the immutable ConfigMap `application-secret-bootstrap-initialized` in `drn-project` before writing any credentials. It contains only `data.version: "1"`, with no seeds, keys or passwords. It records an initialization claim, not successful completion. It has no Job owner references or Argo CD tracking metadata and is not a Git-managed resource. Keep it when cleaning up source ConfigMaps or Jobs. Back it up alongside the settings Secrets.
+
+| Initialization marker | Settings Secrets | Action |
+|---|---|---|
+| Absent | None | Atomically create the marker. Only the successful creator generates fresh credentials automatically. |
+| Absent | Valid survivors | Create the marker to enroll the existing installation, then preserve or recover settings. |
+| Valid and present | Valid survivors | Preserve survivors and recover missing settings using their credentials. |
+| Valid and present | None | Stop and require restoration or deliberate one-run recovery. |
+| Invalid or unreadable | Any | Stop without writing credentials, even with the generation override. |
+
+A competing marker creator does not grant generation permission to this run. Retry after the winner finishes so the surviving settings can be reused. Marker creation timeouts, unexpected responses and API errors fail closed. If a run creates the marker but fails before saving its first Secret, automatic retries also stop. If at least one valid settings Secret was saved, normal retries recover the remaining settings.
+
+This protects against deletion of all Secrets while the existing namespace and marker survive. It does not protect against deleting the marker or namespace, or restoring application data into an empty unmarked environment. An immutable ConfigMap can still be deleted by a sufficiently privileged operator. Never delete the marker to clear a bootstrap error.
+
+For existing installations, deploy this version and complete a full bootstrap sync while valid settings Secrets still survive. Confirm enrollment with `kubectl -n drn-project get configmap application-secret-bootstrap-initialized`. If all settings Secrets were already lost before enrollment, restore them before deploying this version. An unmarked environment with no settings is indistinguishable from a fresh installation.
+
+For deliberate credential reset or an interrupted fresh initialization that stored no credentials, set `ALLOW_CREDENTIAL_GENERATION=true` in the Job's environment for one run only. The override still requires a valid marker or successful marker creation and never overwrites surviving Secrets. Do not save it in GitOps. After the run, remove the one-off Job or override and full-sync `application-secrets` normally. New credentials cannot recover data protected by lost seeds or keys. Do not use the override as a substitute for restoring credentials when existing data must remain readable.
 
 To add an application, add its name to `Applications` in `bootstrap.cs`, add `<name>-settings` to the Role's named reads, and configure the workload's Secret projection. Existing applications are preserved while only the new Secret is created. Duplicate application names are processed once.
 

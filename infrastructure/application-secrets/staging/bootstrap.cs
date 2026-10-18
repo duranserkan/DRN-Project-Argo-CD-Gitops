@@ -57,6 +57,7 @@ static class Bootstrap
     private const string NexusApplication = "nexus";
     private const string SampleApplication = "sample";
     private const string SettingsSuffix = "-settings";
+    private const string InitializationMarker = "application-secret-bootstrap-initialized";
     // Add future applications here and grant named Secret reads in the bootstrap Role.
     private static readonly string[] Applications = [NexusApplication, SampleApplication];
     private const string AllowedHosts = "AllowedHosts";
@@ -130,9 +131,10 @@ static class Bootstrap
             ValidateSharedKey(shared, settings);
         }
 
-        // Missing Secrets cannot distinguish a fresh installation from total credential loss.
-        if (shared is null && !allowCredentialGeneration)
-            throw new BootstrapException("No settings Secret survives. Restore the lost settings Secrets. " +
+        // Persist the claim before any credential writes. Only its creator may initialize automatically.
+        var claimedInitialization = await ClaimInitializationAsync(client, readToken, namespaceName);
+        if (shared is null && !claimedInitialization && !allowCredentialGeneration)
+            throw new BootstrapException("Initialization was already claimed but no settings Secret survives. Restore the lost settings Secrets. " +
                 "To create new credentials deliberately, set ALLOW_CREDENTIAL_GENERATION=true for this run only.");
 
         shared ??= new Dictionary<string, string>
@@ -156,6 +158,60 @@ static class Bootstrap
                 shared = settings;
             }
             ValidateSharedKey(shared, settings);
+        }
+    }
+
+    private static async Task<bool> ClaimInitializationAsync(HttpClient client, Func<string> readToken, string namespaceName)
+    {
+        var path = $"/api/v1/namespaces/{namespaceName}/configmaps";
+        if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is not null)
+            return false;
+
+        var marker = new BootstrapInitializationMarker
+        {
+            ApiVersion = "v1",
+            Kind = "ConfigMap",
+            Metadata = new BootstrapMetadata { Name = InitializationMarker, Namespace = namespaceName },
+            Immutable = true,
+            Data = new Dictionary<string, string?> { ["version"] = "1" }
+        };
+        // A conflict is not ownership. Never turn an uncertain POST result into generation permission.
+        if (await RequestMarkerAsync(HttpMethod.Post, path, marker) is not null)
+            return true;
+        if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is null)
+            throw new BootstrapException("Initialization marker disappeared after a create conflict. Restore bootstrap state before retrying.");
+        return false;
+
+        async Task<BootstrapInitializationMarker?> RequestMarkerAsync(
+            HttpMethod method, string requestPath, BootstrapInitializationMarker? body = null)
+        {
+            using var request = new HttpRequestMessage(method, requestPath);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", readToken());
+            if (body is not null)
+                request.Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
+            using var response = await client.SendAsync(request);
+            if (method == HttpMethod.Get && response.StatusCode == HttpStatusCode.NotFound ||
+                method == HttpMethod.Post && response.StatusCode == HttpStatusCode.Conflict)
+                return null;
+            var expectedStatus = method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.OK;
+            if (response.StatusCode != expectedStatus)
+                throw new BootstrapException($"Initialization marker API {method} failed with HTTP {(int)response.StatusCode}.");
+
+            BootstrapInitializationMarker? stored;
+            try
+            {
+                stored = JsonSerializer.Deserialize<BootstrapInitializationMarker>(await response.Content.ReadAsStringAsync(), JsonOptions);
+            }
+            catch (JsonException)
+            {
+                throw new BootstrapException("Initialization marker API returned invalid JSON.");
+            }
+            if (stored?.ApiVersion != "v1" || stored.Kind != "ConfigMap" ||
+                stored.Metadata?.Name != InitializationMarker || stored.Metadata.Namespace != namespaceName ||
+                stored.Immutable != true || stored.Data is not { Count: 1 } ||
+                !stored.Data.TryGetValue("version", out var version) || version != "1")
+                throw new BootstrapException("Initialization marker is invalid. Restore bootstrap state before retrying.");
+            return stored;
         }
     }
 
@@ -279,11 +335,21 @@ sealed class BootstrapSecret
     public Dictionary<string, string?>? StringData { get; set; }
 }
 
-/// <summary>Secret identity only. Generated credentials have no owner or Argo CD tracking metadata.</summary>
+/// <summary>Resource identity only. Generated Secrets and the marker have no owner or Argo CD tracking metadata.</summary>
 sealed class BootstrapMetadata
 {
     public string? Name { get; set; }
     public string? Namespace { get; set; }
+}
+
+/// <summary>Non-secret, immutable evidence that initialization has been claimed, retained independently of Jobs.</summary>
+sealed class BootstrapInitializationMarker
+{
+    public string? ApiVersion { get; set; }
+    public string? Kind { get; set; }
+    public BootstrapMetadata? Metadata { get; set; }
+    public bool? Immutable { get; set; }
+    public Dictionary<string, string?>? Data { get; set; }
 }
 
 /// <summary>A bootstrap failure whose message is safe to write to Job logs.</summary>
