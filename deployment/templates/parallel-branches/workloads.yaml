@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: drn-workloads
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "90"
+spec:
+  project: drn-project-bootstrap
+  source:
+    path: deployment/workloads
+    repoURL: {{ .Values.repository | quote }}
+    targetRevision: {{ .Values.gitRevision | quote }}
+    helm:
+      valuesObject:
+        repository: {{ .Values.repository | quote }}
+        environment: {{ .Values.environment | quote }}
+        gitRevision: {{ .Values.gitRevision | quote }}
+        releaseTag: {{ .Values.releaseTag | quote }}
+        enableProduction: {{ .Values.enableProduction }}
+        infrastructureProfile: {{ .Values.infrastructureProfile | quote }}
+        retainedStorageClass: {{ .Values.retainedStorageClass | quote }}
+        activationStage: {{ .Values.activationStage | quote }}
+  destination:
+    namespace: argocd
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: {{ eq .Values.infrastructureProfile "retained" }}
+      # Branches adopt existing Applications. Never prune them during transfer.
+      prune: false
+    syncOptions:
+      - ApplyOutOfSyncOnly=false

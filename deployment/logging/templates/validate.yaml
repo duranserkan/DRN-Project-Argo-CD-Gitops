@@ -10,6 +10,25 @@
 {{- if not (kindIs "bool" .Values.enableProduction) -}}
 {{- fail "enableProduction must be a boolean" -}}
 {{- end -}}
+{{- if not (has .Values.infrastructureProfile (list "" "retained")) -}}
+{{- fail "infrastructureProfile must be empty or retained" -}}
+{{- end -}}
+{{- if and (eq .Values.infrastructureProfile "retained") (ne .Values.environment "staging") -}}
+{{- fail "retained is supported only in staging" -}}
+{{- end -}}
+{{- if not (kindIs "string" .Values.retainedStorageClass) -}}
+{{- fail "retainedStorageClass must be a string" -}}
+{{- end -}}
+{{- if eq .Values.infrastructureProfile "retained" -}}
+{{- if or (gt (len .Values.retainedStorageClass) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" .Values.retainedStorageClass)) -}}
+{{- fail "retained requires a valid, nonempty retainedStorageClass name" -}}
+{{- end -}}
+{{- if not (has .Values.activationStage (list "prepare" "data" "workloads")) -}}
+{{- fail "retained requires activationStage prepare, data or workloads" -}}
+{{- end -}}
+{{- else if or (ne .Values.activationStage "") (ne .Values.retainedStorageClass "") -}}
+{{- fail "activationStage and retainedStorageClass are supported only with retained" -}}
+{{- end -}}
 {{- if eq .Values.environment "production" -}}
 {{- if not .Values.enableProduction -}}
 {{- fail "production is disabled; complete the production prerequisites before enabling it" -}}

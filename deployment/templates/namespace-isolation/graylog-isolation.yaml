@@ -1,0 +1,24 @@
+{{- if eq .Values.infrastructureProfile "retained" }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: graylog-isolation
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "80"
+spec:
+  project: graylog
+  source:
+    path: infrastructure/networking/graylog
+    repoURL: {{ .Values.repository | quote }}
+    targetRevision: {{ .Values.gitRevision | quote }}
+  destination:
+    namespace: graylog
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

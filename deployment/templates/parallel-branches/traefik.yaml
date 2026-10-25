@@ -16,6 +16,10 @@ spec:
     helm:
       skipCrds: true
       valuesObject:
+        {{- if eq .Values.infrastructureProfile "retained" }}
+        service:
+          type: ClusterIP
+        {{- end }}
         image:
           # Verified 2026-10-25 against docker.io/library/traefik:v3.7.16.
           digest: sha256:c8a121e4bb1347e8fd52657fab12f2cb70b68f8a018895e2068f92c9e519b9c2

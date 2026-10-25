@@ -1,4 +1,4 @@
-{{- if eq .Values.environment "staging" }}
+{{- if and (eq .Values.environment "staging") (or (ne .Values.infrastructureProfile "retained") (ne .Values.activationStage "prepare")) }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -12,6 +12,27 @@ spec:
     path: services/postgresql/{{ .Values.environment }}
     repoURL: {{ .Values.repository | quote }}
     targetRevision: {{ .Values.gitRevision | quote }}
+    {{- if eq .Values.infrastructureProfile "retained" }}
+    kustomize:
+      patches:
+        - target:
+            group: postgresql.cnpg.io
+            kind: Cluster
+            name: postgresql
+          patch: |-
+            - op: add
+              path: /spec/storage/storageClass
+              value: {{ .Values.retainedStorageClass | quote }}
+            - op: add
+              path: /spec/bootstrap/initdb/secret
+              value:
+                name: postgresql-app
+            - op: add
+              path: /spec/certificates
+              value:
+                serverCASecret: postgresql-ca
+                clientCASecret: postgresql-ca
+    {{- end }}
   destination:
     namespace: drn-project
     server: https://kubernetes.default.svc

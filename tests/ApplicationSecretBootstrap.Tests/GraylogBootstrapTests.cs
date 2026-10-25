@@ -32,6 +32,107 @@ public class GraylogBootstrapTests
     private const string Uri = "mongodb://synthetic:password@mongodb.graylog:27017/graylog?ssl=true";
 
     [Fact]
+    public async Task Externally_Managed_Credentials_Should_Validate_Without_Writes_Or_Polling()
+    {
+        using var api = External();
+        var before = Snapshot(api);
+        var marker = MarkerJson.Serialize(api.Marker!);
+
+        await api.Run();
+
+        Snapshot(api).Should().Equal(before);
+        MarkerJson.Serialize(api.Marker!).Should().Be(marker);
+        api.Writes.Should().BeEmpty();
+        api.MarkerWrites.Should().Be(0);
+        api.Delays.Should().BeEmpty();
+        api.Gets.Should().Equal(Credentials, Database, Admin, Connection);
+    }
+
+    [Theory]
+    [DataInlineUnit(Credentials)]
+    [DataInlineUnit(Database)]
+    [DataInlineUnit(Admin)]
+    [DataInlineUnit("all-secrets")]
+    [DataInlineUnit("missing-marker")]
+    [DataInlineUnit("invalid-marker")]
+    [DataInlineUnit("unavailable-marker")]
+    [DataInlineUnit("invalid-secret")]
+    public async Task Externally_Managed_Credentials_Should_Fail_Closed_On_Incomplete_State(string failure)
+    {
+        using var api = External();
+        switch (failure)
+        {
+            case "all-secrets": api.Secrets.Clear(); break;
+            case "missing-marker": api.Marker = null; break;
+            case "invalid-marker": api.Marker!.Immutable = false; break;
+            case "unavailable-marker":
+                api.Intercept = (_, name) => name == MarkerName ? Response(HttpStatusCode.Forbidden, "private-marker-body") : null;
+                break;
+            case "invalid-secret": api.Secrets[Connection].Data![ConnectionStringKey] = "%%%"; break;
+            default: api.Secrets.Remove(failure); break;
+        }
+        var before = Snapshot(api);
+        var act = api.Run;
+
+        (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().NotContain("private-marker-body");
+
+        Snapshot(api).Should().Equal(before);
+        api.Writes.Should().BeEmpty();
+        api.MarkerWrites.Should().Be(0);
+        api.Delays.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task External_Mode_Should_Wait_Read_Only_For_The_Operators_Recreated_Connection()
+    {
+        using var api = External();
+        api.Secrets.Remove(Connection);
+        api.PublishConnectionAfterDelay = true;
+
+        await api.Run();
+
+        api.Delays.Should().Equal(TimeSpan.FromSeconds(5));
+        api.Writes.Should().BeEmpty();
+        api.MarkerWrites.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task External_Mode_Should_Reject_A_Different_Operator_Identity()
+    {
+        using var api = External();
+        api.Secrets[Connection] = Secret(Connection, ConnectionStringKey, "mongodb://different-identity");
+        var act = api.Run;
+
+        (await act.Should().ThrowAsync<GraylogBootstrapException>()).Which.Message.Should().NotContain("different-identity");
+
+        api.Writes.Should().BeEmpty();
+        api.MarkerWrites.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task External_Mode_Should_Time_Out_Without_Generating_Missing_Operator_State()
+    {
+        using var api = External();
+        api.Secrets.Remove(Connection);
+        var act = api.Run;
+
+        await act.Should().ThrowAsync<GraylogBootstrapException>().WithMessage("Timed out waiting for the MongoDB connection URI.");
+
+        api.Writes.Should().BeEmpty();
+        api.MarkerWrites.Should().Be(0);
+    }
+
+    [Theory]
+    [DataInlineUnit("TRUE")]
+    [DataInlineUnit("yes")]
+    [DataInlineUnit(" true ")]
+    public void Invalid_External_Mode_Should_Not_Enable_Automatic_Generation(string value)
+    {
+        var act = () => GraylogBootstrap.ParseExternalMode(value);
+        act.Should().Throw<GraylogBootstrapException>().WithMessage("CREDENTIALS_EXTERNALLY_MANAGED must be true or false.");
+    }
+
+    [Fact]
     public async Task Fresh_Install_Should_Create_Compatible_Secrets_And_Preserve_Them_On_Rerun()
     {
         using var api = new Api { PublishConnectionAfterDelay = true };
@@ -345,6 +446,17 @@ public class GraylogBootstrapTests
         return api;
     }
 
+    private static Api External()
+    {
+        var api = Existing();
+        api.ExternallyManagedCredentials = true;
+        api.Marker = Marker();
+        api.Secrets[Admin] = Secret(Admin, PasswordKey, "existing-admin-password");
+        api.Secrets[Connection] = Secret(Connection, ConnectionStringKey, Uri);
+        api.Secrets[Credentials].Data![MongoDbUriKey] = Encode(Uri);
+        return api;
+    }
+
     [Fact]
     public async Task Total_Loss_Should_Not_Be_Treated_As_A_Fresh_Install()
     {
@@ -546,7 +658,8 @@ public class GraylogBootstrapTests
         public List<string> Gets { get; } = [];
         public List<string> Tokens { get; } = [];
         public List<TimeSpan> Delays { get; } = [];
-        public bool PublishConnectionAfterDelay { get; init; }
+        public bool PublishConnectionAfterDelay { get; set; }
+        public bool ExternallyManagedCredentials { get; set; }
         public Func<HttpMethod, string, HttpResponseMessage?>? Intercept { get; set; }
         private readonly Clock _clock = new();
         private int _token;
@@ -555,7 +668,8 @@ public class GraylogBootstrapTests
         {
             using var client = new HttpClient(this, disposeHandler: false);
             client.BaseAddress = new Uri("https://kubernetes.invalid");
-            await GraylogBootstrap.RunAsync(client, "graylog", () => $"synthetic-{++_token}", _clock, Delay);
+            await GraylogBootstrap.RunAsync(client, "graylog", () => $"synthetic-{++_token}", _clock, Delay,
+                externallyManagedCredentials: ExternallyManagedCredentials);
         }
 
         private Task Delay(TimeSpan duration)

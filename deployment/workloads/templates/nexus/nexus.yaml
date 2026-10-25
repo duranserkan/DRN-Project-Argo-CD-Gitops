@@ -1,3 +1,4 @@
+{{- if or (ne .Values.infrastructureProfile "retained") (ne .Values.activationStage "prepare") }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -11,12 +12,31 @@ spec:
     path: services/nexus/{{ .Values.environment }}
     repoURL: {{ .Values.repository | quote }}
     targetRevision: {{ .Values.gitRevision | quote }}
+    {{- if eq .Values.infrastructureProfile "retained" }}
+    kustomize:
+      patches:
+        - target:
+            kind: PersistentVolumeClaim
+            name: nexus-data
+          patch: |-
+            - op: add
+              path: /spec/storageClassName
+              value: {{ .Values.retainedStorageClass | quote }}
+        - target:
+            kind: Deployment
+            name: nexus
+          patch: |-
+            - op: add
+              path: /spec/replicas
+              value: {{ ternary 1 0 (eq .Values.activationStage "workloads") }}
+    {{- end }}
   destination:
     namespace: drn-project
     server: https://kubernetes.default.svc
   syncPolicy:
     automated:
-      selfHeal: false
+      selfHeal: {{ eq .Values.infrastructureProfile "retained" }}
       prune: true
     syncOptions:
       - ApplyOutOfSyncOnly=false
+{{- end }}

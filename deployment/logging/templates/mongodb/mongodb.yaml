@@ -1,3 +1,4 @@
+{{- if or (ne .Values.infrastructureProfile "retained") (ne .Values.activationStage "prepare") }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -11,6 +12,43 @@ spec:
     path: infrastructure/graylog/mongodb
     repoURL: {{ .Values.repository | quote }}
     targetRevision: {{ .Values.gitRevision | quote }}
+    {{- if eq .Values.infrastructureProfile "retained" }}
+    kustomize:
+      patches:
+        - target:
+            group: mongodbcommunity.mongodb.com
+            kind: MongoDBCommunity
+            name: mongodb
+          patch: |-
+            - op: test
+              path: /spec/statefulSet/spec/volumeClaimTemplates/0/metadata/name
+              value: data-volume
+            - op: add
+              path: /spec/statefulSet/spec/volumeClaimTemplates/0/spec/storageClassName
+              value: {{ .Values.retainedStorageClass | quote }}
+            - op: test
+              path: /spec/statefulSet/spec/volumeClaimTemplates/1/metadata/name
+              value: logs-volume
+            - op: add
+              path: /spec/statefulSet/spec/volumeClaimTemplates/1/spec/storageClassName
+              value: {{ .Values.retainedStorageClass | quote }}
+        - target:
+            kind: Job
+            name: graylog-credential-bootstrap
+          patch: |-
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: graylog-credential-bootstrap
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: bootstrap
+                      env:
+                        - name: CREDENTIALS_EXTERNALLY_MANAGED
+                          value: "true"
+    {{- end }}
   destination:
     namespace: graylog
     server: https://kubernetes.default.svc
@@ -20,3 +58,4 @@ spec:
       prune: false
     syncOptions:
       - CreateNamespace=true
+{{- end }}
