@@ -43,7 +43,8 @@ runs:
     - name: Restore dependencies and audit vulnerabilities
       shell: bash
       run: >-
-        dotnet restore tests/Bootstrap.slnx --configfile tests/NuGet.Config -p:Configuration=Release
+        dotnet restore tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj
+        --configfile tests/NuGet.Config -p:Configuration=Release
         -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
 
     - name: Restore pinned SonarScanner
@@ -73,7 +74,8 @@ runs:
       id: build
       shell: bash
       run: >-
-        dotnet build tests/Bootstrap.slnx --no-restore --no-incremental --configuration Release
+        dotnet build tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj
+        --no-restore --no-incremental --configuration Release
         --disable-build-servers -p:UseSharedCompilation=false -p:ContinuousIntegrationBuild=true
 
     - name: Run bootstrap unit tests

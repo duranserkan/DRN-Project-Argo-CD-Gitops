@@ -58,7 +58,7 @@ public static class PinUpdater
                     if (line.StartsWith("- https://", StringComparison.Ordinal))
                     {
                         replacement = line[2..];
-                        defaultPattern = @"^[ \t]*- (https://[^\s]+)[ \t]*$";
+                        defaultPattern = @"^[ \t]*- (https://[^\s]+)[ \t]*\r?$";
                     }
                     else
                     {

@@ -288,6 +288,8 @@ The [pinned Linkerd proxy](https://github.com/linkerd/linkerd2-proxy/blob/releas
 
 ## Continuous integration
 
+Open [GitOps.slnx](GitOps.slnx) to navigate source projects under `Src` and test projects under `Test`, following DRN-Project's solution-folder convention. `Src` contains Bootstrap.Sources and DependencyPins. `Test` contains separate bootstrap, chart and [dependency tooling](tests/DependencyPins.Tests/README.md) test projects. These are IDE folders, independent of filesystem paths. A solution build does not run tests or require Helm. CI runs each test project explicitly. CodeQL builds the full solution and both deployed bootstrap entry points.
+
 [dependencies.json](dependencies.json) is the source of truth for mapped chart and image pins. Run the [.NET updater](tools/DependencyPins/README.md) to refresh their committed consumers. CI requires read-only generator checks and independent inventory coverage checks. Follow the [dependency update procedure](docs/platform-operations.md#updating-dependency-pins) when changing versions or digests.
 
 | Trigger | Checks |

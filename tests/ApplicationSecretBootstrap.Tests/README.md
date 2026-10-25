@@ -1,6 +1,6 @@
 # Credential bootstrap tests
 
-Open [Bootstrap.slnx](../Bootstrap.slnx) in your IDE to manage the bootstrap source library and test project together. The source library links the deployed bootstrap files, so edits apply directly to the code used by the Jobs.
+Open [GitOps.slnx](../../GitOps.slnx) in your IDE to manage source projects under `Src` and test projects under `Test`. The bootstrap source library links the deployed bootstrap files, so edits apply directly to the code used by the Jobs. Building the solution does not run tests or require Helm. Run the bootstrap, chart or dependency test project individually.
 
 This project tests the real [application bootstrap](../../infrastructure/application-secrets/staging/bootstrap.cs) and [Graylog bootstrap](../../infrastructure/graylog/mongodb/bootstrap.cs). [Bootstrap.Sources](../Bootstrap.Sources/Bootstrap.Sources.csproj) compiles those files as a non-test library and exposes its internals only to this test assembly. This separates bootstrap code from tests for Sonar and coverage. Tests use DRN.Framework.Testing, xUnit v3 and AwesomeAssertions. Row tests use `DataInlineUnit` and `DataMemberUnit`. Fake HTTP handlers model Kubernetes responses. Tests never contact a cluster or read service account credentials.
 
@@ -35,7 +35,7 @@ Unit tests exercise lifecycle and HTTP behavior with a fake Kubernetes API. Test
 When local execution is authorized, use:
 
 ```sh
-dotnet build tests/Bootstrap.slnx --configuration Release
+dotnet build tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj --configuration Release
 dotnet run --project tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj --configuration Release
 ```
 
@@ -50,9 +50,9 @@ The [develop](../../.github/workflows/develop.yml), [master](../../.github/workf
 | Pull request to develop or master | Chart contracts, bootstrap validation, Trivy, C#/Actions CodeQL and dependency review |
 | Preview or final release tag | Trivy only |
 
-Bootstrap validation builds both standalone sources and `tests/Bootstrap.slnx`. Master explicitly enables Sonar analysis and supplies `SONAR_TOKEN`; a missing token fails validation. Develop and PRs leave Sonar disabled and pass no repository secrets. PR jobs use the checked-out PR merge revision for both source and local actions, on GitHub-hosted runners with checkout credential persistence disabled. Each gatekeeper requires every listed job to succeed, including every CodeQL matrix entry where applicable.
+Bootstrap validation builds both standalone sources and the bootstrap test project, including its source-library reference. Chart validation builds and runs its own test project separately. Master explicitly enables Sonar analysis and supplies `SONAR_TOKEN`; a missing token fails validation. Develop and PRs leave Sonar disabled and pass no repository secrets. PR jobs use the checked-out PR merge revision for both source and local actions, on GitHub-hosted runners with checkout credential persistence disabled. Each gatekeeper requires every listed job to succeed, including every CodeQL matrix entry where applicable.
 
-CodeQL analyzes GitHub Actions and C# in separate matrix jobs. Its manual C# build compiles both standalone bootstrap files after scanner initialization, then builds the test solution. This includes production Main methods that Bootstrap.Sources excludes through BOOTSTRAP_TESTS. Code-scanning rules must enforce alert-based merge protection because a successful analysis does not itself reject alerts.
+CodeQL analyzes GitHub Actions and C# in separate matrix jobs. Its manual C# build compiles both standalone bootstrap files after scanner initialization, then builds `GitOps.slnx`, including chart tests and dependency tooling. This includes production Main methods that Bootstrap.Sources excludes through BOOTSTRAP_TESTS. CodeQL does not run tests or require Helm. Code-scanning rules must enforce alert-based merge protection because a successful analysis does not itself reject alerts.
 
 Coverage uses `Microsoft.Testing.Extensions.CodeCoverage` with `Microsoft.Testing.Extensions.GitHubActionsReport` pinned directly to `2.5.1`. [Coverage settings](../bootstrap-coverage.config) include only `Bootstrap.Sources.dll`, excluding test methods, fake handlers and dependencies. Unexercised TLS and service-account setup remains visible as uncovered code. The standalone entry points excluded at compilation are outside this coverage denominator.
 

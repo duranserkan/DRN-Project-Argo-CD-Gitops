@@ -35,9 +35,30 @@ runs:
         --no-restore --configuration Release --disable-build-servers
         -p:UseSharedCompilation=false -p:ContinuousIntegrationBuild=true
 
+    - name: Restore and audit dependency test dependencies
+      shell: bash
+      run: >-
+        dotnet restore tests/DependencyPins.Tests/DependencyPins.Tests.csproj
+        --configfile tests/NuGet.Config -p:Configuration=Release
+        -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
+
+    - name: Build dependency tests and updater
+      shell: bash
+      run: >-
+        dotnet build tests/DependencyPins.Tests/DependencyPins.Tests.csproj
+        --no-restore --configuration Release --disable-build-servers
+        -p:UseSharedCompilation=false -p:ContinuousIntegrationBuild=true
+
     - name: Check generated dependency pins
       shell: bash
       run: dotnet run --project tools/DependencyPins/DependencyPins.csproj --no-build --configuration Release -- check
+
+    - name: Test dependency contracts
+      shell: bash
+      run: >-
+        dotnet run --project tests/DependencyPins.Tests/DependencyPins.Tests.csproj
+        --no-build --configuration Release --
+        --report-gh --report-gh-step-summary-sections test-results
 
     - name: Test chart contracts
       shell: bash

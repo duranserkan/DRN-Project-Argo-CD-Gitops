@@ -5,7 +5,7 @@ using DRN.Framework.Testing.DataAttributes;
 using Xunit;
 using DependencyPins;
 
-namespace ChartValidation.Tests;
+namespace DependencyPins.Tests;
 
 public class DependencyInventoryTests
 {
@@ -95,6 +95,7 @@ public class DependencyInventoryTests
                 result.Add(line);
                 continue;
             }
+            if (line.StartsWith("- ", StringComparison.Ordinal)) line = line[2..];
             var separator = line.IndexOf(':');
             if (separator < 0) continue;
             var key = line[..separator];
@@ -115,6 +116,10 @@ public class DependencyInventoryTests
     [DataInlineUnit("  tag: \"1.2.3\" # explanation", "tag: 1.2.3")]
     [DataInlineUnit("- name: proxy.image.version\n  value: unpinned", "value: unpinned")]
     [DataInlineUnit("targetRevision: 1.2.3", "targetRevision: 1.2.3")]
+    [DataInlineUnit("- image: registry/app:latest", "image: registry/app:latest")]
+    [DataInlineUnit("- newTag: '1.2.3'", "newTag: 1.2.3")]
+    [DataInlineUnit("- name: image.digest\n  value: sha256:abc", "value: sha256:abc")]
+    [DataInlineUnit("- https://github.com/example/project/releases/download/v1/resources.yaml", "- https://github.com/example/project/releases/download/v1/resources.yaml")]
     public void DiscoveryIncludesNewAndUnpinnedReferences(string source, string expected) =>
         Assert.Equal(new[] { expected }, ExtractPins(source));
 
@@ -124,6 +129,11 @@ public class DependencyInventoryTests
         Assert.Equal(new[] { "image: app:1", "image: app:1" }, ExtractPins(
             "# image: ignored\ntargetRevision: {{ .Values.gitRevision | quote }}\nimage: app:1\nimage: app:1"));
     }
+
+    [Fact]
+    public void DiscoveryDoesNotTreatUnrelatedParameterValuesAsImages() =>
+        Assert.Equal(new[] { "value: 1.2.3" }, ExtractPins(
+            "- name: proxy.image.version\n  value: 1.2.3\n- name: replicas\n  value: 2\nvalue: unrelated"));
 
     private static string Resolve(string relative)
     {

@@ -18,7 +18,7 @@ Read-only verification:
 dotnet run --project tools/DependencyPins -- check
 ```
 
-An optional second argument selects the repository root. Exit codes are `0` for current pins or a successful update, `1` for drift in check mode, and `2` for invalid input or an operational error. CI builds the tool through the chart tests' project reference and invokes check mode before running the tests.
+An optional second argument selects the repository root. Exit codes are `0` for current pins or a successful update, `1` for drift in check mode, and `2` for invalid input or an operational error. CI builds the tool through the [DependencyPins.Tests](../../tests/DependencyPins.Tests/README.md) project reference and invokes check mode before running the tests. Dependency tests do not require Helm.
 
 ## Mapping rules
 

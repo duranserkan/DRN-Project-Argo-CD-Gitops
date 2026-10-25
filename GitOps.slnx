@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/Src/">
+    <Project Path="tests/Bootstrap.Sources/Bootstrap.Sources.csproj" />
+    <Project Path="tools/DependencyPins/DependencyPins.csproj" />
+  </Folder>
+  <Folder Name="/Test/">
+    <Project Path="tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj" />
+    <Project Path="tests/ChartValidation.Tests/ChartValidation.Tests.csproj" />
+    <Project Path="tests/DependencyPins.Tests/DependencyPins.Tests.csproj" />
+  </Folder>
+</Solution>

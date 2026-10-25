@@ -27,7 +27,7 @@ runs:
       if: inputs.language == 'csharp'
       shell: bash
       run: >-
-        dotnet restore tests/Bootstrap.slnx --configfile tests/NuGet.Config -p:Configuration=Release
+        dotnet restore GitOps.slnx --configfile tests/NuGet.Config -p:Configuration=Release
         -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
 
     # The source library excludes Main. Extract the deployed entry points too.
@@ -53,7 +53,7 @@ runs:
       if: inputs.language == 'csharp'
       shell: bash
       run: >-
-        dotnet build tests/Bootstrap.slnx --no-restore --no-incremental --configuration Release
+        dotnet build GitOps.slnx --no-restore --no-incremental --configuration Release
         --disable-build-servers -p:UseSharedCompilation=false -p:ContinuousIntegrationBuild=true
 
     - name: Analyze
