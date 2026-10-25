@@ -10,16 +10,16 @@ spec:
   source:
     chart: traefik
     repoURL: https://traefik.github.io/charts
-    # Verified 2026-10-17 against https://traefik.github.io/charts/index.yaml and chart bytes.
-    # SHA-256: a6ede324662ddcca0160a5ce639b7b5b9dd40a20a475e1101e9f95b5e5d83dd5
-    targetRevision: 42.0.0
+    # Verified 2026-10-25 against https://traefik.github.io/charts/index.yaml and chart bytes.
+    # SHA-256: 10ec2b032fd7ec9fa04a8816872e20ba0fafc47231f6394b5cb5d522f3b0ef50
+    targetRevision: 42.1.3
     helm:
       skipCrds: true
       valuesObject:
         image:
-          # Verified 2026-10-10 against docker.io/library/traefik:v3.7.14.
-          digest: sha256:575fa15b135078fe5e50aa847987d96dbddd7b093c172429618404df73f3fa7c
-        versionOverride: v3.7.14
+          # Verified 2026-10-25 against docker.io/library/traefik:v3.7.16.
+          digest: sha256:c8a121e4bb1347e8fd52657fab12f2cb70b68f8a018895e2068f92c9e519b9c2
+        versionOverride: v3.7.16
         deployment:
           podAnnotations:
             linkerd.io/inject: enabled

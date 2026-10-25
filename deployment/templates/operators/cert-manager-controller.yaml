@@ -10,11 +10,23 @@ spec:
   source:
     chart: cert-manager
     repoURL: https://charts.jetstack.io
-    targetRevision: v1.21.2
+    # Chart SHA-256 verified against the publisher's index and archive on 2026-10-25.
+    # 9ec67938b2981d8b333af61b3fcf53e26b4f6f5deb7ccda3de4ea116bb373a17
+    targetRevision: v1.21.3
     helm:
       parameters:
         - name: crds.enabled
           value: "true"
+        - name: image.digest
+          value: sha256:9f4f96a33c7774cef24466fcd85031997531a03a8d117f151126baa8d1290dcc
+        - name: webhook.image.digest
+          value: sha256:055ac8e9de6a0ba6763794838fe38944acc650f68ebe1b01dd8be079e580f458
+        - name: cainjector.image.digest
+          value: sha256:083d0e906f8eb44e255fe4ff817ae54e49f9ed82e22f1011bb4e9e4f4b8a641f
+        - name: acmesolver.image.digest
+          value: sha256:c8c1225bb2fe8ab37a330b77f0d8c2ee6a41210fcb54fc07ca606ab9a022b8b7
+        - name: startupapicheck.image.digest
+          value: sha256:1c519d4afca1413d1e4ccd78bdc756184418ab55a34569a3b3de39d32f9974e1
   destination:
     namespace: cert-manager
     server: https://kubernetes.default.svc

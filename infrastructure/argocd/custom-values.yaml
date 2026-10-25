@@ -1,3 +1,6 @@
+global:
+  image:
+    tag: v3.5.6@sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335
 configs:
   rbac:
     # Grant access explicitly through project-scoped roles or SSO group mappings.
@@ -105,7 +108,7 @@ configs:
           return waiting("Manual selective sync cannot establish deployment completion; run a full child sync")
         end
 
-        -- Argo CD 3.5.5 records history only for successful, non-dry-run syncs
+        -- Argo CD 3.5.6 records history only for successful, non-dry-run syncs
         -- without resource filters. Controller-initiated syncs use repository
         -- manifests and the hook strategy. Manual history lacks that proof.
         local deployed = false
