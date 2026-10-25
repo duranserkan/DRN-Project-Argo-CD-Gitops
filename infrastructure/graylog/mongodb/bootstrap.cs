@@ -1,4 +1,4 @@
-#:package DRN.Framework.Utils@0.10.1-preview004
+#:package DRN.Framework.Utils@0.10.1-preview005
 #:property PublishAot=false
 
 using System;
@@ -91,7 +91,8 @@ static class GraylogBootstrap
             client.Timeout = TimeSpan.FromSeconds(30);
             await RunAsync(client, (await File.ReadAllTextAsync($"{ServiceAccount}/namespace")).Trim(),
                 () => File.ReadAllText($"{ServiceAccount}/token").Trim(), TimeProvider.System,
-                delay => Task.Delay(delay));
+                delay => Task.Delay(delay),
+                externallyManagedCredentials: ParseExternalMode(Environment.GetEnvironmentVariable("CREDENTIALS_EXTERNALLY_MANAGED")));
         }
         finally
         {
@@ -100,10 +101,17 @@ static class GraylogBootstrap
         }
     }
 
+    internal static bool ParseExternalMode(string? value) => value switch
+    {
+        null or "" or "false" => false,
+        "true" => true,
+        _ => throw new GraylogBootstrapException("CREDENTIALS_EXTERNALLY_MANAGED must be true or false.")
+    };
+
     /// <summary>Creates first-install passwords, waits for MongoDB's URI and provisions Graylog's final Secret.</summary>
     /// <remarks>Existing credentials are authoritative. Incomplete sets require operator recovery rather than regeneration.</remarks>
     internal static async Task RunAsync(HttpClient client, string namespaceName, Func<string> readToken,
-        TimeProvider clock, Func<TimeSpan, Task> delay)
+        TimeProvider clock, Func<TimeSpan, Task> delay, bool externallyManagedCredentials = false)
     {
         var path = $"/api/v1/namespaces/{namespaceName}/secrets";
         Task<GraylogSecret?> Get(string name) => RequestAsync(client, readToken, HttpMethod.Get, $"{path}/{name}");
@@ -123,6 +131,22 @@ static class GraylogBootstrap
 
         var credentials = await Get(CredentialsSecret);
         var database = await Get(DatabasePasswordSecret);
+        if (externallyManagedCredentials)
+        {
+            var admin = await Get(AdminPasswordSecret);
+            if (credentials is null || database is null || admin is null)
+                throw new GraylogBootstrapException("Externally managed credentials require all stable Graylog bootstrap Secrets. Restore missing Secrets before syncing.");
+            Value(database, DatabasePasswordSecret, PasswordKey);
+            Value(admin, AdminPasswordSecret, PasswordKey);
+            foreach (var key in new[] { RootUsernameKey, RootPasswordHashKey, PasswordSecretKey, MongoDbUriKey })
+                Value(credentials, CredentialsSecret, key);
+            await ClaimInitializationAsync(client, readToken, namespaceName, requireExisting: true);
+            // This Secret belongs to the MongoDB CR. Let the operator recreate it with its new owner UID.
+            var uri = await WaitForConnectionUriAsync(Get, clock, delay);
+            if (uri != Value(credentials, CredentialsSecret, MongoDbUriKey))
+                throw new GraylogBootstrapException("The MongoDB operator connection differs from the saved Graylog credentials. Restore matching identities before syncing.");
+            return;
+        }
         if (credentials is null)
         {
             var admin = await Get(AdminPasswordSecret);
@@ -162,11 +186,14 @@ static class GraylogBootstrap
             Value(credentials, CredentialsSecret, key);
     }
 
-    private static async Task<bool> ClaimInitializationAsync(HttpClient client, Func<string> readToken, string namespaceName)
+    private static async Task<bool> ClaimInitializationAsync(HttpClient client, Func<string> readToken, string namespaceName,
+        bool requireExisting = false)
     {
         var path = $"/api/v1/namespaces/{namespaceName}/configmaps";
         if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is not null)
             return false;
+        if (requireExisting)
+            throw new GraylogBootstrapException("Externally managed credentials require the existing initialization marker. Restore bootstrap state before syncing.");
         var marker = new GraylogInitializationMarker
         {
             ApiVersion = "v1", Kind = "ConfigMap",

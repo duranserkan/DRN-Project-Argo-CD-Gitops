@@ -1,4 +1,4 @@
-#:package DRN.Framework.Utils@0.10.1-preview004
+#:package DRN.Framework.Utils@0.10.1-preview005
 #:property PublishAot=false
 
 using System;
@@ -109,12 +109,21 @@ static class Bootstrap
         client.Timeout = TimeSpan.FromSeconds(30);
 
         await RunAsync(client, namespaceName, () => File.ReadAllText($"{ServiceAccount}/token").Trim(),
-            allowCredentialGeneration: Environment.GetEnvironmentVariable("ALLOW_CREDENTIAL_GENERATION") == "true");
+            allowCredentialGeneration: Environment.GetEnvironmentVariable("ALLOW_CREDENTIAL_GENERATION") == "true",
+            externallyManagedCredentials: ParseExternalMode(Environment.GetEnvironmentVariable("CREDENTIALS_EXTERNALLY_MANAGED")));
     }
+
+    internal static bool ParseExternalMode(string? value) => value switch
+    {
+        null or "" or "false" => false,
+        "true" => true,
+        _ => throw new BootstrapException("CREDENTIALS_EXTERNALLY_MANAGED must be true or false.")
+    };
 
     /// <summary>Preserves existing settings and copies Nexus credentials into missing application Secrets.</summary>
     internal static async Task RunAsync(HttpClient client, string namespaceName, Func<string> readToken,
-        IReadOnlyList<string>? applications = null, bool allowCredentialGeneration = false)
+        IReadOnlyList<string>? applications = null, bool allowCredentialGeneration = false,
+        bool externallyManagedCredentials = false)
     {
         var secrets = $"/api/v1/namespaces/{namespaceName}/secrets";
         var names = new[] { NexusApplication }.Concat(applications ?? Applications).Distinct(StringComparer.Ordinal).ToArray();
@@ -129,6 +138,14 @@ static class Bootstrap
             var settings = Settings(secret, name + SettingsSuffix);
             shared ??= settings;
             ValidateSharedKey(shared, settings);
+        }
+
+        if (externallyManagedCredentials)
+        {
+            if (existing.Any(pair => pair.Value is null))
+                throw new BootstrapException("Externally managed credentials require every application settings Secret. Restore missing Secrets before syncing.");
+            await ClaimInitializationAsync(client, readToken, namespaceName, requireExisting: true);
+            return;
         }
 
         // Persist the claim before any credential writes. Only its creator may initialize automatically.
@@ -161,11 +178,14 @@ static class Bootstrap
         }
     }
 
-    private static async Task<bool> ClaimInitializationAsync(HttpClient client, Func<string> readToken, string namespaceName)
+    private static async Task<bool> ClaimInitializationAsync(HttpClient client, Func<string> readToken, string namespaceName,
+        bool requireExisting = false)
     {
         var path = $"/api/v1/namespaces/{namespaceName}/configmaps";
         if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is not null)
             return false;
+        if (requireExisting)
+            throw new BootstrapException("Externally managed credentials require the existing initialization marker. Restore bootstrap state before syncing.");
 
         var marker = new BootstrapInitializationMarker
         {

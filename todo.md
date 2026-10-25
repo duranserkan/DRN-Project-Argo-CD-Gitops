@@ -2,7 +2,7 @@
 
 Tasks are grouped by owner. Repository changes define desired configuration and documentation. Cluster prerequisites and runtime checks require access to the actual environment. Listing execution work here does not authorize running it.
 
-Reviewed against local source, test cases and workflow definitions on 2026-10-18. Checked implementation items mean the code or CI wiring exists. This review did not execute tests, inspect CI run results or verify the live cluster.
+Checked implementation items mean the code or CI wiring exists. Successful test runs, CI results and live acceptance require separate evidence.
 
 ## Cluster-level prerequisites
 
@@ -17,11 +17,27 @@ These belong to cluster provisioning, provider settings or the existing secret-m
 ## External repository and identity prerequisites
 
 - [ ] Verify protected branches and required CODEOWNERS approval for infrastructure and bootstrap manifests in the Git hosting settings. The checked-in CODEOWNERS file alone does not enforce approval.
-- [ ] Verify SonarCloud CI analysis, `SONAR_TOKEN`, and required checks against actual workflow runs. Branch CI defines `ci / gatekeeper`; pull-request CI currently runs Trivy and CodeQL without the bootstrap test job. Confirm checks are emitted for the intended event before requiring them in branch protection. See [CI configuration](tests/ApplicationSecretBootstrap.Tests/README.md).
+- [ ] Verify master SonarCloud analysis, `SONAR_TOKEN` and the separate branch/PR gatekeeper checks against actual workflow runs. Migrate the former `ci / gatekeeper` requirement to the emitted checks or workflow rulesets without leaving stale required checks. See [CI configuration](tests/ApplicationSecretBootstrap.Tests/README.md#ci-configuration).
 - [ ] When shared Argo CD access requires SSO, obtain the identity-provider configuration and actual user/group mappings before adding repository configuration.
 - [ ] If tracing discovery identifies missing instrumentation, add it in the application repository for ASP.NET Core requests, outgoing HTTP requests and database calls. Propagate trace context between services and assign distinct service names. Publish suitable images before configuring their exporters here.
 
 ## Work in this GitOps repository
+
+### Chart validation
+
+- [x] Add the central chart/image dependency inventory and .NET drift checks for supported manifest pin forms, installation chart references and CI Helm tooling. No dependency versions were changed.
+
+- [x] Add validation-file equality and positive/negative Helm rendering contracts for all four charts. Require the `charts` job in PR, develop and master gatekeepers.
+- [ ] Confirm the [.NET chart contract suite](tests/ChartValidation.Tests/README.md) passes in CI. Local execution was not performed during implementation. These checks do not replace upstream chart rendering, Kubernetes validation or live recovery acceptance.
+
+### Retained-data recovery
+
+- [x] Add the staging-only `retained` Helm profile, pass its required `retainedStorageClass` through the root branches to all seven claims and keep Traefik on ClusterIP.
+- [x] Add read-only externally managed modes to both credential Jobs, with tests for incomplete state, invalid markers and refusal of automatic generation.
+- [x] Configure GitOps workloads to consume externally restored identities, preserve initialization markers and activate in prepare/data/workloads stages. Configure Data Node's snapshot directory.
+- [ ] Verify that the recovery coordinator checkpoints and restores every identity in the [storage and identity contract](docs/platform-operations.md#retained-storage).
+- [ ] Validate root/branch rendering, all seven actual claim names and static CSI binding against the selected immutable GitOps revision. Verify that a missing retained volume remains Pending without dynamic fallback.
+- [ ] Rehearse coordinated backups, restoration and credential-loss rejection on an authorized disposable cluster before enabling retained-data pause, teardown or recreation.
 
 ### Argo CD health gate and bootstrap verification
 
@@ -35,8 +51,8 @@ The Application health scripts in [standard values](infrastructure/argocd/custom
 - [ ] Cover automatic selective self-heal acceptance only with positive `autoHealAttemptsCount` and matching automated full-sync history for all current sources and revisions. Verify missing, evicted, manual or mismatched history blocks Healthy and that a subsequent full sync recovers it.
 - [x] Implement [Graylog C# bootstrap behavior tests](tests/ApplicationSecretBootstrap.Tests/GraylogBootstrapTests.cs) using synthetic Secrets and a controlled API substitute. Cases cover fresh bootstrap, credential preservation, refusal after partial bootstrap or credential loss, create conflicts, invalid fields, API failures and timeouts. Error assertions check that private response bodies and timeout details are not exposed. Operator polling tests cover transient retries within the original deadline and fatal authorization failures.
 - [x] Implement [application Secret bootstrap behavior tests](tests/ApplicationSecretBootstrap.Tests/BootstrapTests.cs) for automatic fresh initialization with a ConfigMap claim, enrollment of existing installs, total Secret loss, concurrent claimants and explicit recovery. Cover preservation of custom settings, recovery from surviving credentials, interrupted creation, create conflicts, invalid fields and API failures. Include assertions against response-body disclosure and verify token refresh on each request. Test implementation is complete; execution is not established by this checklist.
-- [x] Wire bootstrap builds, tests and coverage into [shared branch CI](.github/workflows/ci.yml) through the [backend action](.github/actions/dotnet-sonar-scan/action.yml). Both [develop](.github/workflows/develop.yml) and [master](.github/workflows/master.yml) invoke it on branch pushes. This records workflow implementation, not a verified successful run.
-- [ ] Connect bootstrap tests and the future Lua regression suite to pull-request CI. The current [PR workflow](.github/workflows/pull-request.yml) runs Trivy and CodeQL only. Preserve its secretless execution boundary when adding tests.
+- [x] Wire bootstrap builds, tests and coverage through composite actions into separate [develop](.github/workflows/develop.yml), [master](.github/workflows/master.yml) and secretless [pull-request](.github/workflows/pull-request.yml) workflows. Each owns its gatekeeper. Develop runs validation and Trivy; master adds Sonar and CodeQL; PRs add CodeQL and dependency review. This records workflow implementation, not a verified successful run.
+- [ ] Connect the future Lua regression suite to branch and pull-request CI. Preserve the secretless PR execution boundary.
 
 ### Namespace isolation
 

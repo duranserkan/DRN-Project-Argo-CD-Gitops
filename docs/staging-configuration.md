@@ -42,6 +42,8 @@ Seeds must contain uppercase, lowercase, a digit and a special character from `!
 
 ## Automatic staging Secret bootstrap
 
+The following automatic initialization applies to the default infrastructure profile. The [retained-storage profile](platform-operations.md#retained-storage) requires externally provisioned Secrets and existing initialization markers. Its Jobs validate those inputs without creating or copying credentials, even when `ALLOW_CREDENTIAL_GENERATION=true` is present.
+
 The staging-only `application-secrets` Sync hook runs alongside PostgreSQL before Nexus and Sample. It creates a shared 99-character seed with 256 bits of randomness and a random 32-byte Base64 Nexus key on fresh installs. See [bootstrap runtime](platform-operations.md#credential-bootstrap-runtime) and [tests](../tests/ApplicationSecretBootstrap.Tests/README.md) for shared implementation details and verification limits.
 
 Generated hosts cover each application's Kubernetes DNS names, `localhost` and `127.0.0.1`. Add the ingress hostname and roll out the application before public access.

@@ -4,3 +4,9 @@ environment: ""
 gitRevision: ""
 releaseTag: ""
 enableProduction: false
+# Opt in only after the infrastructure owner provisions retained storage and identities.
+infrastructureProfile: ""
+# Required by the retained profile. The infrastructure owner supplies this class.
+retainedStorageClass: ""
+# The recovery coordinator advances stages after verifying their prerequisites.
+activationStage: ""

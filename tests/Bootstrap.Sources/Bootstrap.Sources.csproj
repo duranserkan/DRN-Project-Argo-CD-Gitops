@@ -10,7 +10,7 @@
     <Features>$(Features);FileBasedProgram</Features>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DRN.Framework.Utils" Version="0.10.1-preview004" />
+    <PackageReference Include="DRN.Framework.Utils" Version="0.10.1-preview005" />
     <Compile Include="../../infrastructure/application-secrets/staging/bootstrap.cs" Link="ApplicationBootstrap.cs" />
     <Compile Include="../../infrastructure/graylog/mongodb/bootstrap.cs" Link="GraylogBootstrap.cs" />
     <InternalsVisibleTo Include="ApplicationSecretBootstrap.Tests" />

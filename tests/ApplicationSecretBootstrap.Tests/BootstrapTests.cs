@@ -30,6 +30,65 @@ public class BootstrapTests
     private const string MarkersPath = "/api/v1/namespaces/drn-project/configmaps";
 
     [Fact]
+    public async Task Externally_Managed_Settings_Should_Validate_Without_Writing()
+    {
+        using var api = ExistingPair();
+        using var client = api.CreateClient();
+        var before = Snapshot(api);
+        var marker = MarkerJson.Serialize(api.Marker!);
+
+        await Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token", externallyManagedCredentials: true);
+
+        Snapshot(api).Should().Equal(before);
+        MarkerJson.Serialize(api.Marker!).Should().Be(marker);
+        api.Requests.Should().OnlyContain(request => request.Method == HttpMethod.Get);
+    }
+
+    [Theory]
+    [DataInlineUnit("nexus-settings")]
+    [DataInlineUnit("sample-settings")]
+    [DataInlineUnit("all-secrets")]
+    [DataInlineUnit("missing-marker")]
+    [DataInlineUnit("invalid-marker")]
+    [DataInlineUnit("unavailable-marker")]
+    [DataInlineUnit("invalid-secret")]
+    public async Task Externally_Managed_Settings_Should_Fail_Closed_Even_With_Generation_Override(string failure)
+    {
+        using var api = ExistingPair();
+        using var client = api.CreateClient();
+        switch (failure)
+        {
+            case "all-secrets": api.Secrets.Clear(); break;
+            case "missing-marker": api.Marker = null; break;
+            case "invalid-marker": api.Marker!.Immutable = false; break;
+            case "unavailable-marker":
+                api.Intercept = request => request.Path.StartsWith(MarkersPath, StringComparison.Ordinal)
+                    ? Response(HttpStatusCode.Forbidden, "private-marker-body") : null;
+                break;
+            case "invalid-secret": api.Secrets[NexusSettingsSecret].Data![AllowedHosts] = "%%%"; break;
+            default: api.Secrets.Remove(failure); break;
+        }
+        var before = Snapshot(api);
+        var act = () => Bootstrap.RunAsync(client, "drn-project", () => "synthetic-token",
+            allowCredentialGeneration: true, externallyManagedCredentials: true);
+
+        (await act.Should().ThrowAsync<BootstrapException>()).Which.Message.Should().NotContain("private-marker-body");
+
+        Snapshot(api).Should().Equal(before);
+        api.Requests.Should().OnlyContain(request => request.Method == HttpMethod.Get);
+    }
+
+    [Theory]
+    [DataInlineUnit("TRUE")]
+    [DataInlineUnit("yes")]
+    [DataInlineUnit(" true ")]
+    public void Invalid_External_Mode_Should_Not_Enable_Automatic_Generation(string value)
+    {
+        var act = () => Bootstrap.ParseExternalMode(value);
+        act.Should().Throw<BootstrapException>().WithMessage("CREDENTIALS_EXTERNALLY_MANAGED must be true or false.");
+    }
+
+    [Fact]
     public async Task Fresh_Installation_Should_Create_Compatible_Secrets_And_Preserve_Them_On_Rerun()
     {
         using var api = new KubernetesApi();

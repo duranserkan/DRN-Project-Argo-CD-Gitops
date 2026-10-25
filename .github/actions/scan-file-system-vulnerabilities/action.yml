@@ -1,24 +1,24 @@
-name: Scan Vulnerabilities
-description: Scan repository vulnerabilities, secrets and misconfigurations with Trivy and upload SARIF.
+name: Scan file system vulnerabilities
+description: Scan vulnerabilities, secrets and misconfigurations with Trivy and upload SARIF.
 runs:
-  using: "composite"
+  using: composite
   steps:
-    - name: Run Trivy vulnerability scanner in fs mode
+    - name: Scan vulnerabilities, secrets and misconfigurations
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
-        version: 'v0.76.0'
-        scan-type: 'fs'
-        scan-ref: '.'
-        scanners: 'vuln,secret,misconfig'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
+        version: v0.76.1
+        scan-type: fs
+        scan-ref: .
+        scanners: vuln,secret,misconfig
+        format: sarif
+        output: trivy-results.sarif
         exit-code: '1'
-        severity: 'HIGH,CRITICAL'
+        severity: HIGH,CRITICAL
         limit-severities-for-sarif: 'true'
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
-      # Keep scanner failures visible without adding a missing-report upload error.
+
+    - name: Upload Trivy results
       if: ${{ !cancelled() && hashFiles('trivy-results.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
       with:
-        sarif_file: 'trivy-results.sarif'
+        sarif_file: trivy-results.sarif
         category: trivy-file-system-scan

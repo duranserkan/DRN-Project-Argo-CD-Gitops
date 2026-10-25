@@ -28,7 +28,7 @@ Deploy [DRN-Project](https://github.com/duranserkan/DRN-Project) Sample and Nexu
 - Use Sample as a reference application and adapt this repository's deployment structure for your own services.
 - Publish preview releases from `develop` and final releases from `master`, using immutable tags.
 - **TODO:** Extend [Nexus App](https://hub.docker.com/r/duranserkan/drn-project-nexus) with service discovery, remote settings, a unified microservices topology view and service self-documentation.
-- **TODO:** Automate Oracle Cloud cluster provisioning and Argo CD bootstrap with [DRN-Project Pulumi Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops).
+- **TODO:** Validate Oracle Cloud provisioning and retained-data recovery with [DRN-Project Pulumi Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops).
 
 [About Project, Kubernetes and Argo CD](#about-project-kubernetes-and-argo-cd) | [GitOps Roadmap](#gitops-roadmap) | [Tools](#tools) | [Deployment](#deployment-model) | [Bootstrap](#bootstrap-a-cluster) | [Continuous Integration](#continuous-integration)
 
@@ -73,7 +73,8 @@ Checked items describe repository configuration, not verified production readine
 - [ ] RabbitMQ support in staging
 - [ ] Extend Nexus with service discovery, remote settings, a microservices topology view and service self-documentation
 - [ ] Explore CloudNativePG for production, including high availability, backups, recovery and upgrades
-- [ ] Oracle Cloud cluster provisioning and Argo CD bootstrap through [DRN-Project Pulumi Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops)
+- [x] Provider-neutral [retained-storage profile](docs/platform-operations.md#retained-storage) with staged activation, stable credentials and native backup prerequisites
+- [ ] Validate Oracle Cloud provisioning, Argo CD bootstrap and retained-data recovery through [DRN-Project Pulumi Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops)
 - [ ] [Additional Kubernetes hardening](todo.md#cluster-level-prerequisites) and [verification in a running cluster](todo.md#runtime-verification-and-operations)
 - [ ] [OpenTelemetry Collector and distributed tracing](todo.md#opentelemetry-collector-and-distributed-tracing)
 
@@ -127,7 +128,9 @@ Review root selection changes in Git, apply the root, then sync it explicitly. R
 
 ## Bootstrap a cluster
 
-For a fresh installation, provide a NetworkPolicy-capable CNI and a default StorageClass. Check [platform versions](docs/platform-operations.md#dependency-review-2026-10-17), [storage](docs/platform-operations.md#application-persistent-storage) and [Graylog host requirements](docs/platform-operations.md#graylog) first. For flat-root or Traefik ownership changes, follow the [ownership migration procedure](docs/platform-operations.md#ownership-migration). Migration from the former local-only layout is not covered.
+For a fresh installation, provide a NetworkPolicy-capable CNI and a default StorageClass. Check [platform versions](docs/platform-operations.md#dependency-review), [storage](docs/platform-operations.md#application-persistent-storage) and [Graylog host requirements](docs/platform-operations.md#graylog) first. For flat-root or Traefik ownership changes, follow the [ownership migration procedure](docs/platform-operations.md#ownership-migration). Migration from the former local-only layout is not covered.
+
+For externally managed recovery, use the [retained-storage profile](docs/platform-operations.md#retained-storage). The infrastructure owner supplies the storage class, static volumes, credential checkpoints and staged recovery coordination. Pulumi Ops implements this contract on OCI. Complete a disposable-cluster rehearsal before relying on retained-data recovery.
 
 ### Install local tools
 
@@ -155,16 +158,16 @@ See the [local access guide](docs/local-access.md) for Graylog, Argo CD, Linkerd
 
 | Tool | Deployment version |
 |---|---|
-| Argo CD CLI | [v3.5.5](https://github.com/argoproj/argo-cd/releases/tag/v3.5.5) |
+| Argo CD CLI | [v3.5.6](https://github.com/argoproj/argo-cd/releases/tag/v3.5.6) |
 | Linkerd CLI | [edge-26.10.1](https://github.com/linkerd/linkerd2/releases/tag/edge-26.10.1) |
-| Argo CD Helm chart | `10.10.5` |
+| Argo CD Helm chart | `10.11.1` |
 
 Install Argo CD in the intended cluster:
 
 ```sh
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
-helm install argocd argo/argo-cd --version 10.10.5 \
+helm install argocd argo/argo-cd --version 10.11.1 \
   -f infrastructure/argocd/custom-values.yaml \
   --create-namespace -n argocd --wait --timeout 10m
 ```
@@ -234,7 +237,7 @@ Rollback selects a previous immutable tag and syncs the root. It restores manife
 
 | Requirement | Reference |
 |---|---|
-| Approve image digests and platform capacity | [Dependency review](docs/platform-operations.md#dependency-review-2026-10-17) |
+| Approve image digests and platform capacity | [Dependency review](docs/platform-operations.md#dependency-review) |
 | Provision databases, verified backups, restore and separate migrations | [Production database Secrets](docs/staging-configuration.md#production-database-secrets) |
 | Configure hostnames, edge TLS and account provisioning | [Authentication](docs/staging-configuration.md#authentication-and-image-readiness) |
 | Review namespace trust, admission and delegated access | [Remaining hardening](todo.md#namespace-isolation) |
@@ -285,13 +288,17 @@ The [pinned Linkerd proxy](https://github.com/linkerd/linkerd2-proxy/blob/releas
 
 ## Continuous integration
 
+Open [GitOps.slnx](GitOps.slnx) to navigate source projects under `Src` and test projects under `Test`, following DRN-Project's solution-folder convention. `Src` contains Bootstrap.Sources and DependencyPins. `Test` contains separate bootstrap, chart and [dependency tooling](tests/DependencyPins.Tests/README.md) test projects. These are IDE folders, independent of filesystem paths. A solution build does not run tests or require Helm. CI runs each test project explicitly. CodeQL builds the full solution and both deployed bootstrap entry points.
+
+[dependencies.json](dependencies.json) is the source of truth for mapped chart and image pins. Run the [.NET updater](tools/DependencyPins/README.md) to refresh their committed consumers. CI requires read-only generator checks and independent inventory coverage checks. Follow the [dependency update procedure](docs/platform-operations.md#updating-dependency-pins) when changing versions or digests.
+
 | Trigger | Checks |
 |---|---|
-| Push to `develop` or `master` | Bootstrap builds, unit tests, coverage, SonarCloud, Trivy and CodeQL |
-| Weekly on `master` | Same branch checks |
-| Pull request | Secretless Trivy and CodeQL |
+| Push to `develop` | Chart contracts, bootstrap builds, dependency audit, unit tests, coverage and Trivy |
+| Push to `master` or weekly on `master` | Chart contracts, bootstrap validation, SonarCloud, Trivy and C#/Actions CodeQL |
+| Pull request | Secretless chart contracts, bootstrap builds, unit tests, coverage, Trivy, CodeQL and dependency review |
 | Release tag | Trivy |
 
-The [shared gatekeeper](.github/workflows/ci.yml) requires all branch checks to pass. CI creates no tags and deploys no clusters. Before tagging, verify the commit passed CI and belongs to the required release branch.
+The [develop](.github/workflows/develop.yml), [master](.github/workflows/master.yml) and [pull-request](.github/workflows/pull-request.yml) workflows each require their selected jobs through a gatekeeper. Composite actions share bootstrap validation, CodeQL and Trivy steps. CodeQL includes both deployed bootstrap entry points. SonarCloud runs only on master pushes and its weekly schedule. PR jobs pass no repository secrets and reject dependency changes with high or critical vulnerabilities. CI creates no tags and deploys no clusters. Before tagging, verify the commit passed CI and belongs to the required release branch.
 
-See [test and CI configuration](tests/ApplicationSecretBootstrap.Tests/README.md) for coverage, SonarCloud and required checks. Remaining work is tracked in [TODO](todo.md).
+See [chart contracts](tests/ChartValidation.Tests/README.md) for validation-file equality and rendering checks, and [bootstrap test and CI configuration](tests/ApplicationSecretBootstrap.Tests/README.md) for coverage, SonarCloud and required checks. Remaining work is tracked in [TODO](todo.md).

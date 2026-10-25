@@ -1,0 +1,68 @@
+name: Validate deployment charts
+description: Check dependency inventory, validation-file equality and Helm rendering contracts for all four charts.
+runs:
+  using: composite
+  steps:
+    - name: Install checksum-pinned Helm
+      shell: bash
+      # Match Argo CD v3.5.6 hack/tool-versions.sh. Official checksum verified 2026-10-25.
+      run: |
+        mkdir -p "$RUNNER_TEMP/chart-helm"
+        curl --fail --silent --show-error --location --retry 3 \
+          https://get.helm.sh/helm-v4.2.1-linux-amd64.tar.gz \
+          --output "$RUNNER_TEMP/chart-helm/helm.tar.gz"
+        cd "$RUNNER_TEMP/chart-helm"
+        echo '479dca836e5b45e8bd222400c5591b0e3a647378f03ff96597180db97c17fdae  helm.tar.gz' | sha256sum --check --strict
+        tar -xzf helm.tar.gz linux-amd64/helm
+        echo "$RUNNER_TEMP/chart-helm/linux-amd64" >> "$GITHUB_PATH"
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: global.json
+
+    - name: Restore and audit chart test dependencies
+      shell: bash
+      run: >-
+        dotnet restore tests/ChartValidation.Tests/ChartValidation.Tests.csproj
+        --configfile tests/NuGet.Config -p:Configuration=Release
+        -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
+
+    - name: Build chart tests
+      shell: bash
+      run: >-
+        dotnet build tests/ChartValidation.Tests/ChartValidation.Tests.csproj
+        --no-restore --configuration Release --disable-build-servers
+        -p:UseSharedCompilation=false -p:ContinuousIntegrationBuild=true
+
+    - name: Restore and audit dependency test dependencies
+      shell: bash
+      run: >-
+        dotnet restore tests/DependencyPins.Tests/DependencyPins.Tests.csproj
+        --configfile tests/NuGet.Config -p:Configuration=Release
+        -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
+
+    - name: Build dependency tests and updater
+      shell: bash
+      run: >-
+        dotnet build tests/DependencyPins.Tests/DependencyPins.Tests.csproj
+        --no-restore --configuration Release --disable-build-servers
+        -p:UseSharedCompilation=false -p:ContinuousIntegrationBuild=true
+
+    - name: Check generated dependency pins
+      shell: bash
+      run: dotnet run --project tools/DependencyPins/DependencyPins.csproj --no-build --configuration Release -- check
+
+    - name: Test dependency contracts
+      shell: bash
+      run: >-
+        dotnet run --project tests/DependencyPins.Tests/DependencyPins.Tests.csproj
+        --no-build --configuration Release --
+        --report-gh --report-gh-step-summary-sections test-results
+
+    - name: Test chart contracts
+      shell: bash
+      run: >-
+        dotnet run --project tests/ChartValidation.Tests/ChartValidation.Tests.csproj
+        --no-build --configuration Release --
+        --report-gh --report-gh-step-summary-sections test-results

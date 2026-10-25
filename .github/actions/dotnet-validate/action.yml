@@ -1,18 +1,29 @@
-name: Dotnet Sonar Scan
-description: Build both standalone bootstraps, then analyze their source and collect unit-test coverage.
+name: Validate credential bootstraps
+description: Build deployed sources, audit dependencies and run coverage, optionally with master Sonar analysis.
 inputs:
+  sonar-analysis:
+    description: Enable Sonar analysis on the protected master branch only.
+    default: 'false'
   sonar-token:
-    description: SonarCloud authentication token.
-    required: true
+    description: SonarCloud token. Never pass from PR workflows.
+    required: false
 runs:
   using: composite
   steps:
+    - name: Require Sonar token for master analysis
+      if: inputs.sonar-analysis == 'true'
+      shell: bash
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
+      run: |
+        : "${SONAR_TOKEN:?Set the SONAR_TOKEN repository secret.}"
+
     - name: Setup .NET
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
         global-json-file: global.json
 
-    # Validate the deployed entry points before beginning project-based analysis.
+    # Validate deployed entry points before project-based Sonar analysis.
     - name: Build application deployment source
       shell: bash
       run: >-
@@ -29,7 +40,7 @@ runs:
         -p:PublishAot=false -p:NuGetAudit=false -p:UseSharedCompilation=false
         -p:RestoreConfigFile="$GITHUB_WORKSPACE/infrastructure/graylog/mongodb/NuGet.Config"
 
-    - name: Restore test dependencies and audit vulnerabilities
+    - name: Restore dependencies and audit vulnerabilities
       shell: bash
       run: >-
         dotnet restore tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj
@@ -37,16 +48,20 @@ runs:
         -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
 
     - name: Restore pinned SonarScanner
+      if: inputs.sonar-analysis == 'true'
       shell: bash
       run: dotnet tool restore --configfile tests/NuGet.Config
 
     - name: Begin Sonar analysis
+      if: inputs.sonar-analysis == 'true'
       shell: bash
       env:
         SONAR_TOKEN: ${{ inputs.sonar-token }}
+        SONAR_PROJECT_KEY: duranserkan_DRN-Project-Argo-CD-Gitops
+        SONAR_ORGANIZATION: duranserkan
       run: >-
         dotnet tool run dotnet-sonarscanner begin
-        /k:"duranserkan_DRN-Project-Argo-CD-Gitops" /o:"duranserkan"
+        /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION"
         /d:sonar.host.url="https://sonarcloud.io"
         /d:sonar.token="$SONAR_TOKEN"
         /d:sonar.projectBaseDir="$GITHUB_WORKSPACE"
@@ -55,14 +70,16 @@ runs:
         /d:sonar.exclusions="**/bin/**,**/obj/**,TestResults/**,.agent/**"
         /d:sonar.qualitygate.wait=true /d:sonar.qualitygate.timeout=600
 
-    - name: Build source library and tests
+    - name: Build
+      id: build
       shell: bash
       run: >-
         dotnet build tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj
         --no-restore --no-incremental --configuration Release
         --disable-build-servers -p:UseSharedCompilation=false -p:ContinuousIntegrationBuild=true
 
-    - name: Run unit tests with coverage and GitHub summary
+    - name: Run bootstrap unit tests
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
       run: >-
         dotnet run --project tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj
@@ -72,7 +89,8 @@ runs:
         --coverage-output-format xml --coverage-output coverage.xml
         --results-directory "$GITHUB_WORKSPACE/TestResults"
 
-    - name: Verify bootstrap coverage is present
+    - name: Verify coverage report contains source coverage
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       shell: pwsh
       run: |
         $covered = Select-Xml -Path "$env:GITHUB_WORKSPACE/TestResults/coverage.xml" -XPath '//module[@name="Bootstrap.Sources.dll" and number(@lines_covered) > 0]'
@@ -81,12 +99,13 @@ runs:
         }
 
     - name: Finish Sonar analysis and wait for quality gate
+      if: ${{ !cancelled() && inputs.sonar-analysis == 'true' && steps.build.outcome == 'success' }}
       shell: bash
       env:
         SONAR_TOKEN: ${{ inputs.sonar-token }}
       run: dotnet tool run dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
-    - name: Upload coverage report
+    - name: Upload coverage reports
       if: ${{ !cancelled() && hashFiles('TestResults/coverage.xml') != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:

@@ -11,6 +11,11 @@ spec:
     path: infrastructure/cert-manager/resources
     repoURL: {{ .Values.repository | quote }}
     targetRevision: {{ .Values.gitRevision | quote }}
+    {{- if eq .Values.infrastructureProfile "retained" }}
+    # The recovery coordinator restores the stable root before cert-manager starts.
+    directory:
+      include: linkerd-trust-anchor-issuer.yaml
+    {{- end }}
   destination:
     namespace: cert-manager
     server: https://kubernetes.default.svc

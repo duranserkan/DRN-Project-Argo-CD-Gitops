@@ -11,12 +11,71 @@ concurrency:
 
 permissions: {}
 
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  TESTINGPLATFORM_TELEMETRY_OPTOUT: '1'
+
 jobs:
-  ci:
+  charts:
+    if: github.ref_type != 'tag'
     permissions:
-      actions: read
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate charts
+        uses: ./.github/actions/chart-validate
+
+  dotnet:
+    if: github.ref_type != 'tag'
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate bootstraps
+        uses: ./.github/actions/dotnet-validate
+
+  trivy:
+    permissions:
       contents: read
       security-events: write
-    uses: ./.github/workflows/ci.yml
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Scan repository
+        uses: ./.github/actions/scan-file-system-vulnerabilities
+
+  gatekeeper:
+    if: ${{ always() && github.ref_type != 'tag' }}
+    needs: [charts, dotnet, trivy]
+    permissions: {}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify all required jobs succeeded
+        env:
+          CHARTS_RESULT: ${{ needs.charts.result }}
+          DOTNET_RESULT: ${{ needs.dotnet.result }}
+          TRIVY_RESULT: ${{ needs.trivy.result }}
+        run: |
+          if [ "$CHARTS_RESULT" != success ] || [ "$DOTNET_RESULT" != success ] || [ "$TRIVY_RESULT" != success ]; then
+            echo "Required checks did not all pass."
+            echo "charts: $CHARTS_RESULT"
+            echo "dotnet: $DOTNET_RESULT; trivy: $TRIVY_RESULT"
+            exit 1
+          fi
+          echo "Required checks passed."

@@ -1,3 +1,4 @@
+{{- if or (ne .Values.infrastructureProfile "retained") (ne .Values.activationStage "prepare") }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -20,10 +21,14 @@ spec:
         global:
           # Created and preserved by the MongoDB credential bootstrap Job.
           existingSecretName: graylog-credentials
+          {{- if eq .Values.infrastructureProfile "retained" }}
+          storageClass: {{ .Values.retainedStorageClass | quote }}
+          {{- end }}
         mongodb:
           communityResource:
             enabled: false
         extraObjects:
+          {{- if ne .Values.infrastructureProfile "retained" }}
           - apiVersion: networking.k8s.io/v1
             kind: NetworkPolicy
             metadata:
@@ -64,6 +69,7 @@ spec:
                 # Restrict the source once the cluster's API-server CIDRs are known.
                 - ports:
                     - port: 1993
+          {{- end }}
           - apiVersion: v1
             kind: ConfigMap
             metadata:
@@ -180,7 +186,7 @@ spec:
               mountPath: /etc/graylog/contentpacks
               readOnly: true
           image:
-            tag: 7.2.0@sha256:2050193da1292533df09c2d9252444f31655adf4b86b65b1d4d1cdc854969e1b
+            tag: 7.2.1@sha256:ed3f6008881f16315d16b0c8d3c6abe689ebe647e14fb5f3ba8bc034fa424776
           service:
             nameOverride: drn-graylog
           # Only GELF HTTP. The chart still declares port 13302, but no
@@ -196,6 +202,26 @@ spec:
             enabled: false
         datanode:
           replicas: 1
+          {{- if eq .Values.infrastructureProfile "retained" }}
+          roles: [cluster_manager, data, ingest, remote_cluster_client]
+          env:
+            GRAYLOG_DATANODE_PATH_REPO: /var/lib/graylog-datanode/drn-backups
+          extraInitContainers:
+            - name: backup-directory
+              image: graylog/graylog-datanode:7.2.1@sha256:e1486024c7db955c8c216147c3ef22f4163355b4cedd3a48d2ee99e3d88a70d5
+              command: [mkdir, -p, /var/lib/graylog-datanode/drn-backups]
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 999
+                runAsGroup: 999
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/graylog-datanode
+          {{- end }}
           config:
             javaOpts: "-Xms1g -Xmx1g -Djavax.net.ssl.trustStore=/etc/graylog/database-trust/truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=changeit"
           extraVolumes:
@@ -207,7 +233,7 @@ spec:
               mountPath: /etc/graylog/database-trust
               readOnly: true
           image:
-            tag: 7.2.0@sha256:af77e659719fb4c715dcb49082bcc1b7a08a1ffd5294af90054df569423ab3b0
+            tag: 7.2.1@sha256:e1486024c7db955c8c216147c3ef22f4163355b4cedd3a48d2ee99e3d88a70d5
           podAnnotations:
             linkerd.io/inject: disabled
           podDisruptionBudget:
@@ -238,3 +264,4 @@ spec:
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
       - CreateNamespace=true
+{{- end }}
