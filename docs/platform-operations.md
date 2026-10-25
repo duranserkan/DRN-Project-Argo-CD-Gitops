@@ -4,9 +4,20 @@ Use the [README](../README.md#bootstrap-a-cluster) for installation and releases
 
 [Dependencies](#installation-dependencies) | [Bootstrap runtime](#credential-bootstrap-runtime) | [Certificates](#certificates-and-trust) | [Gateway API](#gateway-api-crd-troubleshooting) | [Probes](#workload-health-probes) | [Storage](#application-persistent-storage) | [PostgreSQL](#postgresql) | [Graylog](#graylog) | [Grafana and Secrets](#grafana-and-secrets) | [Readiness](#readiness-checks)
 
-Chart templates own version and image pins. Publish changes through the [release procedure](../README.md#promote-and-roll-back), retaining tested image digests. Never apply Helm templates directly.
+[dependencies.json](../dependencies.json) is the authoritative input for mapped chart versions, explicit image pins and related deployment tooling. The [.NET updater](../tools/DependencyPins/README.md) writes those fields into committed templates and manifests, which remain the executable configuration. The required `charts` CI job checks generated pins and inventory coverage. Publish changes through the [release procedure](../README.md#promote-and-roll-back), retaining tested image digests. Never apply Helm templates directly.
 
-## Dependency review, 2026-10-17
+### Updating dependency pins
+
+1. Review the component's compatibility constraints and verify candidate chart archives and image digests against their publishers.
+2. Update the component's `pins` in `dependencies.json`. Place shared versions or images in one pin and reference them with `{pinName}` in the expected lines. Use contextual `selectors` for repeated keys and `references` for installation or tooling fields.
+3. Run `dotnet run --project tools/DependencyPins -- update` from the repository root when local execution is authorized. Review the generated diff and update provenance documentation and verification comments. Commit the inventory and its generated consumers together.
+4. Let the required `charts` CI job validate the change. It rejects changed values, duplicate component/file ownership, unused pins and missing or added dependency locations in the supported manifest forms. Complete staging acceptance separately before promotion.
+
+Editing the inventory alone does not change deployment behavior. The updater must refresh the mapped fields before promotion. Its initial entries preserve existing selections and point to existing provenance records; this tooling change does not claim a new registry verification. See [dependency-check coverage](../tests/ChartValidation.Tests/README.md#dependency-inventory) for scope and limitations.
+
+## Dependency review
+
+Last reviewed: 2026-10-25.
 
 The test baseline is Kubernetes `1.36.4`. Pinned Linkerd charts require 1.31 or newer. Component minimums do not establish whole-stack compatibility. Validate changed combinations in staging.
 
@@ -15,25 +26,29 @@ Keep PostgreSQL on major 18 and MongoDB on 8.2 unless planning a database upgrad
 | Component | Reviewed selection |
 |---|---|
 | Linkerd CRDs, control plane and Viz | Charts 2026.10.1, images edge-26.10.1, proxy v2.370.0 |
-| Traefik | Chart 42.0.0, image v3.7.14 |
+| Traefik | Chart 42.1.3, image v3.7.16 |
 | Grafana | Chart 14.0.1, image 13.2.4-distroless and curl 8.23.0 |
-| Argo CD bootstrap | Chart 10.10.5, Argo CD v3.5.5, chart-selected Dex and Redis dependencies |
+| Argo CD bootstrap | Chart 10.11.1, Argo CD v3.5.6, chart-selected Dex and Redis dependencies |
 | Gateway API | Retain v1.5.1 standard CRDs recommended by the pinned Linkerd release |
 | trust-manager | Chart and image v0.25.0, chart-selected Trixie trust package pinned by digest |
-| Graylog and Data Node | Chart 2.1.0, images 7.2.0 |
-| Sample and Nexus | Updated 2026-10-14 to 0.10.1-preview004, image source revision matches the release tag |
-| PostgreSQL | 18.6 standard-trixie, refreshed registry digest on 2026-10-17 |
-| MongoDB credential bootstrap | Updated 2026-10-18 to .NET SDK 10.0.402-noble (Ubuntu 24.04), pinned by digest |
-| Staging application Secret bootstrap | Updated 2026-10-18 to .NET SDK 10.0.402-noble (Ubuntu 24.04), pinned by digest |
-| cert-manager | v1.21.2 |
+| Graylog and Data Node | Chart 2.1.0, images 7.2.1 |
+| Sample and Nexus | Updated 2026-10-25 to 0.10.1-preview005, multi-platform image digests verified against Docker Hub manifests for linux/amd64 and linux/arm64 |
+| PostgreSQL | 18.6 standard-trixie, refreshed registry digest on 2026-10-25 |
+| MongoDB credential bootstrap | .NET SDK 10.0.402-noble (Ubuntu 24.04), refreshed digest on 2026-10-25 |
+| Staging application Secret bootstrap | .NET SDK 10.0.402-noble (Ubuntu 24.04), refreshed digest on 2026-10-25 |
+| cert-manager | v1.21.3, all five component images pinned by digest |
 | CloudNativePG operator | Chart 0.29.1, image 1.30.1 |
 | MongoDB operator and server | Chart 1.14.0 with agent 109.0.1.9310-1, server 8.2.12-ubi8 |
-| Sealed Secrets | Chart 2.20.0, controller 0.40.0 |
+| Sealed Secrets | Chart 2.20.0, controller 0.40.0 pinned by digest. Newer release images are not published. |
 | Viz Prometheus and extension-init | Chart-selected 2.55.1 and 0.1.12. Prometheus 3 requires a separate compatibility review. |
 
-Chart archives were checked against publisher index checksums and changed image pins against registry manifests. Argo CD chart archive SHA-256 is `ba6447eeed42bc41d1f0527721047b236304e97669a7b6286d02be4a1644ba7a`. Its image digest is `sha256:13db7b10db23283b1b36f855046602e18539a8a8204c9f6f039e8896c8897518`. Chart-selected Dex and Redis dependencies remain aligned with the chart. Runtime compatibility remains unverified.
+Changed chart archives were checked against publisher index checksums and image pins against registry manifests. Argo CD chart archive SHA-256 is `dbb92a8c7855d4c564b87ab70e70bc36f5b17fd2bd30fa041a31e80dbea99c38`. Both installation values files pin its image to `sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335`. Chart-selected Dex and Redis dependencies remain aligned with the chart. Runtime compatibility remains unverified.
 
-The [Traefik 42 upgrade notes](https://github.com/traefik/traefik-helm-chart/releases/tag/v42.0.0) require Kubernetes 1.30 or newer and change unused Hub settings. The repository baseline satisfies that minimum. Grafana 14 adds a values schema. Current values were inspected against that schema without rendering. MongoDB's upgrade and readiness helpers retain the new chart's default versions, with refreshed registry digests for their republished tags. Bootstrap Utils and test packages now use 0.10.1-preview004. CI action commits, package hashes and SonarScanner 12.0.0 compatibility are recorded in the [test documentation](../tests/ApplicationSecretBootstrap.Tests/README.md).
+The [Traefik 42.1.3 release](https://github.com/traefik/traefik-helm-chart/releases/tag/v42.1.3) supports the selected v3.7.16 image. Its Kubernetes 1.30 minimum remains satisfied. Grafana 14.0.1 and 13.2.4-distroless remain current. The curl 8.23.0 helper digest was refreshed. MongoDB's upgrade and readiness helpers retain their chart-selected versions and verified digests. Bootstrap Utils and test packages now use 0.10.1-preview005. CI action commits, package hashes and SonarScanner 12.0.0 compatibility are recorded in the [test documentation](../tests/ApplicationSecretBootstrap.Tests/README.md).
+
+[cert-manager v1.21.3](https://github.com/cert-manager/cert-manager/releases/tag/v1.21.3) fixes certificate renewal and private-key ownership checks and updates its trust store and Go runtime. The chart archive SHA-256 is `9ec67938b2981d8b333af61b3fcf53e26b4f6f5deb7ccda3de4ea116bb373a17`. Controller, webhook, cainjector, ACME solver and startup API check digests were verified against Quay.
+
+Sealed Secrets [v0.41.1](https://github.com/bitnami/sealed-secrets/releases/tag/v0.41.1) is released, but the documented `docker.io/bitnami/sealed-secrets-controller:0.41.1` image returned not found on 2026-10-25. Docker Hub lists 0.40.0 as the newest available image, and the Helm index still selects chart 2.20.0. Retain that available controller with its verified digest. Do not promote an unpublished image. Linkerd's Prometheus and extension-init remain aligned with its current chart, rather than independently crossing component major versions.
 
 All 18 Grafana dashboard revisions were checked. Retain Deployment dashboard 15475 at revision 6 from the pinned Linkerd suite. Revision 7 changes datasource strings to UID objects and a datasource variable, so it needs a separate provisioning change before use with the current string substitution. The other 17 revisions remain current. Staging already selects the latest published GitOps preview tag. Production remains disabled with its final-tag placeholder because no final release has been published.
 
@@ -71,7 +86,7 @@ Each branch then orders its own dependencies:
 
 In staging, Nexus waits for PostgreSQL and application Secrets. Sample follows Nexus because it calls it. Viz creates the namespace needed by Grafana's Prometheus authorization. MongoDB's credential hook must finish before Graylog starts.
 
-Branches inherit the root's SHA, environment, release tag and production opt-in. They use the administrator-only bootstrap project, with automatic pruning and self-healing disabled. Traefik or logging failures do not stop other branches, but every child must succeed for root completion. On updates, children can auto-sync independently. Root waves are not transactions.
+Branches inherit the root's SHA, environment, release tag and production opt-in. They use the administrator-only bootstrap project, with automatic pruning disabled. Self-healing is disabled by default; the retained profile enables it for branches and Sample/Nexus so staged recovery can resume reconciliation. Traefik or logging failures do not stop other branches, but every child must succeed for root completion. On updates, children can auto-sync independently. Root waves are not transactions.
 
 Use descriptive template directories without numeric prefixes. Set sync waves from `10`, increasing by `10` for dependent groups. Independent Applications share a wave. Missing annotations default to `0`. Keep `validate.yaml` identical in all four charts.
 
@@ -86,7 +101,7 @@ Both Argo CD values files use the same health gate:
 | Queued/running operation, stale comparison, dry run, manual selective sync, apply strategy or nonempty local manifests | Blocks later waves |
 | Automatic selective self-heal | Requires positive `autoHealAttemptsCount` and matching automated deployment history for every source and revision |
 
-In Argo CD `v3.5.5`, [history records successful unfiltered syncs](https://github.com/argoproj/argo-cd/blob/v3.5.5/controller/sync.go#L408). [Automatic operations](https://github.com/argoproj/argo-cd/blob/v3.5.5/controller/appcontroller.go#L2465) use repository manifests and hooks. [`ApplyOutOfSyncOnly` retains hooks](https://github.com/argoproj/argo-cd/blob/v3.5.5/gitops-engine/pkg/sync/sync_context.go#L761). Manual history cannot prove hooks ran because it omits strategy and local-manifest inputs. History proves completion, not continued availability of a hook's effects.
+In Argo CD `v3.5.6`, [history records successful unfiltered syncs](https://github.com/argoproj/argo-cd/blob/v3.5.6/controller/sync.go#L408). [Automatic operations](https://github.com/argoproj/argo-cd/blob/v3.5.6/controller/appcontroller.go#L2465) use repository manifests and hooks. [`ApplyOutOfSyncOnly` retains hooks](https://github.com/argoproj/argo-cd/blob/v3.5.6/gitops-engine/pkg/sync/sync_context.go#L761). The upstream v3.5.5 to v3.5.6 comparison changes none of these three source files. Manual history cannot prove hooks ran because it omits strategy and local-manifest inputs. History proves completion, not continued availability of a hook's effects.
 
 Run a full child sync when automated history is missing, a previous operation failed, or a new revision renders unchanged resources. For example: `argocd app sync drn-monitoring`. A successful full sync passes directly. Later self-heals still need matching automated history. Retry the root only after its previous operation has stopped.
 
@@ -95,7 +110,7 @@ The gate normalizes omitted optional `ignoreDifferences` fields. Real rule chang
 Gate changes belong to the Argo CD installation. In the intended context, preserve installation-specific values and run:
 
 ```sh
-helm upgrade argocd argo/argo-cd --version 10.10.5 \
+helm upgrade argocd argo/argo-cd --version 10.11.1 \
   -n argocd -f infrastructure/argocd/custom-values.yaml \
   --wait --timeout 10m
 argocd app get drn-project --hard-refresh
@@ -127,7 +142,7 @@ The [application](../infrastructure/application-secrets/staging/credential-boots
 | Audit | Runtime NuGet audit disabled, [CI dependency audit](../tests/ApplicationSecretBootstrap.Tests/README.md) enabled |
 | API access | Mounted CA and hostname verification, per-request token reads, sanitized errors |
 
-The MCR index digest `sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa` was verified on 2026-10-18. It includes Linux amd64, arm/v7 and arm64. This Noble pin replaces Alpine without changing the SDK version.
+The MCR index digest `sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2` was verified on 2026-10-25. It includes Linux amd64, arm/v7 and arm64. This refresh retains the Noble distribution and SDK version.
 
 The init container creates both directories below with mode `0700` before SDK startup. The image's home is read-only. `DOTNET_CLI_HOME` does not configure either location.
 
@@ -243,13 +258,45 @@ Before replacing `emptyDir` with a PVC, preserve required files and plan restora
 
 `Prune=false,Delete=false` retains claims after manifest or Application removal, which can leave Argo CD OutOfSync. It does not protect against direct PVC or namespace deletion. Back up data and check the StorageClass reclaim policy before retirement. See [Argo CD retention](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/) and [Kubernetes volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/).
 
+### Retained storage
+
+Select `infrastructureProfile=retained`, a nonempty `retainedStorageClass` and `activationStage` on the staging root. The root passes these values and its resolved Git SHA to every branch. Empty values preserve existing deployment defaults. Production rejects this profile. The manifests contain no provider-specific storage drivers or volume identifiers.
+
+The recovery coordinator advances three stages: `prepare` installs controllers, trust and isolation policies; `data` starts databases, Graylog and monitoring, validates credential Jobs and reserves Sample/Nexus storage with both Deployments at zero replicas; `workloads` starts Sample and Nexus. Logging and monitoring keep their `data` source parameters during workload activation to preserve sync-health evidence. These are activation stages, not shutdown commands: branches retain existing Applications when a stage omits them. The coordinator must stop reconciliation and application writers before backup, pause or restoration. Do not switch stages by hand on a running installation.
+
+The root omits `drn-monitoring` during `prepare` because its chart has no resources in that stage. This avoids waiting for a completed sync operation that an already-Synced empty application will not start automatically. The branch is created during `data`.
+
+The profile sets all seven persistent claims to the supplied class, including claims created by CloudNativePG, MongoDB and the Graylog chart. The infrastructure owner must provision a non-provisioning StorageClass and static volumes with `Retain` and exact claim reservations. Missing volumes must leave claims Pending instead of provisioning empty replacements. Helm validates the class name, not the live class or volumes. Existing claim names, requested sizes and Application ownership stay unchanged.
+
+[Pulumi Ops](https://github.com/duranserkan/DRN-Project-Pulumi-Ops) implements this contract on OCI and supplies `retainedStorageClass=drn-retained`. Another infrastructure implementation must meet the same storage, identity and recovery requirements. Publish and select a matching GitOps release when updating the caller from the former `oci-retained` profile. The old profile name is rejected rather than silently selecting default behavior.
+
+| Namespace | Claim | Data |
+|---|---|---|
+| `drn-project` | `sample-data` | Sample appdata |
+| `drn-project` | `nexus-data` | Nexus appdata |
+| `drn-project` | `postgresql-1` | PostgreSQL |
+| `graylog` | `data-volume-mongodb-0` | MongoDB data |
+| `graylog` | `logs-volume-mongodb-0` | MongoDB logs |
+| `graylog` | `graylog-data-graylog-0` | Graylog journal and node state |
+| `graylog` | `data-graylog-datanode-0` | Data Node indexes |
+
+Graylog claim names follow the pinned [2.1.0 chart templates](https://github.com/Graylog2/graylog-helm/tree/graylog-2.1.0/charts/graylog/templates/workload/statefulsets). Grafana and Linkerd Viz remain ephemeral. The retained profile uses `ClusterIP` for Traefik. Use workstation port-forwarding until a separate ingress design is accepted. This profile does not create a cloud load balancer.
+
+Both credential Jobs receive `CREDENTIALS_EXTERNALLY_MANAGED=true`. They validate stable Secrets and immutable version-1 initialization markers using reads only. Missing or invalid inputs fail the hook; the application generation override cannot bypass this mode. The Graylog Job waits for the MongoDB operator to derive `mongodb-graylog-graylog` under the new Cluster owner, then requires its URI to match the saved Graylog identity. Do not restore that derived Secret with a stale owner reference.
+
+Before consumers start, the recovery coordinator must save and restore twelve stable Secrets: `nexus-settings`, `sample-settings`, `postgresql-app` and `postgresql-ca` in `drn-project`; `mongo-graylog-password`, `graylog-scram-scram-credentials`, `mongodb-agent-password`, `mongodb-keyfile`, `graylog-admin-password` and `graylog-credentials` in `graylog`; `cert-manager/linkerd-identity-trust-roots`; and `kube-system/sealed-secrets-key`. The two bootstrap initialization ConfigMaps are checkpointed with them. CNPG uses the supplied application Secret and CA, while renewing its server and replication certificates. The retained profile omits the self-generating root Certificate; renewable Linkerd and database leaf certificates use the saved shared root. Sealed Secrets automatic key renewal is disabled for this profile. Root rotation requires a coordinated new checkpoint and recovery validation.
+
+Native backup inputs complement the offline volume set: the single PostgreSQL `drnDb` dump, the Graylog MongoDB database archive, and an OpenSearch snapshot under `/var/lib/graylog-datanode/drn-backups` on the retained Data Node volume. The pinned MongoDB ARM64 image includes Database Tools 100.18.0. Data Node explicitly uses the hot-node roles, and an unprivileged init container creates its snapshot directory. The recovery coordinator owns backup completeness, encrypted checkpoint storage, shared coordination, restoration of CNPG instance/PVC metadata and the ordered native restore. Follow [the recovery checklist](../todo.md#retained-data-recovery) for runtime acceptance. Never disable the profile to generate credentials for retained data.
+
+The profile is for new claims or a reviewed restoration. Kubernetes does not permit changing a bound claim's StorageClass. Migrating an existing installation requires verified backups and a deliberate volume migration. Claim names and operator replica counts are part of the storage contract. Do not add replicas or rename claims without provisioning and reserving the corresponding durable volumes first.
+
 ## PostgreSQL
 
-The image is `ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:c7747d8d1049fff9cf30d9cd83d14d609c957afb5ffbcd114145f393ea1850e1`. The registry manifest was verified on 2026-10-17. This refresh preserves PostgreSQL major 18 and the Trixie distribution. Runtime compatibility remains unverified.
+The image is `ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:d72ace96f5803b12c341bb5dac48532e8c1f92f69e8a717a59d779bfc038dea9`. The registry manifest was verified on 2026-10-25. This refresh preserves PostgreSQL major 18 and the Trixie distribution. Runtime compatibility remains unverified.
 
 Fresh clusters initialize PostgreSQL 18.6 on Debian Trixie. The former PostgreSQL 16 pin used Bookworm. Do not directly sync this pin to that existing cluster: CloudNativePG 1.30 in-place major upgrades require the same OS distribution. Plan and rehearse a migration to a new cluster, such as logical dump/restore, with a verified backup, application and extension compatibility checks, locale/collation validation and scheduled downtime. Take a new backup after success. Reverting an image tag after a successful major upgrade is not a database downgrade. See [CloudNativePG 1.30 major upgrades](https://cloudnative-pg.io/docs/1.30/postgres_upgrades/). No cluster upgrade was executed as part of this pin change.
 
-The standard image includes extensions, locales and LLVM JIT, but omits the Barman Cloud binaries bundled in system images. Use a backup plugin when adding Barman Cloud backups. This cluster currently configures no backups. See the [publisher's image types](https://github.com/cloudnative-pg/postgres-containers#image-types).
+The standard image includes extensions, locales and LLVM JIT, but omits the Barman Cloud binaries bundled in system images. Use a backup plugin when adding Barman Cloud backups. The default profile has no backup configuration; retained recovery requires externally coordinated native logical dumps and stopped volume backups. See the [publisher's image types](https://github.com/cloudnative-pg/postgres-containers#image-types).
 
 Staging gets a CloudNativePG Cluster named `postgresql` in `drn-project`. It uses a single instance, an `8Gi` volume from the default StorageClass, database `drnDb`, owner `drn`, and primary service `postgresql-rw:5432`. Set a storage class explicitly if the cluster lacks a suitable default.
 
@@ -257,7 +304,7 @@ Staging mounts CloudNativePG's generated password file and public CA directly. C
 
 The database and operator are unmeshed. PostgreSQL rejects non-TLS network connections and disables superuser network access. Server-enforced TLS alone does not establish server certificate verification. Staging and production connections must explicitly verify the endpoint and trust its CA.
 
-The single instance disables its PodDisruptionBudget, permits maintenance downtime and has no configured backups. PostgreSQL automatic pruning is disabled, and its Cluster has `Prune=false,Delete=false`. Retention is not a backup. Configure and verify recovery before relying on stored data. Production has no bundled database Cluster and requires separate provisioning and migration.
+The single instance disables its PodDisruptionBudget and permits maintenance downtime. The default profile has no configured backups; the retained profile requires the external backup protocol described above. PostgreSQL automatic pruning is disabled, and its Cluster has `Prune=false,Delete=false`. Retention is not a backup. Verify recovery before relying on stored data. Production has no bundled database Cluster and requires separate provisioning and migration.
 
 ## Graylog
 
@@ -277,7 +324,7 @@ The chart inherits `graylog.config.selfSignedStartup: "true"`. Data Node automat
 
 ### Capacity and upgrades
 
-Graylog and Data Node now select 7.2.0 together. Before syncing an existing 7.1 installation, verify backups of MongoDB, Data Node data and credential Secrets, then schedule a coordinated upgrade with service interruption. Follow the [7.2 upgrade procedure](https://go2docs.graylog.org/current/upgrading_graylog/upgrade_to_graylog_7.2.htm). The [compatibility matrix](https://go2docs.graylog.org/current/downloading_and_installing_graylog/compatibility_matrix.htm) includes MongoDB 8.2. Version 7.2 enables stream-aware field types by default and reports container-aware resource metrics. Check search performance and monitoring after rollout. Existing GELF inputs and the chart's self-signed startup settings are retained. A tag rollback does not replace a data recovery plan.
+Graylog and Data Node now select 7.2.1 together. Before syncing an existing 7.1 installation, verify backups of MongoDB, Data Node data and credential Secrets, then schedule a coordinated upgrade with service interruption. Follow the [7.2 upgrade procedure](https://go2docs.graylog.org/current/upgrading_graylog/upgrade_to_graylog_7.2.htm). The [compatibility matrix](https://go2docs.graylog.org/current/downloading_and_installing_graylog/compatibility_matrix.htm) includes MongoDB 8.2. Version 7.2 enables stream-aware field types by default and reports container-aware resource metrics. Check search performance and monitoring after rollout. Existing GELF inputs and the chart's self-signed startup settings are retained. A tag rollback does not replace a data recovery plan.
 
 | Component | Storage | Memory request |
 |---|---|---|
