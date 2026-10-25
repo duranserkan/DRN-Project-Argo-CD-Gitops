@@ -9,6 +9,7 @@ runs:
       run: |
         mkdir -p "$RUNNER_TEMP/chart-helm"
         curl --fail --silent --show-error --location --retry 3 \
+          --proto '=https' --proto-redir '=https' \
           https://get.helm.sh/helm-v4.2.1-linux-amd64.tar.gz \
           --output "$RUNNER_TEMP/chart-helm/helm.tar.gz"
         cd "$RUNNER_TEMP/chart-helm"
