@@ -164,6 +164,22 @@ public class PinUpdaterTests
     }
 
     [Fact]
+    public void PinWithTrailingNewlineIsRejectedWithoutChangingTheManifest()
+    {
+        using var fixture = new Fixture();
+        fixture.Write("manifest.yaml", "image: original\n");
+        fixture.Write("dependencies.json", JsonSerializer.Serialize(new Inventory(2,
+            [new Component("fixture", "provenance.md",
+                new Dictionary<string, string> { ["image"] = "registry/app:new\n" },
+                [new Manifest("manifest.yaml", ["image: {image}"])])])));
+
+        var error = Assert.Throws<InvalidDataException>(() => PinUpdater.Plan(fixture.Root));
+
+        Assert.Contains("Invalid scalar pin", error.Message);
+        Assert.Equal("image: original\n", fixture.Read("manifest.yaml"));
+    }
+
+    [Fact]
     public void SymbolicLinkTargetsAreRejectedWithoutChangingTheDestination()
     {
         using var fixture = new Fixture();

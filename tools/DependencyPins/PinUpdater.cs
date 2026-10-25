@@ -39,7 +39,7 @@ public static class PinUpdater
             Require(!string.IsNullOrWhiteSpace(component.Provenance), $"Missing provenance for {component.Name}");
             Require(File.Exists(Resolve(root, component.Provenance.Split('#')[0])), $"Missing provenance file for {component.Name}");
             foreach (var value in component.Pins.Values)
-                Require(!string.IsNullOrEmpty(value) && Regex.IsMatch(value, @"^[A-Za-z0-9][A-Za-z0-9./:@+_-]*$", RegexOptions.None, Timeout),
+                Require(!string.IsNullOrEmpty(value) && Regex.IsMatch(value, @"^[A-Za-z0-9][A-Za-z0-9./:@+_-]*\z", RegexOptions.None, Timeout),
                     $"Invalid scalar pin in {component.Name}. Only version, image and digest tokens are supported.");
             var used = new HashSet<string>(StringComparer.Ordinal);
             foreach (var manifest in component.Manifests)
