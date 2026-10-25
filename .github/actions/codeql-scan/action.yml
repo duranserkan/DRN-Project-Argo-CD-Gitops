@@ -1,15 +1,62 @@
-name: CodeQL Scan
-description: Analyze GitHub Actions workflows without application builds.
+name: Scan with CodeQL
+description: Analyze Actions or C#, including both deployed bootstrap entry points.
+inputs:
+  language:
+    description: CodeQL language selected by the workflow matrix.
+    required: true
+  build-mode:
+    description: Use manual for C# and none for Actions.
+    required: true
 runs:
   using: composite
   steps:
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+    - name: Setup .NET
+      if: inputs.language == 'csharp'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
-        tools: linked # CodeQL 2.27.2, bound to the action commit.
-        languages: actions
+        global-json-file: global.json
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
       with:
-        category: /language:actions
+        tools: linked
+        languages: ${{ inputs.language }}
+        build-mode: ${{ inputs.build-mode }}
+
+    - name: Restore dependencies for C# analysis
+      if: inputs.language == 'csharp'
+      shell: bash
+      run: >-
+        dotnet restore tests/Bootstrap.slnx --configfile tests/NuGet.Config -p:Configuration=Release
+        -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
+
+    # The source library excludes Main. Extract the deployed entry points too.
+    - name: Build application deployment source for C# analysis
+      if: inputs.language == 'csharp'
+      shell: bash
+      run: >-
+        dotnet build infrastructure/application-secrets/staging/bootstrap.cs
+        --no-incremental --configuration Release --disable-build-servers
+        -p:PublishAot=false -p:NuGetAudit=false -p:UseSharedCompilation=false
+        -p:RestoreConfigFile="$GITHUB_WORKSPACE/infrastructure/application-secrets/staging/NuGet.Config"
+
+    - name: Build Graylog deployment source for C# analysis
+      if: inputs.language == 'csharp'
+      shell: bash
+      run: >-
+        dotnet build infrastructure/graylog/mongodb/bootstrap.cs
+        --no-incremental --configuration Release --disable-build-servers
+        -p:PublishAot=false -p:NuGetAudit=false -p:UseSharedCompilation=false
+        -p:RestoreConfigFile="$GITHUB_WORKSPACE/infrastructure/graylog/mongodb/NuGet.Config"
+
+    - name: Build for C# analysis
+      if: inputs.language == 'csharp'
+      shell: bash
+      run: >-
+        dotnet build tests/Bootstrap.slnx --no-restore --no-incremental --configuration Release
+        --disable-build-servers -p:UseSharedCompilation=false -p:ContinuousIntegrationBuild=true
+
+    - name: Analyze
+      uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      with:
+        category: /language:${{ inputs.language }}
