@@ -301,4 +301,15 @@ Open [GitOps.slnx](GitOps.slnx) to navigate source projects under `Src` and test
 
 The [develop](.github/workflows/develop.yml), [master](.github/workflows/master.yml) and [pull-request](.github/workflows/pull-request.yml) workflows each require their selected jobs through a gatekeeper. Composite actions share bootstrap validation, CodeQL and Trivy steps. CodeQL includes both deployed bootstrap entry points. SonarCloud runs only on master pushes and its weekly schedule. PR jobs pass no repository secrets and reject dependency changes with high or critical vulnerabilities. CI creates no tags and deploys no clusters. Before tagging, verify the commit passed CI and belongs to the required release branch.
 
-See [chart contracts](tests/ChartValidation.Tests/README.md) for validation-file equality and rendering checks, and [bootstrap test and CI configuration](tests/ApplicationSecretBootstrap.Tests/README.md) for coverage, SonarCloud and required checks. Remaining work is tracked in [TODO](todo.md).
+### Updating dependencies and validating changes
+
+| Task | Guide |
+|---|---|
+| Update dependency pins and verify provenance | [Dependency update procedure](docs/platform-operations.md#updating-dependency-pins) and [.NET updater](tools/DependencyPins/README.md) |
+| Check generated pins and inventory coverage | [Dependency tests and local commands](tests/DependencyPins.Tests/README.md#ci-and-local-execution) |
+| Validate manifest inputs and local chart rendering | [Chart contracts and Helm requirements](tests/ChartValidation.Tests/README.md#ci-and-local-execution) |
+| Test credential bootstraps and collect coverage | [Bootstrap tests](tests/ApplicationSecretBootstrap.Tests/README.md#verification) and [CI configuration](tests/ApplicationSecretBootstrap.Tests/README.md#ci-configuration) |
+
+Keep affected contract and regression tests current in the same change as the implementation. Verify intended behavior before changing assertions, extend discovery when adding dependency representations, and record actual test results. The [maintenance guide](.agent/repository-profile.md#keeping-tests-up-to-date) maps changes to their owning suites. Agents must follow [execution permissions](AGENTS.md#startup) before running local commands.
+
+Pin consistency does not prove registry provenance. Local chart tests do not apply Kustomize patches, render referenced upstream charts or establish live recovery readiness. Track those acceptance checks separately in [TODO](todo.md).

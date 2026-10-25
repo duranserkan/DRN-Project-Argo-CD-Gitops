@@ -1,7 +1,7 @@
 ---
 name: test-unit
 description: Use when adding or reviewing fast isolated tests for pure logic, deterministic branches, service wiring, validation, or regression coverage without external infrastructure.
-last-updated: 2026-07-29
+last-updated: 2026-10-25
 difficulty: basic
 tokens: ~0.7K
 ---
@@ -50,6 +50,14 @@ Use MC/DC for AND/OR logic whose conditions must independently affect the result
 ## Service Validation
 
 Use the repository's DI container and service validation helpers if they exist. Keep service-validation tests narrow: prove the graph composes and important scoped/singleton rules hold; do not turn them into broad behavior tests.
+
+## Keeping Tests Current
+
+- Map each changed behavior to its owning suite using the profile. Update the existing cases in the same change, adding regressions for demonstrated failures rather than duplicating implementation details.
+- For contract changes, establish the intended behavior from source-owned requirements and upstream schemas before changing expectations. A failure may expose an implementation bug or an overly strict test. Do not weaken a safety invariant merely to make the suite pass.
+- Preserve independent expectations. Generated-consumer checks should detect missing or extra locations, not only compare entries supplied by the generator's inventory.
+- For text-processing contracts, distinguish invalid token contents from valid file formatting. Cover relevant line endings, end-of-input boundaries and preservation of surrounding content. Restrict manifest assertions to the intended resource and field so unrelated text cannot satisfy them.
+- Keep suite documentation and CI commands aligned when tests move or coverage changes. Record the tested revision and actual outcomes. If execution is not authorized, report static inspection without claiming passing tests.
 
 ## Verification
 

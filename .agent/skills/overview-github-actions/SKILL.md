@@ -1,7 +1,7 @@
 ---
 name: overview-github-actions
 description: Use when reviewing or modifying GitHub Actions workflows, composite actions, CI gates, release pipelines, Docker publishing, package publishing, or security scanning.
-last-updated: 2026-08-27
+last-updated: 2026-10-25
 difficulty: intermediate
 tokens: ~1.4K
 ---
@@ -72,6 +72,14 @@ When Docker publishing is in scope, verify:
 - Scanner inputs identify the exact image under review, preferably by repository plus staged digest, not runner-local defaults.
 - CVE severity filters are explicit; include `unspecified` only when unknown-severity findings are intentionally release-blocking.
 - Preview metadata must not overwrite stable tags such as `latest` or `major.minor`; derive Docker tags from the already-extracted release version.
+
+## Dependency Updates And Manifest Validation
+
+1. Read the profile's dependency ownership and compatibility rules. Update the authoritative inventory or package manifest, then use its existing generator for mapped consumers when execution is authorized. Do not create a second version catalog in skills.
+2. Verify changed artifacts against canonical registry or repository metadata. Inventory agreement proves consistency, not provenance or runtime compatibility.
+3. Review generated diffs for unrelated configuration changes. Refresh provenance notes and affected contract tests with the same change. Extend independent discovery when introducing a new pin representation or consumer.
+4. Use the profile's separate checks for generated-file drift, manifest rendering and workload behavior. Root-chart rendering does not necessarily render referenced upstream charts or apply embedded overlay patches. State these coverage limits.
+5. Keep required CI gates wired to the owning suites. Read exact restore, build and test options from the current actions or scripts. Run only within the authorized scope and report actual results separately from implemented coverage.
 
 ## Required Secrets
 

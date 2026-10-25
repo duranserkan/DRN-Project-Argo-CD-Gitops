@@ -111,6 +111,46 @@ Keep separate develop, master and pull-request workflows with explicit permissio
 
 Calendar-shaped preview tags route to develop's Trivy workflow, and final tags to master's. Filters do not enforce ancestry. Verify each release commit belongs to the required branch before tagging. Preserve full SHA-pinned third-party actions and verify provenance before version updates. CI does not publish releases.
 
+## Dependency and test maintenance
+
+Use `overview-github-actions` for dependency/manifest changes and `test-unit` for regression maintenance. Apply `drn-testing` when changing test attributes or fixtures. The procedures below document available commands, not permission to execute them.
+
+### Updating dependencies
+
+1. Read the [dependency update procedure](../docs/platform-operations.md#updating-dependency-pins) and the component's compatibility constraints. Verify candidate chart archives, image digests, package hashes or Action tag-to-commit mappings with their canonical publishers.
+2. For mapped deployment dependencies, edit `dependencies.json`, then run `dotnet run --project tools/DependencyPins -- update` when authorized. Review every generated consumer change. Repeated scalar keys need contextual selectors with exactly one value capture. Add new consumers to the inventory and extend discovery for new representations.
+3. NuGet versions remain in project files, bootstrap `#:package` directives and the tool manifest. GitHub Action SHAs remain in workflows/composite actions. Update all affected consumers of those separately owned pins. SDK selection comes from `global.json`. Do not assume the deployment updater covers them.
+4. Refresh the owning provenance and compatibility documentation. When Argo CD changes, verify its bundled Helm version and the official archive checksum, then update the inventory pins consumed by `.github/actions/chart-validate/action.yml`.
+5. Check generated pins and run the affected suites within the authorized scope. Inventory and generated consumers belong in the same reviewed change. Commit only with authorization. Staging runtime acceptance remains separate from CI.
+
+### Validating manifests and tests
+
+Run these commands from the repository root only when execution is explicitly authorized. `dotnet run` may restore and build. Helm must be installed at the version pinned by the chart-validation action before running chart tests. For CI-equivalent audited restore/build flags, follow [.github/actions/chart-validate/action.yml](../.github/actions/chart-validate/action.yml) and [.github/actions/dotnet-validate/action.yml](../.github/actions/dotnet-validate/action.yml). Use `--no-build` only after building the current sources in the same configuration.
+
+| Check | Command | What it proves |
+|---|---|---|
+| Generated pin consistency | `dotnet run --project tools/DependencyPins -- check` | Mapped consumers match the inventory without rewriting them. |
+| Inventory and updater contracts | `dotnet run --project tests/DependencyPins.Tests/DependencyPins.Tests.csproj --configuration Release` | Independent discovery covers supported pin locations; updater fixtures enforce validation and preservation. No Helm required. |
+| Manifest rendering contracts | `dotnet run --project tests/ChartValidation.Tests/ChartValidation.Tests.csproj --configuration Release` | All four local charts validate inputs, render expected Applications and retain identical validation files. |
+| Credential bootstrap behavior | `dotnet run --project tests/ApplicationSecretBootstrap.Tests/ApplicationSecretBootstrap.Tests.csproj --configuration Release` | Deployed lifecycle logic behaves correctly against fake Kubernetes HTTP responses. |
+
+Building `GitOps.slnx` does not run these suites. The `charts` CI job runs dependency and chart tests independently. Bootstrap validation belongs to the `dotnet` job. Both are required by branch and PR gatekeepers.
+
+Chart contracts do not apply Kustomize patches, render referenced upstream charts, validate Kubernetes schemas or prove live storage, TLS and recovery behavior. If a change needs those checks, identify the affected Application source, upstream chart/version and overlay from the manifests. Perform additional rendering or environment acceptance only with explicit authorization and report it separately.
+
+### Keeping tests up to date
+
+| Changed contract | Update alongside the source |
+|---|---|
+| Pin location, scalar representation or inventory schema | `DependencyInventoryTests.cs` discovery/coverage cases and inventory mappings. Keep discovery independent of inventory enumeration. |
+| Updater validation or replacement behavior | `PinUpdaterTests.cs` temporary fixtures. Include relevant invalid tokens, LF/CRLF, end-of-input, exact preservation, idempotence and failure-before-write cases. |
+| Helm input validation | Canonical `deployment/templates/validate.yaml`, all three branch copies and `ChartTests.ConfigurationCases`. Preserve positive and negative boundary cases. |
+| Application propagation, storage or activation stages | Resource-specific assertions in `ChartTests.cs`, covering default and affected retained/production combinations. Do not substitute whole-output text matches for target-specific checks. |
+| Credential lifecycle or API behavior | The owning bootstrap suite, including read-only external mode, lost credentials, marker validation and sanitized failures where affected. |
+| Test project, command or tool changes | `GitOps.slnx`, owning CI actions/gatekeepers, test README and this profile. |
+
+Investigate failures before changing expected output. Preserve the deployment invariant when fixing test formatting assumptions. Add a regression that distinguishes the old failure from the intended behavior. Re-run affected suites after their source or fixtures change when authorized. Record the revision, commands, results and remaining coverage limits. A checked-in test or documentation entry is not evidence of a passing run. With static-only permission, inspect the diff and run `git diff --check`, then explicitly record execution as not run.
+
 ## Documentation and release notes
 
 Use .NET/C# for repository test tooling and automation implementations, following the credential bootstrap conventions. Do not introduce Python test runners or helper scripts. Declarative workflow configuration and short native CLI setup steps remain in composite actions.

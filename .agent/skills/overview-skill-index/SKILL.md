@@ -1,7 +1,7 @@
 ---
 name: overview-skill-index
 description: Use when choosing which repository skills to load for a task, mapping work to skill families, finding related skills, or updating skill routing after skills change.
-last-updated: 2026-10-14
+last-updated: 2026-10-25
 difficulty: basic
 tokens: ~2K
 ---
@@ -29,6 +29,8 @@ tokens: ~2K
 | Navigate repository | `overview-repository-structure` |
 | Review architecture | `overview-ddd-architecture` when DDD applies |
 | Modify CI/CD | `overview-github-actions` -> `basic-security-checklist` |
+| Update dependencies or validate deployment manifests | repository dependency/testing profile -> `overview-github-actions` -> `basic-security-checklist` |
+| Keep contract and regression tests current | repository testing profile -> `test-unit`; use the declared rendering or integration suite where isolated tests cannot prove the contract |
 | Add unit tests | repository testing profile -> `test-unit` |
 | Add integration tests | repository testing profile -> `test-integration` plus `test-integration-api` or `test-integration-db` |
 | Run benchmarks | `test-performance` |

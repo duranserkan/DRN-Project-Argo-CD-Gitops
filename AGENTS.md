@@ -46,6 +46,7 @@ Use the profile first. If it is missing or silent, discover by convention:
 | Integration tests | Run only after unit tests pass and only with explicit permission. |
 | Frontend root | Find `package.json`; prefer roots with `vite.config.*`, `buildwww/`, `src/`, or build scripts. |
 | Package versions | Treat lockfiles and manifest files as source of truth; do not duplicate pinned versions in skills. |
+| Dependency updates and manifest validation | Follow the profile's dependency owners, regeneration procedure and contract-test commands. Distinguish pin consistency, rendering, schema validation and runtime acceptance. |
 | Documentation | Discover module READMEs, release notes, docs folders, or profile-declared modules. |
 | Release notes | Prefer profile/package metadata; update only affected modules for consumer-visible behavior, breaking changes, security fixes, operational defaults, or published package metadata changes other than version-only alignment. |
 | Release rules | Prefer profile and CI workflows; otherwise infer from tags, changelog, and package metadata. |
@@ -74,6 +75,7 @@ Use the profile first. If it is missing or silent, discover by convention:
 - Design and optimize for pit of success
 - Comment only to explain non-obvious intent.
 - Update docs and skills when code or convention changes would otherwise create drift.
+- Keep tests current with the behavior they protect. Update affected contracts and regression cases alongside source changes. Verify expected results independently before changing assertions, and record checks run or skipped.
 - Do not stage changes, commit, or amend commits unless the user explicitly authorizes the action. Keep changes unstaged for review by default. Preserve any pre-existing staged changes.
 - Decide release-note impact before finishing source, packaging, or published-doc changes; record "not required" when no trigger applies.
 - Keep release notes focused on consumer impact. Omit documentation-only edits, internal refactors, and duplicate entries. Follow profile-specific release rules.
