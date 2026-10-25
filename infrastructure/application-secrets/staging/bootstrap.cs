@@ -170,8 +170,7 @@ static class Bootstrap
             if (name == NexusApplication)
             {
                 // A competing Nexus creator wins. Check survivors before copying its stored credentials.
-                foreach (var survivor in existing.Where(pair => pair.Value is not null))
-                    ValidateSharedKey(settings, Settings(survivor.Value, survivor.Key + SettingsSuffix));
+                ValidateSurvivorKeys(settings, existing);
                 shared = settings;
             }
             ValidateSharedKey(shared, settings);
@@ -182,7 +181,7 @@ static class Bootstrap
         bool requireExisting = false)
     {
         var path = $"/api/v1/namespaces/{namespaceName}/configmaps";
-        if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is not null)
+        if (await RequestMarkerAsync(client, readToken, namespaceName, HttpMethod.Get, $"{path}/{InitializationMarker}") is not null)
             return false;
         if (requireExisting)
             throw new BootstrapException("Externally managed credentials require the existing initialization marker. Restore bootstrap state before syncing.");
@@ -196,43 +195,51 @@ static class Bootstrap
             Data = new Dictionary<string, string?> { ["version"] = "1" }
         };
         // A conflict is not ownership. Never turn an uncertain POST result into generation permission.
-        if (await RequestMarkerAsync(HttpMethod.Post, path, marker) is not null)
+        if (await RequestMarkerAsync(client, readToken, namespaceName, HttpMethod.Post, path, marker) is not null)
             return true;
-        if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is null)
+        if (await RequestMarkerAsync(client, readToken, namespaceName, HttpMethod.Get, $"{path}/{InitializationMarker}") is null)
             throw new BootstrapException("Initialization marker disappeared after a create conflict. Restore bootstrap state before retrying.");
         return false;
+    }
 
-        async Task<BootstrapInitializationMarker?> RequestMarkerAsync(
-            HttpMethod method, string requestPath, BootstrapInitializationMarker? body = null)
+    private static async Task<BootstrapInitializationMarker?> RequestMarkerAsync(
+        HttpClient client, Func<string> readToken, string namespaceName,
+        HttpMethod method, string requestPath, BootstrapInitializationMarker? body = null)
+    {
+        using var request = new HttpRequestMessage(method, requestPath);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", readToken());
+        if (body is not null)
+            request.Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
+        using var response = await client.SendAsync(request);
+        if (method == HttpMethod.Get && response.StatusCode == HttpStatusCode.NotFound ||
+            method == HttpMethod.Post && response.StatusCode == HttpStatusCode.Conflict)
+            return null;
+        var expectedStatus = method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.OK;
+        if (response.StatusCode != expectedStatus)
+            throw new BootstrapException($"Initialization marker API {method} failed with HTTP {(int)response.StatusCode}.");
+
+        BootstrapInitializationMarker? stored;
+        try
         {
-            using var request = new HttpRequestMessage(method, requestPath);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", readToken());
-            if (body is not null)
-                request.Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
-            using var response = await client.SendAsync(request);
-            if (method == HttpMethod.Get && response.StatusCode == HttpStatusCode.NotFound ||
-                method == HttpMethod.Post && response.StatusCode == HttpStatusCode.Conflict)
-                return null;
-            var expectedStatus = method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.OK;
-            if (response.StatusCode != expectedStatus)
-                throw new BootstrapException($"Initialization marker API {method} failed with HTTP {(int)response.StatusCode}.");
-
-            BootstrapInitializationMarker? stored;
-            try
-            {
-                stored = JsonSerializer.Deserialize<BootstrapInitializationMarker>(await response.Content.ReadAsStringAsync(), JsonOptions);
-            }
-            catch (JsonException)
-            {
-                throw new BootstrapException("Initialization marker API returned invalid JSON.");
-            }
-            if (stored?.ApiVersion != "v1" || stored.Kind != "ConfigMap" ||
-                stored.Metadata?.Name != InitializationMarker || stored.Metadata.Namespace != namespaceName ||
-                stored.Immutable != true || stored.Data is not { Count: 1 } ||
-                !stored.Data.TryGetValue("version", out var version) || version != "1")
-                throw new BootstrapException("Initialization marker is invalid. Restore bootstrap state before retrying.");
-            return stored;
+            stored = JsonSerializer.Deserialize<BootstrapInitializationMarker>(await response.Content.ReadAsStringAsync(), JsonOptions);
         }
+        catch (JsonException)
+        {
+            throw new BootstrapException("Initialization marker API returned invalid JSON.");
+        }
+        if (stored?.ApiVersion != "v1" || stored.Kind != "ConfigMap" ||
+            stored.Metadata?.Name != InitializationMarker || stored.Metadata.Namespace != namespaceName ||
+            stored.Immutable != true || stored.Data is not { Count: 1 } ||
+            !stored.Data.TryGetValue("version", out var version) || version != "1")
+            throw new BootstrapException("Initialization marker is invalid. Restore bootstrap state before retrying.");
+        return stored;
+    }
+
+    private static void ValidateSurvivorKeys(Dictionary<string, string> expected,
+        IReadOnlyDictionary<string, BootstrapSecret?> existing)
+    {
+        foreach (var survivor in existing.Where(pair => pair.Value is not null))
+            ValidateSharedKey(expected, Settings(survivor.Value, survivor.Key + SettingsSuffix));
     }
 
     private static void ValidateSharedKey(Dictionary<string, string> expected, Dictionary<string, string> actual)

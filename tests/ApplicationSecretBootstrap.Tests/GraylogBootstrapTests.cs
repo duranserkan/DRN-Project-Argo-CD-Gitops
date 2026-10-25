@@ -651,6 +651,8 @@ public class GraylogBootstrapTests
 
     private sealed class Api : HttpMessageHandler
     {
+        private static readonly string[] MarkerPropertyNames = ["apiVersion", "kind", "metadata", "immutable", "data"];
+        private static readonly string[] MarkerMetadataPropertyNames = ["name", "namespace"];
         public Dictionary<string, GraylogSecret> Secrets { get; } = new();
         public GraylogInitializationMarker? Marker { get; set; }
         public int MarkerWrites { get; private set; }
@@ -695,9 +697,9 @@ public class GraylogBootstrapTests
                     using var document = JsonDocument.Parse(json!);
                     var root = document.RootElement;
                     root.EnumerateObject().Select(property => property.Name).Should()
-                        .BeEquivalentTo(new[] { "apiVersion", "kind", "metadata", "immutable", "data" });
+                        .BeEquivalentTo(MarkerPropertyNames);
                     root.GetProperty("metadata").EnumerateObject().Select(property => property.Name).Should()
-                        .BeEquivalentTo(new[] { "name", "namespace" });
+                        .BeEquivalentTo(MarkerMetadataPropertyNames);
                     root.GetProperty("apiVersion").GetString().Should().Be("v1");
                     root.GetProperty("kind").GetString().Should().Be("ConfigMap");
                     root.GetProperty("immutable").GetBoolean().Should().BeTrue();

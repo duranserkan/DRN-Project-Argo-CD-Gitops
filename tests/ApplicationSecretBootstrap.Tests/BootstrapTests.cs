@@ -746,6 +746,8 @@ public class BootstrapTests
     private sealed class KubernetesApi : HttpMessageHandler
     {
         private const string SecretsPath = "/api/v1/namespaces/drn-project/secrets";
+        private static readonly string[] MarkerPropertyNames = ["apiVersion", "kind", "metadata", "immutable", "data"];
+        private static readonly string[] MarkerMetadataPropertyNames = ["name", "namespace"];
         public Dictionary<string, BootstrapSecret> Secrets { get; } = [];
         public BootstrapInitializationMarker? Marker { get; set; }
         public List<ApiRequest> Requests { get; } = [];
@@ -772,12 +774,12 @@ public class BootstrapTests
                 using var document = JsonDocument.Parse(json);
                 var root = document.RootElement;
                 root.EnumerateObject().Select(property => property.Name)
-                    .Should().BeEquivalentTo(new[] { "apiVersion", "kind", "metadata", "immutable", "data" });
+                    .Should().BeEquivalentTo(MarkerPropertyNames);
                 root.GetProperty("apiVersion").GetString().Should().Be("v1");
                 root.GetProperty("kind").GetString().Should().Be("ConfigMap");
                 root.GetProperty("immutable").GetBoolean().Should().BeTrue();
                 var metadata = root.GetProperty("metadata");
-                metadata.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo(new[] { "name", "namespace" });
+                metadata.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo(MarkerMetadataPropertyNames);
                 metadata.GetProperty("name").GetString().Should().Be(MarkerName);
                 metadata.GetProperty("namespace").GetString().Should().Be("drn-project");
                 root.GetProperty("data").EnumerateObject().Should().ContainSingle();

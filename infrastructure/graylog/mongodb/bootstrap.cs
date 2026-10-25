@@ -113,6 +113,12 @@ static class GraylogBootstrap
     internal static async Task RunAsync(HttpClient client, string namespaceName, Func<string> readToken,
         TimeProvider clock, Func<TimeSpan, Task> delay, bool externallyManagedCredentials = false)
     {
+        if (externallyManagedCredentials)
+        {
+            await ValidateExternalCredentialsAsync(client, namespaceName, readToken, clock, delay);
+            return;
+        }
+
         var path = $"/api/v1/namespaces/{namespaceName}/secrets";
         Task<GraylogSecret?> Get(string name) => RequestAsync(client, readToken, HttpMethod.Get, $"{path}/{name}");
         async Task<GraylogSecret> Ensure(string name, Dictionary<string, string?> values)
@@ -131,22 +137,6 @@ static class GraylogBootstrap
 
         var credentials = await Get(CredentialsSecret);
         var database = await Get(DatabasePasswordSecret);
-        if (externallyManagedCredentials)
-        {
-            var admin = await Get(AdminPasswordSecret);
-            if (credentials is null || database is null || admin is null)
-                throw new GraylogBootstrapException("Externally managed credentials require all stable Graylog bootstrap Secrets. Restore missing Secrets before syncing.");
-            Value(database, DatabasePasswordSecret, PasswordKey);
-            Value(admin, AdminPasswordSecret, PasswordKey);
-            foreach (var key in new[] { RootUsernameKey, RootPasswordHashKey, PasswordSecretKey, MongoDbUriKey })
-                Value(credentials, CredentialsSecret, key);
-            await ClaimInitializationAsync(client, readToken, namespaceName, requireExisting: true);
-            // This Secret belongs to the MongoDB CR. Let the operator recreate it with its new owner UID.
-            var uri = await WaitForConnectionUriAsync(Get, clock, delay);
-            if (uri != Value(credentials, CredentialsSecret, MongoDbUriKey))
-                throw new GraylogBootstrapException("The MongoDB operator connection differs from the saved Graylog credentials. Restore matching identities before syncing.");
-            return;
-        }
         if (credentials is null)
         {
             var admin = await Get(AdminPasswordSecret);
@@ -161,8 +151,7 @@ static class GraylogBootstrap
         // Validate survivors before enrolling an existing installation.
         if (database is not null) Value(database, DatabasePasswordSecret, PasswordKey);
         if (credentials is not null)
-            foreach (var key in new[] { RootUsernameKey, RootPasswordHashKey, PasswordSecretKey, MongoDbUriKey })
-                Value(credentials, CredentialsSecret, key);
+            ValidateCredentials(credentials);
         var claimedInitialization = await ClaimInitializationAsync(client, readToken, namespaceName);
         if (credentials is null && !claimedInitialization)
             throw new GraylogBootstrapException("Initialization was already claimed but no Graylog credentials survive. Restore the lost Secrets from backup. Refusing credential regeneration.");
@@ -182,15 +171,42 @@ static class GraylogBootstrap
                 [MongoDbUriKey] = uri
             });
         }
-        foreach (var key in new[] { RootUsernameKey, RootPasswordHashKey, PasswordSecretKey, MongoDbUriKey })
-            Value(credentials, CredentialsSecret, key);
+        ValidateCredentials(credentials);
+    }
+
+    private static async Task ValidateExternalCredentialsAsync(HttpClient client, string namespaceName,
+        Func<string> readToken, TimeProvider clock, Func<TimeSpan, Task> delay)
+    {
+        var path = $"/api/v1/namespaces/{namespaceName}/secrets";
+        Task<GraylogSecret?> Get(string name) => RequestAsync(client, readToken, HttpMethod.Get, $"{path}/{name}");
+        var credentials = await Get(CredentialsSecret);
+        var database = await Get(DatabasePasswordSecret);
+        var admin = await Get(AdminPasswordSecret);
+        if (credentials is null || database is null || admin is null)
+            throw new GraylogBootstrapException("Externally managed credentials require all stable Graylog bootstrap Secrets. Restore missing Secrets before syncing.");
+        Value(database, DatabasePasswordSecret, PasswordKey);
+        Value(admin, AdminPasswordSecret, PasswordKey);
+        ValidateCredentials(credentials);
+        await ClaimInitializationAsync(client, readToken, namespaceName, requireExisting: true);
+        // This Secret belongs to the MongoDB CR. Let the operator recreate it with its new owner UID.
+        var uri = await WaitForConnectionUriAsync(Get, clock, delay);
+        if (uri != Value(credentials, CredentialsSecret, MongoDbUriKey))
+            throw new GraylogBootstrapException("The MongoDB operator connection differs from the saved Graylog credentials. Restore matching identities before syncing.");
+    }
+
+    private static void ValidateCredentials(GraylogSecret credentials)
+    {
+        Value(credentials, CredentialsSecret, RootUsernameKey);
+        Value(credentials, CredentialsSecret, RootPasswordHashKey);
+        Value(credentials, CredentialsSecret, PasswordSecretKey);
+        Value(credentials, CredentialsSecret, MongoDbUriKey);
     }
 
     private static async Task<bool> ClaimInitializationAsync(HttpClient client, Func<string> readToken, string namespaceName,
         bool requireExisting = false)
     {
         var path = $"/api/v1/namespaces/{namespaceName}/configmaps";
-        if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is not null)
+        if (await RequestMarkerAsync(client, readToken, namespaceName, HttpMethod.Get, $"{path}/{InitializationMarker}") is not null)
             return false;
         if (requireExisting)
             throw new GraylogBootstrapException("Externally managed credentials require the existing initialization marker. Restore bootstrap state before syncing.");
@@ -202,42 +218,43 @@ static class GraylogBootstrap
             Data = new Dictionary<string, string?> { ["version"] = "1" }
         };
         // Persist the claim before credentials. Conflict or ambiguity never grants generation permission.
-        if (await RequestMarkerAsync(HttpMethod.Post, path, marker) is not null)
+        if (await RequestMarkerAsync(client, readToken, namespaceName, HttpMethod.Post, path, marker) is not null)
             return true;
-        if (await RequestMarkerAsync(HttpMethod.Get, $"{path}/{InitializationMarker}") is null)
+        if (await RequestMarkerAsync(client, readToken, namespaceName, HttpMethod.Get, $"{path}/{InitializationMarker}") is null)
             throw new GraylogBootstrapException("Initialization marker disappeared after a create conflict. Restore bootstrap state before retrying.");
         return false;
+    }
 
-        async Task<GraylogInitializationMarker?> RequestMarkerAsync(
-            HttpMethod method, string requestPath, GraylogInitializationMarker? body = null)
+    private static async Task<GraylogInitializationMarker?> RequestMarkerAsync(
+        HttpClient client, Func<string> readToken, string namespaceName,
+        HttpMethod method, string requestPath, GraylogInitializationMarker? body = null)
+    {
+        using var request = new HttpRequestMessage(method, requestPath);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", readToken());
+        if (body is not null)
+            request.Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
+        using var response = await client.SendAsync(request);
+        if (method == HttpMethod.Get && response.StatusCode == HttpStatusCode.NotFound ||
+            method == HttpMethod.Post && response.StatusCode == HttpStatusCode.Conflict)
+            return null;
+        var expectedStatus = method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.OK;
+        if (response.StatusCode != expectedStatus)
+            throw new GraylogBootstrapException($"Initialization marker API {method} failed with HTTP {(int)response.StatusCode}.");
+        GraylogInitializationMarker? stored;
+        try
         {
-            using var request = new HttpRequestMessage(method, requestPath);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", readToken());
-            if (body is not null)
-                request.Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
-            using var response = await client.SendAsync(request);
-            if (method == HttpMethod.Get && response.StatusCode == HttpStatusCode.NotFound ||
-                method == HttpMethod.Post && response.StatusCode == HttpStatusCode.Conflict)
-                return null;
-            var expectedStatus = method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.OK;
-            if (response.StatusCode != expectedStatus)
-                throw new GraylogBootstrapException($"Initialization marker API {method} failed with HTTP {(int)response.StatusCode}.");
-            GraylogInitializationMarker? stored;
-            try
-            {
-                stored = JsonSerializer.Deserialize<GraylogInitializationMarker>(await response.Content.ReadAsStringAsync(), JsonOptions);
-            }
-            catch (JsonException)
-            {
-                throw new GraylogBootstrapException("Initialization marker API returned invalid JSON.");
-            }
-            if (stored?.ApiVersion != "v1" || stored.Kind != "ConfigMap" ||
-                stored.Metadata?.Name != InitializationMarker || stored.Metadata.Namespace != namespaceName ||
-                stored.Immutable != true || stored.Data is not { Count: 1 } ||
-                !stored.Data.TryGetValue("version", out var version) || version != "1")
-                throw new GraylogBootstrapException("Initialization marker is invalid. Restore bootstrap state before retrying.");
-            return stored;
+            stored = JsonSerializer.Deserialize<GraylogInitializationMarker>(await response.Content.ReadAsStringAsync(), JsonOptions);
         }
+        catch (JsonException)
+        {
+            throw new GraylogBootstrapException("Initialization marker API returned invalid JSON.");
+        }
+        if (stored?.ApiVersion != "v1" || stored.Kind != "ConfigMap" ||
+            stored.Metadata?.Name != InitializationMarker || stored.Metadata.Namespace != namespaceName ||
+            stored.Immutable != true || stored.Data is not { Count: 1 } ||
+            !stored.Data.TryGetValue("version", out var version) || version != "1")
+            throw new GraylogBootstrapException("Initialization marker is invalid. Restore bootstrap state before retrying.");
+        return stored;
     }
 
     /// <summary>Waits for the operator URI, retrying transient reads within one monotonic deadline.</summary>
