@@ -5,7 +5,7 @@
       "name": "argocd",
       "provenance": "docs/platform-operations.md#dependency-review",
       "pins": {
-        "chart": "10.11.1",
+        "chart": "10.11.6",
         "image": "v3.5.6@sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335",
         "helm": "4.2.1",
         "helmSha256": "479dca836e5b45e8bd222400c5591b0e3a647378f03ff96597180db97c17fdae"
@@ -24,7 +24,7 @@
     {
       "name": "bootstrap-sdk",
       "provenance": "docs/platform-operations.md#credential-bootstrap-runtime",
-      "pins": { "image": "mcr.microsoft.com/dotnet/sdk:10.0.402-noble@sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2" },
+      "pins": { "image": "mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:de4fe90a98845d75910b9769662465c84de1a934665c431279d1382b2bddc02b" },
       "manifests": [
         { "path": "infrastructure/application-secrets/staging/credential-bootstrap.yaml", "lines": ["image: {image}", "image: {image}"], "selectors": ["- name: runtime-directory\\r?\\n\\s+image: ([^\\s]+)", "- name: bootstrap\\r?\\n\\s+image: ([^\\s]+)"] },
         { "path": "infrastructure/graylog/mongodb/credential-bootstrap.yaml", "lines": ["image: {image}", "image: {image}"], "selectors": ["- name: runtime-directory\\r?\\n\\s+image: ([^\\s]+)", "- name: bootstrap\\r?\\n\\s+image: ([^\\s]+)"] }
@@ -34,9 +34,9 @@
       "name": "applications",
       "provenance": "docs/platform-operations.md#dependency-review",
       "pins": {
-        "version": "0.10.1-preview005",
-        "sampleDigest": "9e5a30802f8cb1c2a516d2acb1d6293ee74538da17587c7508bb0f85f12cca56",
-        "nexusDigest": "d8f2323d4f37b21bd8f5bf12c975475e36e00d4d5c840dbefa05fa64c65ee265"
+        "version": "0.10.1-preview006",
+        "sampleDigest": "474dda288a4a8b9471c6b342f2a1fde82ff100cdac6fed9c207d9de133dff965",
+        "nexusDigest": "5123568218111c9f9ce73c3346eb6148e8867a369bbb43334ef2af5efde7e866"
       },
       "manifests": [
         { "path": "services/sample/base/deployment.yaml", "lines": ["image: duranserkan/drn-project-sample:{version}@sha256:{sampleDigest}"] },
@@ -80,7 +80,7 @@
       "pins": {
         "chart": "0.29.1",
         "operator": "1.30.1@sha256:923c267ec29636db3bee20f993d0ec4973fa22998e1adad37da79e4d32b5bc07",
-        "server": "ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:d72ace96f5803b12c341bb5dac48532e8c1f92f69e8a717a59d779bfc038dea9"
+        "server": "ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:39add80f5b1e573e2f6b641c66fd1a2f8dede67ca0330e870285bc1078551390"
       },
       "manifests": [
         { "path": "deployment/workloads/templates/operators/cloudnative-pg.yaml", "lines": ["targetRevision: {chart}", "tag: {operator}"] },
@@ -106,9 +106,9 @@
       "name": "trust-manager",
       "provenance": "docs/platform-operations.md#dependency-review",
       "pins": {
-        "chart": "v0.25.0",
-        "image": "sha256:0521921c2a46d14d0417336b20bcde69215ef3164f2977cc939d53c6e5224a17",
-        "trustPackage": "sha256:3093d4f6634fbd9eaf6a70a06d809132850d7cae30da82396d3b1f884c1135e7"
+        "chart": "v0.26.0",
+        "image": "sha256:783afe31d39f122a811b96ac3aedab9f358488088df21622ae5b057b4a38b5c2",
+        "trustPackage": "sha256:477cc69ef6a026b90a6d67d4ac7114735c5f66edf1cc97e68b9da599adf231af"
       },
       "manifests": [
         { "path": "deployment/templates/trust-manager/trust-manager.yaml", "lines": ["targetRevision: {chart}", "digest: {image}", "digest: {trustPackage}"], "selectors": [null, "        image:\\r?\\n\\s+digest: ([^\\s]+)", "defaultPackageImage:\\r?\\n\\s+digest: ([^\\s]+)"] }
@@ -125,7 +125,7 @@
     {
       "name": "sealed-secrets",
       "provenance": "docs/platform-operations.md#dependency-review",
-      "pins": { "chart": "2.20.0", "image": "0.40.0@sha256:b1ff382e9300dc9e74991f3177b18cafc06ce43b5c21349c86adbdd1d1c177d3" },
+      "pins": { "chart": "2.22.0", "image": "0.41.2@sha256:e63ec6ec2b12a471bf781081bd370a93ca7b7b3999e5b9243341379aeb801d0b" },
       "manifests": [
         { "path": "deployment/templates/parallel-branches/sealed-secrets.yaml", "lines": ["targetRevision: {chart}", "tag: {image}"] }
       ]
@@ -134,8 +134,8 @@
       "name": "grafana",
       "provenance": "docs/platform-operations.md#dependency-review",
       "pins": {
-        "chart": "14.0.1", "version": "13.2.4-distroless",
-        "digest": "ae3d3add290adbe6a88412229f5d76fd7bb82743050881698642d3d62f277e35",
+        "chart": "14.2.0", "version": "13.3.0-distroless",
+        "digest": "540b8afb775bf34aefce417e4329039daa5d44b6f2fbda6881397b1b247ca7df",
         "curl": "8.23.0", "curlDigest": "11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"
       },
       "manifests": [

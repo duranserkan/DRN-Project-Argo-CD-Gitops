@@ -17,7 +17,7 @@ Editing the inventory alone does not change deployment behavior. The updater mus
 
 ## Dependency review
 
-Last reviewed: 2026-10-25.
+Last reviewed: 2026-10-27.
 
 The test baseline is Kubernetes `1.36.4`. Pinned Linkerd charts require 1.31 or newer. Component minimums do not establish whole-stack compatibility. Validate changed combinations in staging.
 
@@ -27,34 +27,47 @@ Keep PostgreSQL on major 18 and MongoDB on 8.2 unless planning a database upgrad
 |---|---|
 | Linkerd CRDs, control plane and Viz | Charts 2026.10.1, images edge-26.10.1, proxy v2.370.0 |
 | Traefik | Chart 42.1.3, image v3.7.16 |
-| Grafana | Chart 14.0.1, image 13.2.4-distroless and curl 8.23.0 |
-| Argo CD bootstrap | Chart 10.11.1, Argo CD v3.5.6, chart-selected Dex and Redis dependencies |
+| Grafana | Chart 14.2.0, image 13.3.0-distroless and curl 8.23.0 |
+| Argo CD bootstrap | Chart 10.11.6, Argo CD v3.5.6, chart-selected Dex and Redis dependencies |
 | Gateway API | Retain v1.5.1 standard CRDs recommended by the pinned Linkerd release |
-| trust-manager | Chart and image v0.25.0, chart-selected Trixie trust package pinned by digest |
+| trust-manager | Chart and image v0.26.0, Trixie trust package 20250419-deb13u1.1 pinned by digest |
 | Graylog and Data Node | Chart 2.1.0, images 7.2.1 |
-| Sample and Nexus | Updated 2026-10-25 to 0.10.1-preview005, multi-platform image digests verified against Docker Hub manifests for linux/amd64 and linux/arm64 |
-| PostgreSQL | 18.6 standard-trixie, refreshed registry digest on 2026-10-25 |
-| MongoDB credential bootstrap | .NET SDK 10.0.402-noble (Ubuntu 24.04), refreshed digest on 2026-10-25 |
-| Staging application Secret bootstrap | .NET SDK 10.0.402-noble (Ubuntu 24.04), refreshed digest on 2026-10-25 |
+| Sample and Nexus | Updated 2026-10-27 to 0.10.1-preview006, multi-platform image digests verified against Docker Hub manifests for linux/amd64 and linux/arm64 |
+| PostgreSQL | 18.6 standard-trixie, refreshed registry digest on 2026-10-27 |
+| MongoDB credential bootstrap | .NET SDK 10.0.403-noble (Ubuntu 24.04), verified digest on 2026-10-27 |
+| Staging application Secret bootstrap | .NET SDK 10.0.403-noble (Ubuntu 24.04), verified digest on 2026-10-27 |
 | cert-manager | v1.21.3, all five component images pinned by digest |
 | CloudNativePG operator | Chart 0.29.1, image 1.30.1 |
 | MongoDB operator and server | Chart 1.14.0 with agent 109.0.1.9310-1, server 8.2.12-ubi8 |
-| Sealed Secrets | Chart 2.20.0, controller 0.40.0 pinned by digest. Newer release images are not published. |
+| Sealed Secrets | Chart 2.22.0, published controller 0.41.2 pinned by digest |
 | Viz Prometheus and extension-init | Chart-selected 2.55.1 and 0.1.12. Prometheus 3 requires a separate compatibility review. |
 
-Changed chart archives were checked against publisher index checksums and image pins against registry manifests. Argo CD chart archive SHA-256 is `dbb92a8c7855d4c564b87ab70e70bc36f5b17fd2bd30fa041a31e80dbea99c38`. Both installation values files pin its image to `sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335`. Chart-selected Dex and Redis dependencies remain aligned with the chart. Runtime compatibility remains unverified.
+Changed chart archives were checked against publisher index checksums and image pins against registry manifests. Argo CD chart archive SHA-256 is `d8f096d87513b41ff754053a7f9604c943bf29c15436a79226fd51595ea67d05`. Both installation values files retain Argo CD v3.5.6 at `sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335`, so its health-gate semantics and bundled Helm 4.2.1 remain unchanged. Chart 10.11.6 updates Dex to v2.46.1. Chart-selected Redis dependencies remain aligned with the chart. Runtime compatibility remains unverified.
 
-The [Traefik 42.1.3 release](https://github.com/traefik/traefik-helm-chart/releases/tag/v42.1.3) supports the selected v3.7.16 image. Its Kubernetes 1.30 minimum remains satisfied. Grafana 14.0.1 and 13.2.4-distroless remain current. The curl 8.23.0 helper digest was refreshed. MongoDB's upgrade and readiness helpers retain their chart-selected versions and verified digests. Bootstrap Utils and test packages now use 0.10.1-preview005. CI action commits, package hashes and SonarScanner 12.0.0 compatibility are recorded in the [test documentation](../tests/ApplicationSecretBootstrap.Tests/README.md).
+The [Traefik 42.1.3 release](https://github.com/traefik/traefik-helm-chart/releases/tag/v42.1.3) supports the selected v3.7.16 image. Its Kubernetes 1.30 minimum remains satisfied. Grafana advances to chart 14.2.0 and 13.3.0-distroless. Its chart archive SHA-256 is `fd442e214d854ff514d64fb75f7f32f179b9e9a6a53bc3323aca7c5748ff188f`. The curl 8.23.0 helper remains current. MongoDB's upgrade and readiness helpers retain their chart-selected versions and verified digests. Bootstrap Utils and test packages now use 0.10.1-preview006. CI action commits, package hashes and SonarScanner 12.0.0 compatibility are recorded in the [test documentation](../tests/ApplicationSecretBootstrap.Tests/README.md).
 
 [cert-manager v1.21.3](https://github.com/cert-manager/cert-manager/releases/tag/v1.21.3) fixes certificate renewal and private-key ownership checks and updates its trust store and Go runtime. The chart archive SHA-256 is `9ec67938b2981d8b333af61b3fcf53e26b4f6f5deb7ccda3de4ea116bb373a17`. Controller, webhook, cainjector, ACME solver and startup API check digests were verified against Quay.
 
-Sealed Secrets [v0.41.1](https://github.com/bitnami/sealed-secrets/releases/tag/v0.41.1) is released, but the documented `docker.io/bitnami/sealed-secrets-controller:0.41.1` image returned not found on 2026-10-25. Docker Hub lists 0.40.0 as the newest available image, and the Helm index still selects chart 2.20.0. Retain that available controller with its verified digest. Do not promote an unpublished image. Linkerd's Prometheus and extension-init remain aligned with its current chart, rather than independently crossing component major versions.
+Sealed Secrets [v0.41.2](https://github.com/bitnami/sealed-secrets/releases/tag/v0.41.2) now has a published Docker Hub image. Chart 2.22.0 selects that version, resolving the earlier missing-image exception. Its chart archive SHA-256 is `1ed23bb224652aa6c8477979d4bddccd207205b27b12b120f62f360890c80606`. Retained-profile key rotation remains disabled. Linkerd's Prometheus and extension-init remain aligned with its current chart, rather than independently crossing component major versions.
 
-All 18 Grafana dashboard revisions were checked. Retain Deployment dashboard 15475 at revision 6 from the pinned Linkerd suite. Revision 7 changes datasource strings to UID objects and a datasource variable, so it needs a separate provisioning change before use with the current string substitution. The other 17 revisions remain current. Staging already selects the latest published GitOps preview tag. Production remains disabled with its final-tag placeholder because no final release has been published.
+[trust-manager v0.26.0](https://github.com/cert-manager/trust-manager/releases/tag/v0.26.0) removes compromised CA roots from its default trust bundle. Update both controller and trust-package digests together. The chart selects `trust-pkg-debian-trixie:20250419-deb13u1.1`. Its chart archive SHA-256 is `9230abdfe42580c7dd2996432d1bf6a2521b659a7f38e26c3b9a91e8033ea5b6`. Existing Bundle configuration is preserved. Verify dependent TLS connections in staging.
+
+All 18 Grafana dashboard revisions were checked on 2026-10-25 and were not rechecked in this dependency refresh. Retain Deployment dashboard 15475 at revision 6 from the pinned Linkerd suite. Revision 7 changes datasource strings to UID objects and a datasource variable, so it needs a separate provisioning change before use with the current string substitution. Staging selects `2026.10.1-preview005`. Publish that immutable tag after its commit passes CI and wait for its Trivy scan before applying the root. Production remains disabled with its final-tag placeholder.
 
 Gateway API v1.6.3 is published and its standard bundle checksum was verified. Retain v1.5.1 because the pinned Linkerd release still recommends it. Linkerd's API-version checks alone do not establish tested support for the newer bundle. Coordinate this update with Linkerd compatibility verification.
 
-No chart render, restore, build, test or deployment was run during this dependency update. Verify the changed combination in staging before promotion. Separate release notes are not required for this configuration repository. Operational changes and migration constraints are recorded here.
+Local verification on 2026-10-27 used the working tree based on `9432e39`, .NET SDK 10.0.403 and checksum-verified Helm 4.2.1 for Darwin arm64. The Helm archive SHA-256 matched the [official checksum](https://get.helm.sh/helm-v4.2.1-darwin-arm64.tar.gz.sha256sum): `896472d2ec0740c60f64a9df0fc30d478beee38a1a2a6ed91aa6e6ee177c1575`.
+
+| Check | Result |
+|---|---|
+| `dotnet run --project tools/DependencyPins -- update` | Updated 10 mapped files |
+| Release updater `check` mode | All pins current |
+| Audited restores for all three test projects | Passed with CI audit settings, including transitive dependencies |
+| Release builds and runs of DependencyPins.Tests, ChartValidation.Tests and ApplicationSecretBootstrap.Tests | 34, 192 and 297 tests passed, respectively. No failures or skips |
+| Release builds of both deployed `bootstrap.cs` entry points | Passed with the CI file-based build settings |
+| `git diff --check` | Passed |
+
+Builds reported CS8602 in unchanged `PinUpdater.cs` and two xUnit2031 warnings in unchanged `ChartTests.cs`. Local chart tests cover repository charts, not referenced upstream chart rendering or Kustomize overlays. No cluster deployment, live TLS/storage acceptance or local security scan was performed. Verify the changed combination in staging before promotion. Separate release notes are not required for this configuration repository. Operational changes and migration constraints are recorded here.
 
 ## Resource organization
 
@@ -110,7 +123,7 @@ The gate normalizes omitted optional `ignoreDifferences` fields. Real rule chang
 Gate changes belong to the Argo CD installation. In the intended context, preserve installation-specific values and run:
 
 ```sh
-helm upgrade argocd argo/argo-cd --version 10.11.1 \
+helm upgrade argocd argo/argo-cd --version 10.11.6 \
   -n argocd -f infrastructure/argocd/custom-values.yaml \
   --wait --timeout 10m
 argocd app get drn-project --hard-refresh
@@ -133,7 +146,7 @@ The [application](../infrastructure/application-secrets/staging/credential-boots
 
 | Setting | Both Jobs |
 |---|---|
-| Image | Official .NET SDK `10.0.402-noble`, same digest for init and bootstrap containers |
+| Image | Official .NET SDK `10.0.403-noble`, same digest for init and bootstrap containers |
 | Identity | Built-in `app` user, UID/GID and `fsGroup` `1654` |
 | Filesystems | Read-only source and root, bounded `512Mi` scratch volume at `/tmp` |
 | Bootstrap limits | One CPU, `512Mi` memory |
@@ -142,7 +155,7 @@ The [application](../infrastructure/application-secrets/staging/credential-boots
 | Audit | Runtime NuGet audit disabled, [CI dependency audit](../tests/ApplicationSecretBootstrap.Tests/README.md) enabled |
 | API access | Mounted CA and hostname verification, per-request token reads, sanitized errors |
 
-The MCR index digest `sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2` was verified on 2026-10-25. It includes Linux amd64, arm/v7 and arm64. This refresh retains the Noble distribution and SDK version.
+The MCR index digest `sha256:de4fe90a98845d75910b9769662465c84de1a934665c431279d1382b2bddc02b` was verified on 2026-10-27. It includes Linux amd64, arm/v7 and arm64. This refresh retains the Noble distribution and advances the SDK to 10.0.403 with .NET 10.0.14.
 
 The init container creates both directories below with mode `0700` before SDK startup. The image's home is read-only. `DOTNET_CLI_HOME` does not configure either location.
 
@@ -292,7 +305,7 @@ The profile is for new claims or a reviewed restoration. Kubernetes does not per
 
 ## PostgreSQL
 
-The image is `ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:d72ace96f5803b12c341bb5dac48532e8c1f92f69e8a717a59d779bfc038dea9`. The registry manifest was verified on 2026-10-25. This refresh preserves PostgreSQL major 18 and the Trixie distribution. Runtime compatibility remains unverified.
+The image is `ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie@sha256:39add80f5b1e573e2f6b641c66fd1a2f8dede67ca0330e870285bc1078551390`. The registry manifest was verified on 2026-10-27. This refresh preserves PostgreSQL major 18 and the Trixie distribution. Runtime compatibility remains unverified.
 
 Fresh clusters initialize PostgreSQL 18.6 on Debian Trixie. The former PostgreSQL 16 pin used Bookworm. Do not directly sync this pin to that existing cluster: CloudNativePG 1.30 in-place major upgrades require the same OS distribution. Plan and rehearse a migration to a new cluster, such as logical dump/restore, with a verified backup, application and extension compatibility checks, locale/collation validation and scheduled downtime. Take a new backup after success. Reverting an image tag after a successful major upgrade is not a database downgrade. See [CloudNativePG 1.30 major upgrades](https://cloudnative-pg.io/docs/1.30/postgres_upgrades/). No cluster upgrade was executed as part of this pin change.
 

@@ -30,7 +30,7 @@ spec:
       serviceAccountName: sample
       containers:
         - name: sample
-          image: duranserkan/drn-project-sample:0.10.1-preview005@sha256:9e5a30802f8cb1c2a516d2acb1d6293ee74538da17587c7508bb0f85f12cca56
+          image: duranserkan/drn-project-sample:0.10.1-preview006@sha256:474dda288a4a8b9471c6b342f2a1fde82ff100cdac6fed9c207d9de133dff965
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true

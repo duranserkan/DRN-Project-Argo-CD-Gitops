@@ -1,4 +1,4 @@
-#:package DRN.Framework.Utils@0.10.1-preview005
+#:package DRN.Framework.Utils@0.10.1-preview006
 #:property PublishAot=false
 
 using System;

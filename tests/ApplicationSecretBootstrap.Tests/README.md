@@ -4,7 +4,7 @@ Open [GitOps.slnx](../../GitOps.slnx) in your IDE to manage source projects unde
 
 This project tests the real [application bootstrap](../../infrastructure/application-secrets/staging/bootstrap.cs) and [Graylog bootstrap](../../infrastructure/graylog/mongodb/bootstrap.cs). [Bootstrap.Sources](../Bootstrap.Sources/Bootstrap.Sources.csproj) compiles those files as a non-test library and exposes its internals only to this test assembly. This separates bootstrap code from tests for Sonar and coverage. Tests use DRN.Framework.Testing, xUnit v3 and AwesomeAssertions. Row tests use `DataInlineUnit` and `DataMemberUnit`. Fake HTTP handlers model Kubernetes responses. Tests never contact a cluster or read service account credentials.
 
-Each bootstrap declares its own typed Secret and metadata models in its deployed file. Tests use those same models for valid fixtures, captured requests and fake API storage. Secret data remains a dictionary because key names vary. Malformed-response tests retain raw JSON to exercise incompatible field types and sanitized errors. Each bootstrap clones `JsonConventions.DefaultOptions` with `WhenWritingNull`; tests reuse those options. Camel-case property naming preserves Kubernetes field names without model attributes. Both Jobs retain single-file deployment and reference DRN.Framework.Utils 0.10.1-preview005, which supplies SharedKernel transitively.
+Each bootstrap declares its own typed Secret and metadata models in its deployed file. Tests use those same models for valid fixtures, captured requests and fake API storage. Secret data remains a dictionary because key names vary. Malformed-response tests retain raw JSON to exercise incompatible field types and sanitized errors. Each bootstrap clones `JsonConventions.DefaultOptions` with `WhenWritingNull`; tests reuse those options. Camel-case property naming preserves Kubernetes field names without model attributes. Both Jobs retain single-file deployment and reference DRN.Framework.Utils 0.10.1-preview006, which supplies SharedKernel transitively.
 
 Outgoing Secret JSON is also checked against a separate typed `SecretWireContract`. Its required properties use explicit Kubernetes JSON names and independent, case-sensitive serializer options. Unmapped fields are rejected at both the Secret and metadata levels, including `data`, `ownerReferences` and `annotations`, even when null. Initialization marker JSON is checked independently with `JsonDocument` for exact Kubernetes field names, immutable version-only data and metadata without owners or tracking annotations. Production models do not need serialization attributes.
 
@@ -54,7 +54,7 @@ Bootstrap validation builds both standalone sources and the bootstrap test proje
 
 CodeQL analyzes GitHub Actions and C# in separate matrix jobs. Its manual C# build compiles both standalone bootstrap files after scanner initialization, then builds `GitOps.slnx`, including chart tests and dependency tooling. This includes production Main methods that Bootstrap.Sources excludes through BOOTSTRAP_TESTS. CodeQL does not run tests or require Helm. Code-scanning rules must enforce alert-based merge protection because a successful analysis does not itself reject alerts.
 
-Coverage uses `Microsoft.Testing.Extensions.CodeCoverage` with `Microsoft.Testing.Extensions.GitHubActionsReport` pinned directly to `2.5.1`. [Coverage settings](../bootstrap-coverage.config) include only `Bootstrap.Sources.dll`, excluding test methods, fake handlers and dependencies. Unexercised TLS and service-account setup remains visible as uncovered code. The standalone entry points excluded at compilation are outside this coverage denominator.
+Coverage uses `Microsoft.Testing.Extensions.CodeCoverage` with `Microsoft.Testing.Extensions.GitHubActionsReport` pinned directly to `2.5.2`. [Coverage settings](../bootstrap-coverage.config) include only `Bootstrap.Sources.dll`, excluding test methods, fake handlers and dependencies. Unexercised TLS and service-account setup remains visible as uncovered code. The standalone entry points excluded at compilation are outside this coverage denominator.
 
 After restoring and building Release, run coverage from the repository root:
 
@@ -75,24 +75,24 @@ Configure `SONAR_TOKEN` and enable CI-based analysis for `master` in the existin
 
 The test and scanner package source is `tests/NuGet.Config`. Each deployed bootstrap's mounted NuGet configuration also enables nuget.org. Runtime restore now needs network access and uses the existing bounded `/tmp` storage. Existing Job commands retain disabled runtime NuGet audit. CI fails on reported test-dependency vulnerabilities or audit retrieval errors, including Utils and its transitive dependencies. Unlike DRN-Project, this repository does not currently use locked restore. Transitive dependencies remain subject to NuGet resolution. Startup timing and resource sufficiency require staging verification.
 
-Package provenance: DRN packages checked on 2026-10-25. SonarScanner retains its 2026-10-17 hash verification. Unchanged xUnit, reporter and coverage hashes retain their 2026-10-12 verification. All six package version indexes were rechecked on 2026-10-25.
+Package provenance: DRN packages and GitHubActionsReport checked on 2026-10-27. SonarScanner retains its 2026-10-17 hash verification. Unchanged xUnit and coverage hashes retain their 2026-10-12 verification. All six package version indexes were rechecked on 2026-10-27.
 
 | Package | Version | Canonical NuGet SHA-512 |
 |---|---|---|
-| DRN.Framework.Testing | 0.10.1-preview005 | `izz6dXDeen5yTKsWniw6BA6ckme12GUiPOlxytvayhf702gLcWm9IcgOyXAkkbbSZiPxiH8AW4zxrMBO8cDRGQ==` |
-| DRN.Framework.Utils | 0.10.1-preview005 | `bDjW46wVY7ISZcFCsJGGQJx7VVMv3VaL70LYUPi3drSlU3M4wWFou1FxzmFnpqMx4cpBUpIVU2ppx37DgKqQsg==` |
+| DRN.Framework.Testing | 0.10.1-preview006 | `ndmKR3VW1u3IZCXWCEvcMEVEGCcwT96nqSxnbHgh0O7568K0POKsQIF1HGqWJbDZEUy+kRSJh0R0eLf/GmW3fA==` |
+| DRN.Framework.Utils | 0.10.1-preview006 | `OChGJN7lHo4Ih+w5S+eBVQYA2oqjqfTQenzOVj6orq4dO/3rVJDs+vu0Lftk/s3fMMPfZzhza5ijyT1RcE3YCQ==` |
 | xunit.v3.mtp-v2 | 4.0.2 | `OesFiVVe38QnAO3W7WhSvq1l7rNFS/Kf9ioQXmQ4zkV6fRAsI+RhWz1apRw6s70K2BLk4lq6ql10FKNeAkOyUQ==` |
-| Microsoft.Testing.Extensions.GitHubActionsReport | 2.5.1 | `9zM6qx1T0FWBConQwtgRJ3hsDQRH17g3nTW3rpg8ba+sBTkG2moeYwYbYxRfB44lSbyYzoEOxyYVYygwCztdew==` |
+| Microsoft.Testing.Extensions.GitHubActionsReport | 2.5.2 | `PSuFGDpLDoKZwoPhDlVREchP+xFwKDeRXTh66pijwPuKTvptUxZqTzWJEwgR6pBaem1ca6Wn6hkm/+L3RkKjhw==` |
 | Microsoft.Testing.Extensions.CodeCoverage | 18.12.0 | `bMR8B/80Nx8AyaOyuOTuSjaZtyuTCFeB3Q0Vej8eFBI3PQWOyk5lV8dEdm9TwQLNgxMQUxuF2uauwofS5LsHww==` |
 | dotnet-sonarscanner | 12.0.0 | `3de/QlFpKg+CbPeWQmVOTnMh/7A0KIw44zrwIFVyPBtRevdNAi+CODye25mzdkxK1upJ0Qrzypua855bwPFwgg==` |
 
-Downloaded [Testing](https://api.nuget.org/v3/catalog0/data/2026.10.25.14.59.30/drn.framework.testing.0.10.1-preview005.json) and [Utils](https://api.nuget.org/v3/catalog0/data/2026.10.25.15.00.10/drn.framework.utils.0.10.1-preview005.json) packages matched their canonical NuGet SHA-512 hashes. Both target .NET 10 and identify source commit `2a898d0b41747d156d4215c33f3699131ecac5bd`. Testing still depends on xUnit 4.0.2 and GitHubActionsReport 2.5.1. The unchanged [SonarScanner](https://api.nuget.org/v3/catalog0/data/2026.10.15.15.17.03/dotnet-sonarscanner.12.0.0.json) package retains its earlier canonical hash verification.
+Downloaded [Testing](https://api.nuget.org/v3/catalog0/data/2026.10.27.17.35.15/drn.framework.testing.0.10.1-preview006.json) and [Utils](https://api.nuget.org/v3/catalog0/data/2026.10.27.17.36.38/drn.framework.utils.0.10.1-preview006.json) packages matched their canonical NuGet SHA-512 hashes. Both target .NET 10 and identify source commit `3e26ff585252549db3e5256cdfc37081f6629432`. Their Microsoft dependencies advance to .NET 10.0.14. Testing retains xUnit 4.0.2 and a minimum GitHubActionsReport version of 2.5.1. Direct references select 2.5.2, whose downloaded [package](https://api.nuget.org/v3/catalog0/data/2026.10.27.17.14.01/microsoft.testing.extensions.githubactionsreport.2.5.2.json) also matched its canonical hash and requires Microsoft.Testing.Platform 2.5.2 or later within major 2. The unchanged [SonarScanner](https://api.nuget.org/v3/catalog0/data/2026.10.15.15.17.03/dotnet-sonarscanner.12.0.0.json) package retains its earlier canonical hash verification.
 
-The earlier reporter and coverage collector downloads matched their canonical NuGet hashes. The xUnit hash was checked in NuGet catalog metadata. All three versions remain current in the 2026-10-25 registry check.
+The earlier coverage collector download matched its canonical NuGet hash. The xUnit hash was checked in NuGet catalog metadata. Both versions remain current in the 2026-10-27 registry check.
 
 [SonarScanner 12.0](https://github.com/SonarSource/sonar-scanner-msbuild/releases/tag/12.0.0.12728) removes support for older SonarQube Server versions and TFS XAML builds. This repository uses SonarCloud with the standard .NET begin/build/end workflow. CI must verify the updated scanner and packages.
 
-CI dependency provenance checked on 2026-10-25:
+CI dependency provenance checked on 2026-10-25. Official release metadata was rechecked on 2026-10-27 and the following Action versions remain current:
 
 | Action | Release | Verified commit |
 |---|---|---|
@@ -105,4 +105,4 @@ CI dependency provenance checked on 2026-10-25:
 
 Upstream Git tag queries verified all six commits. CodeQL and Trivy action annotated tags were peeled to their commits. CodeQL's pinned defaults select CodeQL 2.27.3 through `tools: linked`. The setup-dotnet v6 release retains the existing inputs and Node 24 runtime. CI uses GitHub-hosted Ubuntu 24.04 runners.
 
-Trivy is pinned to v0.76.1 in both PR and branch scans. Its [official release metadata](https://github.com/aquasecurity/trivy/releases/tag/v0.76.1) records Linux x64 archive SHA-256 `c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0`. This patch updates Go and CA trust for the eMudhra incident. The unchanged Trivy action v0.36.0 accepts this explicit version. All six actions use the latest published releases at this review. Local builds and scans were not run.
+Trivy is pinned to v0.76.1 in both PR and branch scans. Its [official release metadata](https://github.com/aquasecurity/trivy/releases/tag/v0.76.1) records Linux x64 archive SHA-256 `c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0`. This patch updates Go and CA trust for the eMudhra incident. The unchanged Trivy action v0.36.0 accepts this explicit version. All six actions use the latest published releases at this review. Local security scans were not run. See the [dependency review](../../docs/platform-operations.md#dependency-review) for local build and test results.

@@ -160,14 +160,14 @@ See the [local access guide](docs/local-access.md) for Graylog, Argo CD, Linkerd
 |---|---|
 | Argo CD CLI | [v3.5.6](https://github.com/argoproj/argo-cd/releases/tag/v3.5.6) |
 | Linkerd CLI | [edge-26.10.1](https://github.com/linkerd/linkerd2/releases/tag/edge-26.10.1) |
-| Argo CD Helm chart | `10.11.1` |
+| Argo CD Helm chart | `10.11.6` |
 
 Install Argo CD in the intended cluster:
 
 ```sh
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
-helm install argocd argo/argo-cd --version 10.11.1 \
+helm install argocd argo/argo-cd --version 10.11.6 \
   -f infrastructure/argocd/custom-values.yaml \
   --create-namespace -n argocd --wait --timeout 10m
 ```
